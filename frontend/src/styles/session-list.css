@@ -1,0 +1,90 @@
+/* ═══════════════════════════════════════════
+   SESSIONS LIST PAGE
+   ═══════════════════════════════════════════ */
+
+/* Controls bar */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.controls .sort-label {
+  font-size: 11px;
+  color: var(--text3);
+  margin-left: auto;
+  font-weight: 500;
+}
+
+/* Project name + summary two-line cell */
+.proj-name {
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.proj-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.proj-summary {
+  font-size: 11px;
+  color: var(--text2);
+  margin-top: 3px;
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Compaction count styling */
+.cc {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cc.warn { color: var(--orange); }
+.cc.ok { color: var(--text3); }
+
+/* Agent count styling */
+.ag {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--teal);
+}
+
+/* Sortable column headers */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+th.sortable:hover {
+  color: var(--text2);
+}
+
+th.sortable::after {
+  content: "";
+  display: inline-block;
+  width: 0.6em;
+  margin-left: 4px;
+}
+
+th.sort-asc::after {
+  content: "▲";
+  font-size: 8px;
+}
+
+th.sort-desc::after {
+  content: "▼";
+  font-size: 8px;
+}

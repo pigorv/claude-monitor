@@ -1,0 +1,104 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
+import { mkdirSync, rmSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+
+const CLI = join(import.meta.dirname, '..', '..', 'dist', 'index.js');
+
+let testHome: string;
+
+function run(...args: string[]): { stdout: string; stderr: string; exitCode: number } {
+  try {
+    const stdout = execFileSync('node', [CLI, ...args], {
+      encoding: 'utf-8',
+      env: { ...process.env, HOME: testHome },
+      timeout: 5000,
+    });
+    return { stdout, stderr: '', exitCode: 0 };
+  } catch (err: unknown) {
+    const e = err as { stdout?: string; stderr?: string; status?: number };
+    return { stdout: e.stdout ?? '', stderr: e.stderr ?? '', exitCode: e.status ?? 1 };
+  }
+}
+
+describe('start command', () => {
+  beforeEach(() => {
+    testHome = mkdtempSync(join(tmpdir(), 'claude-monitor-cli-test-'));
+    mkdirSync(join(testHome, '.claude-monitor'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(testHome, { recursive: true, force: true });
+  });
+
+  it('shows usage with --help', () => {
+    const { stdout } = run('start', '--help');
+    assert.ok(stdout.includes('Usage: claude-monitor start'));
+    assert.ok(stdout.includes('--port'));
+    assert.ok(stdout.includes('--no-open'));
+  });
+});
+
+describe('status command', () => {
+  beforeEach(() => {
+    testHome = mkdtempSync(join(tmpdir(), 'claude-monitor-cli-test-'));
+    mkdirSync(join(testHome, '.claude-monitor'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(testHome, { recursive: true, force: true });
+  });
+
+  it('shows usage with --help', () => {
+    const { stdout } = run('status', '--help');
+    assert.ok(stdout.includes('Usage: claude-monitor status'));
+  });
+
+  it('shows hooks as not configured when no settings file', () => {
+    const { stdout } = run('status');
+    assert.ok(stdout.includes('Hooks: not configured'));
+  });
+
+  it('shows database as not found when no DB', () => {
+    const { stdout } = run('status');
+    assert.ok(stdout.includes('Database:'));
+  });
+
+  it('shows server as not running when no server', () => {
+    const { stdout } = run('status');
+    assert.ok(stdout.includes('Server: not running'));
+  });
+
+  it('detects hooks when settings file has claude-monitor', () => {
+    const claudeDir = join(testHome, '.claude');
+    mkdirSync(claudeDir, { recursive: true });
+    writeFileSync(join(claudeDir, 'settings.local.json'), JSON.stringify({
+      hooks: { PostToolUse: { command: 'node /path/to/claude-monitor/hooks/capture.mjs' } }
+    }));
+    const { stdout } = run('status');
+    assert.ok(stdout.includes('Hooks: configured'));
+  });
+
+  it('shows version', () => {
+    const { stdout } = run('status');
+    assert.ok(stdout.includes('claude-monitor v'));
+  });
+});
+
+describe('CLI help shows new commands', () => {
+  beforeEach(() => {
+    testHome = mkdtempSync(join(tmpdir(), 'claude-monitor-cli-test-'));
+  });
+
+  afterEach(() => {
+    rmSync(testHome, { recursive: true, force: true });
+  });
+
+  it('help includes start and status commands', () => {
+    const { stdout } = run('--help');
+    assert.ok(stdout.includes('start'));
+    assert.ok(stdout.includes('status'));
+  });
+});

@@ -1,0 +1,209 @@
+/* ═══════════════════════════════════════════
+   SETTINGS PAGE — 2x2 Grid Layout (8.5)
+   ═══════════════════════════════════════════ */
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   SETTINGS CARD
+   ═══════════════════════════════════════════ */
+.settings-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-card h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: -0.02em;
+}
+
+/* ═══════════════════════════════════════════
+   SETTINGS ROWS (shared by Database, About)
+   ═══════════════════════════════════════════ */
+.settings-rows {
+  margin-bottom: 16px;
+}
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+}
+
+.settings-row + .settings-row {
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.settings-label {
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.settings-value {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: right;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-value.mono {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* ═══════════════════════════════════════════
+   STATUS DOT
+   ═══════════════════════════════════════════ */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-ok {
+  background: var(--green);
+}
+
+.dot-warn {
+  background: var(--orange);
+}
+
+/* ═══════════════════════════════════════════
+   8.1 — HOOK STATUS (per-hook indicators)
+   ═══════════════════════════════════════════ */
+.settings-file-path {
+  font-size: 12px;
+  color: var(--text2);
+  margin-bottom: 12px;
+}
+
+.settings-file-path code {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--bg-muted);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.hook-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hook-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.hook-row + .hook-row {
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.hook-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hook-dot.hook-active {
+  background: var(--green);
+}
+
+.hook-dot.hook-missing {
+  background: var(--red);
+}
+
+.hook-name {
+  font-size: 12px;
+  color: var(--text);
+  flex: 1;
+}
+
+.hook-status {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hook-status.hook-active {
+  color: var(--green);
+}
+
+.hook-status.hook-missing {
+  color: var(--red);
+}
+
+/* ═══════════════════════════════════════════
+   SETTINGS ACTIONS (8.2 — Database buttons)
+   ═══════════════════════════════════════════ */
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ═══════════════════════════════════════════
+   QUICK ACTIONS (8.4)
+   ═══════════════════════════════════════════ */
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ═══════════════════════════════════════════
+   HINTS & ERRORS
+   ═══════════════════════════════════════════ */
+.settings-hint {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.settings-hint code {
+  background: var(--bg-muted);
+  padding: 2px 6px;
+  border-radius: var(--r-xs);
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.settings-error {
+  background: var(--red-bg);
+  border: 1px solid var(--red-border);
+  border-radius: var(--r-sm);
+  padding: 16px;
+  color: var(--red);
+  font-size: 13px;
+}

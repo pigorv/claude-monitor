@@ -1,0 +1,64 @@
+{
+  "name": "claude-monitor",
+  "version": "0.1.0",
+  "description": "Local observability dashboard for Claude Code sessions — context pressure, thinking inspection, sub-agent debugging",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anthropics/claude-monitor.git"
+  },
+  "homepage": "https://github.com/anthropics/claude-monitor#readme",
+  "bugs": {
+    "url": "https://github.com/anthropics/claude-monitor/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "observability",
+    "dashboard",
+    "hooks",
+    "context-window",
+    "token-tracking",
+    "agent",
+    "llm",
+    "anthropic"
+  ],
+  "bin": {
+    "claude-monitor": "./dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "hooks/capture.mjs",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup && vite build",
+    "dev": "tsup --watch",
+    "dev:frontend": "vite dev",
+    "test": "node --import tsx --test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "better-sqlite3": "^11.7.0",
+    "hono": "^4.7.0",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.0",
+    "htm": "^3.1.1",
+    "preact": "^10.25.0",
+    "preact-render-to-string": "^6.6.6",
+    "tsup": "^8.3.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0",
+    "uplot": "^1.6.31",
+    "vite": "^6.0.0"
+  }
+}
