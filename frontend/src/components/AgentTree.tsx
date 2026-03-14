@@ -70,6 +70,45 @@ function getDescription(agent: AgentRelationship): string {
   return agent.child_agent_id;
 }
 
+/** Extract plain text from Claude content blocks JSON (e.g. [{"type":"text","text":"..."}])
+ *  Handles truncated/invalid JSON by falling back to regex extraction. */
+function extractResultText(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  // Not JSON-like — return as-is
+  if (!trimmed.startsWith("[") && !trimmed.startsWith("{")) return raw;
+
+  // Try proper parse first
+  try {
+    const blocks = JSON.parse(trimmed);
+    if (Array.isArray(blocks)) {
+      const texts = blocks
+        .filter((b: { type?: string; text?: string }) => b.type === "text" && typeof b.text === "string")
+        .map((b: { text: string }) => b.text);
+      if (texts.length > 0) return texts.join("\n\n");
+    }
+  } catch {
+    // JSON is truncated — extract text via regex
+  }
+
+  // Regex fallback: pull "text":"..." values from truncated JSON
+  const textParts: string[] = [];
+  const re = /"text"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)/g;
+  let match;
+  while ((match = re.exec(trimmed)) !== null) {
+    const val = match[1]
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\");
+    // Skip short values that are likely field names like "text" from "type":"text"
+    if (val.length > 10) textParts.push(val);
+  }
+  if (textParts.length > 0) return textParts.join("\n\n");
+
+  return raw;
+}
+
 /** Extract a display path for tool calls that lack file_path (e.g. Grep, Bash) */
 function getToolDisplayPath(tc: InternalToolCall): string {
   if (tc.file_path) return tc.file_path;
@@ -165,7 +204,8 @@ function AgentDetailPanel({
   const [openTools, setOpenTools] = useState<Set<number>>(new Set());
 
   const hasPrompt = agent.prompt_data || agent.prompt_preview;
-  const hasResult = agent.result_data || agent.result_preview;
+  const resultText = extractResultText(agent.result_data) || extractResultText(agent.result_preview);
+  const hasResult = !!resultText;
   const toolCalls: InternalToolCall[] = agent.internal_tool_calls || [];
   const isBackground = toolCalls.length === 0 && (agent.duration_ms == null || agent.duration_ms < 100);
 
@@ -221,7 +261,7 @@ function AgentDetailPanel({
             <span>${resultOpen ? "\u25be" : "\u25b8"}</span> Result returned
           </div>
           <div class=${"section-content" + (resultOpen ? " expanded" : "")} onClick=${() => setResultOpen(!resultOpen)}>
-            ${agent.result_data || agent.result_preview}
+            ${resultText}
             ${!resultOpen && html`<div class="fade" />`}
           </div>
         </div>
