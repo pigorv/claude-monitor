@@ -212,9 +212,13 @@ function parseUserMessageTags(text: string): { cleanText: string; metadata: Reco
     metadata.subtype = 'system_generated';
   }
 
-  // Detect skill expansions
+  // Detect skill expansions and extract skill name from path
   if (text.includes('Base directory for this skill:')) {
     metadata.subtype = 'skill_expansion';
+    const skillPathMatch = text.match(/Base directory for this skill:\s*\S+\/skills\/([^\s/]+)/);
+    if (skillPathMatch) {
+      metadata.skill_name = skillPathMatch[1];
+    }
   }
 
   // Strip all system tags from the clean preview text

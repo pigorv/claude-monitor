@@ -132,10 +132,14 @@ export async function importTranscript(
   const db = getDb();
   db.transaction(() => {
     if (options.force) {
-      deleteEventsBySession(sessionId);
       db.prepare('DELETE FROM agent_relationships WHERE parent_session_id = ?').run(sessionId);
       db.prepare('DELETE FROM session_links WHERE source_session_id = ? OR target_session_id = ?').run(sessionId, sessionId);
     }
+    // Delete ALL prior events for this session before re-inserting.
+    // The full transcript parse is authoritative and regenerates everything.
+    // Previously this only deleted hook events, causing transcript_import
+    // events to accumulate on re-import.
+    deleteEventsBySession(sessionId);
     upsertSession(session);
     if (eventRecords.length > 0) {
       insertEvents(eventRecords);
@@ -365,8 +369,11 @@ async function importSubagentFile(
   // Build event records
   const eventRecords = buildEventRecords(parentSessionId, parsedEvents, messages, model);
 
-  // Insert events
+  // Clear ALL events for this subagent before inserting transcript data.
+  // Previously only deleted hook events, causing duplicates on re-import.
   const db = getDb();
+  db.prepare('DELETE FROM events WHERE session_id = ? AND agent_id = ?')
+    .run(parentSessionId, agentId);
   if (eventRecords.length > 0) {
     insertEvents(eventRecords);
   }

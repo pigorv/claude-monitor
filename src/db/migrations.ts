@@ -43,10 +43,15 @@ CREATE INDEX IF NOT EXISTS idx_session_links_source ON session_links(source_sess
 CREATE INDEX IF NOT EXISTS idx_session_links_target ON session_links(target_session_id);
 `;
 
+const MIGRATION_004_EVENT_SOURCE_INDEX = `
+CREATE INDEX IF NOT EXISTS idx_events_source ON events(session_id, event_source);
+`;
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
   { id: 3, name: '003-session-links', sql: MIGRATION_003_SESSION_LINKS },
+  { id: 4, name: '004-event-source-index', sql: MIGRATION_004_EVENT_SOURCE_INDEX },
 ];
 
 export function runMigrations(db: Database.Database): void {

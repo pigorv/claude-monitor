@@ -307,6 +307,14 @@ export function AgentTree({ agents, sessionStart, agentEfficiency }: AgentTreePr
 
       <!-- Agent table -->
       <table class="agent-table">
+        <colgroup>
+          <col style="width:22%" />
+          <col style="width:30%" />
+          <col style="width:12%" />
+          <col style="width:16%" />
+          <col style="width:8%" />
+          <col style="width:12%" />
+        </colgroup>
         <thead>
           <tr>
             <th>Agent</th>

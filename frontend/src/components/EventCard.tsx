@@ -158,9 +158,12 @@ const DOT_BORDER_COLORS: Record<string, string> = {
 // Event types where we suppress the type pill (dot + card border is enough)
 const SUPPRESS_PILL_TYPES = new Set(["assistant_message", "user_message", "thinking"]);
 
-function getDotStyle(eventType: string, isSystemGenerated?: boolean): string {
+function getDotStyle(eventType: string, isSystemGenerated?: boolean, isSkillExpansion?: boolean): string {
   if (isSystemGenerated) {
     return `background: var(--bg-muted); border: 1.5px dotted var(--text3);`;
+  }
+  if (isSkillExpansion) {
+    return `background: var(--bg-card); border: 1.5px dashed var(--yellow);`;
   }
   const bg = DOT_COLORS[eventType] || "var(--text3)";
   const border = DOT_BORDER_COLORS[eventType];
@@ -182,6 +185,7 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
   const meta = parseMetadata(event);
   const isCommand = meta?.command;
   const isSkillExpansion = meta?.subtype === "skill_expansion";
+  const skillName = isSkillExpansion ? (meta?.skill_name as string || null) : null;
   const isSystemGenerated = meta?.subtype === "system_generated";
   const toolSummary = getToolSummary(event);
 
@@ -222,12 +226,12 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
       class=${typeClass + (hasExpandable ? " expandable" : "") + extraClass + taskClass}
       onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
     >
-      <div class=${isTaskOutput ? "event-dot event-dot-task" : "event-dot"} style=${getDotStyle(event.event_type, !!isSystemGenerated)}></div>
+      <div class=${isTaskOutput ? "event-dot event-dot-task" : "event-dot"} style=${getDotStyle(event.event_type, !!isSystemGenerated, !!isSkillExpansion)}></div>
       <div class="event-content">
       <div class="event-header">
         <span class="event-time">${formatTime(event.timestamp, sessionStart)}</span>
         ${isCommand && html`<span class="command-pill">${meta.command}</span>`}
-        ${isSkillExpansion && html`<span class="event-pill pill-gray">skill</span>`}
+        ${isSkillExpansion && html`<span class="skill-badge">skill: ${skillName || "expansion"}</span>`}
         ${isSystemGenerated && html`<span class="event-pill pill-gray">system</span>`}
         ${!isToolEvent && !isCommand && !isSkillExpansion && !isSystemGenerated && !SUPPRESS_PILL_TYPES.has(event.event_type) && html`<span class=${"event-pill " + pillClass}>${label}</span>`}
         ${event.tool_name && html`<span class=${"tool-badge " + toolBadgeClass}>${event.tool_name}</span>`}
