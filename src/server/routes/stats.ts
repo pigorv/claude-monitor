@@ -55,7 +55,7 @@ stats.get('/api/stats', (c) => {
   `).get() as { cnt: number };
 
   const todayRow = db.prepare(`
-    SELECT COUNT(*) as cnt FROM sessions WHERE date(started_at) = date('now')
+    SELECT COUNT(*) as cnt FROM sessions WHERE started_at >= date('now') AND started_at < date('now', '+1 day')
   `).get() as { cnt: number };
 
   return c.json({

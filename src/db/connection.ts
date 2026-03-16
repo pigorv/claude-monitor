@@ -8,6 +8,14 @@ import { runMigrations } from './migrations.js';
 let instance: Database.Database | null = null;
 let currentDbPath: string | null = null;
 
+// Registry for statement cache reset callbacks — called on closeDb()
+const statementCacheResetters: Array<() => void> = [];
+
+/** Register a callback that resets cached prepared statements when the DB is closed. */
+export function onDbClose(resetter: () => void): void {
+  statementCacheResetters.push(resetter);
+}
+
 export function getDb(dbPath?: string): Database.Database {
   if (instance) return instance;
 
@@ -47,6 +55,10 @@ export function getDb(dbPath?: string): Database.Database {
     instance.pragma('journal_mode = WAL');
     instance.pragma('busy_timeout = 5000');
     instance.pragma('foreign_keys = ON');
+    instance.pragma('synchronous = NORMAL');
+    instance.pragma('cache_size = -64000');
+    instance.pragma('temp_store = MEMORY');
+    instance.pragma('mmap_size = 268435456'); // 256MB memory-mapped I/O for read-heavy workloads
   } catch (err) {
     instance.close();
     instance = null;
@@ -77,6 +89,8 @@ export function closeDb(): void {
     instance.close();
     instance = null;
     currentDbPath = null;
+    // Invalidate all cached prepared statements
+    for (const reset of statementCacheResetters) reset();
   }
 }
 

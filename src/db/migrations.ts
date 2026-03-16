@@ -47,11 +47,47 @@ const MIGRATION_004_EVENT_SOURCE_INDEX = `
 CREATE INDEX IF NOT EXISTS idx_events_source ON events(session_id, event_source);
 `;
 
+const MIGRATION_005_AGENT_REL_UNIQUE = `
+DELETE FROM agent_relationships WHERE id NOT IN (
+  SELECT MIN(id) FROM agent_relationships GROUP BY parent_session_id, child_agent_id
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_rel_unique ON agent_relationships(parent_session_id, child_agent_id);
+`;
+
+const MIGRATION_006_PERF_INDEXES = `
+CREATE INDEX IF NOT EXISTS idx_events_session_agent ON events(session_id, agent_id);
+CREATE INDEX IF NOT EXISTS idx_events_session_type ON events(session_id, event_type);
+CREATE INDEX IF NOT EXISTS idx_events_session_tool ON events(session_id, tool_name);
+CREATE INDEX IF NOT EXISTS idx_events_session_context ON events(session_id, context_pct) WHERE context_pct IS NOT NULL;
+`;
+
+const MIGRATION_007_INDEX_CLEANUP = `
+-- Drop redundant single-column indexes superseded by composite indexes from migration 006.
+-- All queries on events include session_id, so these standalone indexes are never used.
+DROP INDEX IF EXISTS idx_events_type;
+DROP INDEX IF EXISTS idx_events_tool;
+DROP INDEX IF EXISTS idx_events_agent;
+
+-- Covering index for mini timeline queries (adds sequence_num + event_type)
+DROP INDEX IF EXISTS idx_events_session_context;
+CREATE INDEX idx_events_session_context_v2 ON events(session_id, sequence_num, context_pct, event_type) WHERE context_pct IS NOT NULL;
+
+-- Filtered index for token timeline queries (skip NULL token rows)
+CREATE INDEX idx_events_session_tokens ON events(session_id, sequence_num) WHERE input_tokens IS NOT NULL;
+
+-- Filtered index for tool frequency queries (skip NULL tool_name rows)
+DROP INDEX IF EXISTS idx_events_session_tool;
+CREATE INDEX idx_events_session_tool_v2 ON events(session_id, tool_name) WHERE tool_name IS NOT NULL;
+`;
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
   { id: 3, name: '003-session-links', sql: MIGRATION_003_SESSION_LINKS },
   { id: 4, name: '004-event-source-index', sql: MIGRATION_004_EVENT_SOURCE_INDEX },
+  { id: 5, name: '005-agent-rel-unique', sql: MIGRATION_005_AGENT_REL_UNIQUE },
+  { id: 6, name: '006-perf-indexes', sql: MIGRATION_006_PERF_INDEXES },
+  { id: 7, name: '007-index-cleanup', sql: MIGRATION_007_INDEX_CLEANUP },
 ];
 
 export function runMigrations(db: Database.Database): void {
