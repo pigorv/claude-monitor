@@ -70,10 +70,10 @@ describe('import command', () => {
     rmSync(testHome, { recursive: true, force: true });
   });
 
-  it('shows usage when no path is given', () => {
-    const { stderr, exitCode } = run('import');
-    assert.equal(exitCode, 1);
-    assert.match(stderr, /Usage: claude-monitor import/);
+  it('shows help with --help', () => {
+    const { stdout, exitCode } = run('import', '--help');
+    assert.equal(exitCode, 0);
+    assert.match(stdout, /Usage: claude-monitor import/);
   });
 
   it('errors when path does not exist', () => {
@@ -90,13 +90,13 @@ describe('import command', () => {
     assert.match(stderr, /not a \.jsonl file/);
   });
 
-  it('errors when directory has no .jsonl files', () => {
+  it('prints message when directory has no .jsonl files', () => {
     const emptyDir = join(testDir, 'empty');
     mkdirSync(emptyDir);
     writeFileSync(join(emptyDir, 'readme.txt'), 'nothing here');
-    const { stderr, exitCode } = run('import', emptyDir);
-    assert.equal(exitCode, 1);
-    assert.match(stderr, /No \.jsonl files found/);
+    const { stdout, exitCode } = run('import', emptyDir);
+    assert.equal(exitCode, 0);
+    assert.match(stdout, /No \.jsonl files found/);
   });
 
   it('imports a single transcript file', () => {

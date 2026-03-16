@@ -2,13 +2,21 @@ import { resolve } from 'node:path';
 import { existsSync, statSync, readdirSync } from 'node:fs';
 import { getDb } from '../../db/connection.js';
 import { closeDb } from '../../db/connection.js';
-import { importTranscript, importTranscripts } from '../../ingestion/transcript-importer.js';
-import * as logger from '../../shared/logger.js';
+import { importTranscripts } from '../../ingestion/transcript-importer.js';
+import { DEFAULT_CONFIG } from '../../shared/constants.js';
+
+const USAGE = `Usage: claude-monitor import [path] [--force]
+
+  One-time import of JSONL transcript file(s) or a directory.
+  Defaults to ~/.claude/projects/ when no path is given.
+
+Options:
+  --force    Re-import even if session already exists`;
 
 /**
  * Collect all .jsonl files from a path (file or directory).
  */
-function collectJsonlFiles(inputPath: string): string[] {
+export function collectJsonlFiles(inputPath: string): string[] {
   const resolved = resolve(inputPath);
 
   if (!existsSync(resolved)) {
@@ -30,8 +38,8 @@ function collectJsonlFiles(inputPath: string): string[] {
     const files = collectJsonlFilesRecursive(resolved);
 
     if (files.length === 0) {
-      console.error(`Error: No .jsonl files found in directory: ${resolved}`);
-      process.exit(1);
+      console.log(`No .jsonl files found in: ${resolved}`);
+      return [];
     }
 
     return files;
@@ -53,8 +61,6 @@ function collectJsonlFilesRecursive(dir: string): string[] {
     }
   }
   // Sort so that parent transcripts come before subagent transcripts.
-  // Subagent files live under .../subagents/ and share the parent's sessionId,
-  // so importing them first would claim the session slot with incomplete data.
   return files.sort((a, b) => {
     const aIsSub = a.includes('/subagents/');
     const bIsSub = b.includes('/subagents/');
@@ -64,60 +70,60 @@ function collectJsonlFilesRecursive(dir: string): string[] {
 }
 
 /**
- * CLI handler for `claude-monitor import <path> [--force]`
+ * Run a one-time import and print results. Used by both `import` and `watch` commands.
+ */
+export async function runImport(files: string[], force: boolean): Promise<{ imported: number; skipped: number; errors: number }> {
+  console.log(`Importing ${files.length} file${files.length === 1 ? '' : 's'}...`);
+
+  const results = await importTranscripts(files, { force });
+
+  let imported = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (const result of results) {
+    if (result.error) {
+      console.error(`  ✗ ${result.error}`);
+      errors++;
+    } else if (result.skipped) {
+      if (result.sessionId) {
+        console.log(`  ⊘ ${result.sessionId} (already imported)`);
+      }
+      skipped++;
+    } else {
+      console.log(`  ✓ ${result.sessionId} — ${result.eventCount} events`);
+      imported++;
+    }
+  }
+
+  console.log(`Done: ${imported} imported, ${skipped} skipped, ${errors} errors`);
+  return { imported, skipped, errors };
+}
+
+/**
+ * CLI handler for `claude-monitor import [path] [--force]`
  */
 export async function importCommand(args: string[]): Promise<void> {
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(USAGE);
+    return;
+  }
+
   const force = args.includes('--force');
   const paths = args.filter((a) => !a.startsWith('--'));
 
-  if (paths.length === 0) {
-    console.error('Usage: claude-monitor import <path> [--force]');
-    console.error('');
-    console.error('  Import a JSONL transcript file or all .jsonl files in a directory.');
-    console.error('');
-    console.error('Options:');
-    console.error('  --force    Re-import even if session already exists');
-    process.exit(1);
-  }
+  // Default to ~/.claude/projects/ when no path given
+  const targetPath = paths.length > 0 ? paths[0] : DEFAULT_CONFIG.claudeProjectsPath;
+  const files = collectJsonlFiles(targetPath);
 
-  // Collect all files from all provided paths
-  const files: string[] = [];
-  for (const p of paths) {
-    files.push(...collectJsonlFiles(p));
-  }
+  if (files.length === 0) return;
 
   // Initialize DB
   getDb();
 
   try {
-    console.log(`Importing ${files.length} file${files.length === 1 ? '' : 's'}...`);
-
-    const results = await importTranscripts(files, { force });
-
-    // Print results
-    let imported = 0;
-    let skipped = 0;
-    let errors = 0;
-
-    for (const result of results) {
-      if (result.error) {
-        console.error(`  ✗ ${result.error}`);
-        errors++;
-      } else if (result.skipped) {
-        console.log(`  ⊘ ${result.sessionId} (already imported)`);
-        skipped++;
-      } else {
-        console.log(`  ✓ ${result.sessionId} — ${result.eventCount} events`);
-        imported++;
-      }
-    }
-
-    console.log('');
-    console.log(`Done: ${imported} imported, ${skipped} skipped, ${errors} errors`);
-
-    if (errors > 0) {
-      process.exit(1);
-    }
+    const { errors } = await runImport(files, force);
+    if (errors > 0) process.exit(1);
   } finally {
     closeDb();
   }

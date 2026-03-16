@@ -6,12 +6,6 @@ const USAGE = `Usage: claude-monitor status
 
   Show database stats and server status.`;
 
-interface StatusInfo {
-  version: string;
-  database: { path: string; exists: boolean; sizeBytes: number; sessionCount: number; eventCount: number };
-  server: { running: boolean; port: number };
-}
-
 function checkDatabase(dbPath: string): { path: string; exists: boolean; sizeBytes: number; sessionCount: number; eventCount: number } {
   if (!existsSync(dbPath)) {
     return { path: dbPath, exists: false, sizeBytes: 0, sessionCount: 0, eventCount: 0 };
@@ -61,28 +55,22 @@ export async function statusCommand(args: string[]): Promise<void> {
   const database = checkDatabase(dbPath);
   const serverRunning = await checkServer(port);
 
-  const status: StatusInfo = {
-    version: VERSION,
-    database,
-    server: { running: serverRunning, port },
-  };
-
-  console.log(`claude-monitor v${status.version}\n`);
+  console.log(`claude-monitor v${VERSION}\n`);
 
   // Database
-  console.log(`Database: ${status.database.exists ? 'exists' : 'not found'}`);
-  console.log(`  Path:     ${status.database.path}`);
-  if (status.database.exists) {
-    console.log(`  Size:     ${formatBytes(status.database.sizeBytes)}`);
-    console.log(`  Sessions: ${status.database.sessionCount}`);
-    console.log(`  Events:   ${status.database.eventCount}`);
+  console.log(`Database: ${database.exists ? 'exists' : 'not found'}`);
+  console.log(`  Path:     ${database.path}`);
+  if (database.exists) {
+    console.log(`  Size:     ${formatBytes(database.sizeBytes)}`);
+    console.log(`  Sessions: ${database.sessionCount}`);
+    console.log(`  Events:   ${database.eventCount}`);
   }
   console.log();
 
   // Server
-  console.log(`Server: ${status.server.running ? 'running' : 'not running'}`);
-  console.log(`  Port: ${status.server.port}`);
-  if (status.server.running) {
-    console.log(`  URL:  http://localhost:${status.server.port}`);
+  console.log(`Server: ${serverRunning ? 'running' : 'not running'}`);
+  console.log(`  Port: ${port}`);
+  if (serverRunning) {
+    console.log(`  URL:  http://localhost:${port}`);
   }
 }

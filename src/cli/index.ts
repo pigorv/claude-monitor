@@ -2,6 +2,7 @@
 
 import { VERSION } from '../shared/constants.js';
 import { importCommand } from './commands/import.js';
+import { watchCommand } from './commands/watch.js';
 import { startCommand } from './commands/start.js';
 import { statusCommand } from './commands/status.js';
 
@@ -10,9 +11,10 @@ const HELP = `claude-monitor v${VERSION}
 Usage: claude-monitor <command> [options]
 
 Commands:
-  start           Start the dashboard server
+  import [path]   One-time import of a single file or directory
+  watch [path]    Scan and import all transcripts (default: ~/.claude/projects/)
+  start           Start dashboard server + auto-import new sessions every 5s
   status          Show DB stats and server status
-  import <path>   Import JSONL transcript file(s) or a directory
   help            Show this help message
 
 Options:
@@ -36,14 +38,17 @@ async function main(): Promise<void> {
   }
 
   switch (command) {
+    case 'import':
+      await importCommand(args.slice(1));
+      break;
+    case 'watch':
+      await watchCommand(args.slice(1));
+      break;
     case 'start':
       await startCommand(args.slice(1));
       break;
     case 'status':
       await statusCommand(args.slice(1));
-      break;
-    case 'import':
-      await importCommand(args.slice(1));
       break;
     default:
       console.error(`Unknown command: ${command}`);
