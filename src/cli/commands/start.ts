@@ -5,19 +5,20 @@ import { DEFAULT_CONFIG, VERSION } from '../../shared/constants.js';
 import * as logger from '../../shared/logger.js';
 import { getDb, closeDb } from '../../db/connection.js';
 import { startServer } from '../../server/app.js';
+import { createTranscriptWatcher } from '../../ingestion/transcript-watcher.js';
 
 const USAGE = `Usage: claude-monitor start [options]
 
-  Start the dashboard server.
+  Start the dashboard server with auto-import polling.
+  Imports any missed sessions on startup, then polls ~/.claude/projects/ every 5s.
 
 Options:
   --port, -p <number>   Port number (default: ${DEFAULT_CONFIG.defaultPort})
   --no-open             Don't open browser automatically
-  --db <path>           Custom database path
   --verbose             Enable debug logging`;
 
-function parseArgs(args: string[]): { port?: number; open: boolean; dbPath?: string; verbose: boolean } {
-  const result = { open: true, verbose: false } as { port?: number; open: boolean; dbPath?: string; verbose: boolean };
+function parseArgs(args: string[]): { port?: number; open: boolean; verbose: boolean } {
+  const result = { open: true, verbose: false } as { port?: number; open: boolean; verbose: boolean };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -34,8 +35,6 @@ function parseArgs(args: string[]): { port?: number; open: boolean; dbPath?: str
       result.port = val;
     } else if (arg === '--no-open') {
       result.open = false;
-    } else if (arg === '--db') {
-      result.dbPath = args[++i];
     } else if (arg === '--verbose') {
       result.verbose = true;
     }
@@ -52,7 +51,7 @@ export async function startCommand(args: string[]): Promise<void> {
   }
 
   // Ensure data directory exists
-  const dbPath = opts.dbPath ?? DEFAULT_CONFIG.dbPath;
+  const dbPath = DEFAULT_CONFIG.dbPath;
   const dataDir = dirname(dbPath);
   if (!existsSync(dataDir)) {
     mkdirSync(dataDir, { recursive: true });
@@ -80,7 +79,12 @@ export async function startCommand(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  // Start transcript watcher — imports missed sessions on startup, then polls every 5s
+  const transcriptWatcher = createTranscriptWatcher();
+  transcriptWatcher.start();
+
   const shutdown = () => {
+    transcriptWatcher.stop();
     closeDb();
     server.close();
     process.exit(0);
@@ -97,7 +101,6 @@ export async function startCommand(args: string[]): Promise<void> {
       const { default: open } = await import('open');
       await open(`http://localhost:${port}`);
     } catch {
-      // open is optional — skip if not installed
       logger.debug('Could not open browser automatically');
     }
   }
