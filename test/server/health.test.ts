@@ -32,7 +32,6 @@ describe('Health route', () => {
     assert.equal(typeof body.db_size_bytes, 'number');
     assert.equal(typeof body.session_count, 'number');
     assert.equal(typeof body.event_count, 'number');
-    assert.equal(typeof body.hooks_configured, 'boolean');
     assert.equal(body.session_count, 0);
     assert.equal(body.event_count, 0);
   });
@@ -81,29 +80,6 @@ describe('Health route', () => {
   it('returns 404 for unknown routes', async () => {
     const res = await app.request('/api/unknown');
     assert.equal(res.status, 404);
-  });
-
-  it('includes per-hook status in hooks object', async () => {
-    const res = await app.request('/api/health');
-    const body = await res.json();
-    assert.equal(typeof body.hooks, 'object');
-
-    // Should include all 7 hook types
-    const expectedHooks = [
-      'PreToolUse', 'PostToolUse', 'PreCompact', 'PostCompact',
-      'Notification', 'SubagentStart', 'SubagentStop',
-    ];
-    for (const hookType of expectedHooks) {
-      assert.ok(hookType in body.hooks, `Missing hook type: ${hookType}`);
-      assert.equal(typeof body.hooks[hookType].configured, 'boolean');
-      assert.equal(typeof body.hooks[hookType].script_exists, 'boolean');
-    }
-  });
-
-  it('includes hooks_configured boolean', async () => {
-    const res = await app.request('/api/health');
-    const body = await res.json();
-    assert.equal(typeof body.hooks_configured, 'boolean');
   });
 
   it('includes node_version field', async () => {

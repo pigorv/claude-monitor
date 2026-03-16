@@ -30,7 +30,7 @@ CREATE TABLE events (
     parent_event_id INTEGER REFERENCES events(id),
     agent_id TEXT,
     event_type TEXT NOT NULL,
-    event_source TEXT NOT NULL DEFAULT 'hook',
+    event_source TEXT NOT NULL DEFAULT 'transcript_import',
     tool_name TEXT,
     timestamp TEXT NOT NULL,
     sequence_num INTEGER,

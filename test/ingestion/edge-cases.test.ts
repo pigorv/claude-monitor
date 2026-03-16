@@ -299,9 +299,8 @@ describe('Transcript importer edge cases', () => {
     assert.equal(session.tool_call_count, 1); // Read tool
   });
 
-  it('imports the hook events fixture as individual transcripts', async () => {
-    // The hook events fixture isn't a transcript, so we verify parsing works
-    // by importing the sample-session fixture with force
+  it('re-imports a transcript with force flag', async () => {
+    // Verify re-import works with force flag
     const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'sample-session.jsonl');
     const result = await importTranscript(fixturePath, { force: true });
     assert.equal(result.sessionId, 'sess-001');

@@ -89,7 +89,7 @@ describe('Reimport route', () => {
     db.prepare(`
       INSERT INTO events (session_id, event_type, event_source, timestamp, sequence_num)
       VALUES (?, ?, ?, ?, ?)
-    `).run('sess-clear-test', 'session_start', 'hook', '2026-01-15T10:00:00Z', 1);
+    `).run('sess-clear-test', 'session_start', 'transcript_import', '2026-01-15T10:00:00Z', 1);
 
     // Verify data exists
     const countBefore = (db.prepare('SELECT COUNT(*) as c FROM sessions').get() as { c: number }).c;

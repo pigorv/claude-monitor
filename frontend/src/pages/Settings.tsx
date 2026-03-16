@@ -1,7 +1,7 @@
 import { useState, useEffect } from "preact/hooks";
 import { html } from "htm/preact";
 import { fetchApi } from "../api/client";
-import type { HealthResponse, HookStatus } from "../../../src/shared/types";
+import type { HealthResponse } from "../../../src/shared/types";
 import "../styles/settings.css";
 
 function formatBytes(bytes: number): string {
@@ -21,16 +21,6 @@ function formatDate(iso: string | null | undefined): string {
     minute: "2-digit",
   });
 }
-
-const HOOK_LABELS: Record<string, string> = {
-  SessionStart: "SessionStart",
-  SessionEnd: "SessionEnd",
-  PreToolUse: "PreToolUse",
-  PostToolUse: "PostToolUse",
-  SubagentStart: "SubagentStart",
-  SubagentStop: "SubagentStop",
-  PreCompact: "PreCompact",
-};
 
 export function Settings() {
   const [data, setData] = useState<HealthResponse | null>(null);
@@ -107,46 +97,13 @@ export function Settings() {
     `;
   }
 
-  const hooks = data.hooks || {};
-  const settingsPath = "~/.claude/settings.local.json";
-
   return html`
     <div class="page">
       <h1>Settings</h1>
-      <p class="page-sub">Hook configuration, database management, and tool info</p>
+      <p class="page-sub">Database management and tool info</p>
 
       <div class="settings-grid">
-        <!-- 8.1: Hook Status with per-hook indicators -->
-        <section class="settings-card">
-          <h3>Hook configuration</h3>
-          <p class="settings-file-path">Configured in <code>${settingsPath}</code></p>
-          <div class="hook-list">
-            ${Object.entries(HOOK_LABELS).map(
-              ([key, label]) => {
-                const status: HookStatus | undefined = hooks[key];
-                const active = status?.configured && status?.script_exists;
-                return html`
-                  <div class="hook-row">
-                    <span class="hook-dot ${active ? "hook-active" : "hook-missing"}"></span>
-                    <span class="hook-name">${label}</span>
-                    <span class="hook-status ${active ? "hook-active" : "hook-missing"}">
-                      ${active ? "active" : "missing"}
-                    </span>
-                  </div>
-                `;
-              }
-            )}
-          </div>
-          ${!data.hooks_configured
-            ? html`
-                <p class="settings-hint">
-                  Run <code>claude-monitor setup</code> to configure hooks.
-                </p>
-              `
-            : null}
-        </section>
-
-        <!-- 8.2: Database card with export and clear -->
+        <!-- Database card with export and clear -->
         <section class="settings-card">
           <h3>Database</h3>
           <div class="settings-rows">
@@ -199,7 +156,7 @@ export function Settings() {
             : null}
         </section>
 
-        <!-- 8.3: About card -->
+        <!-- About card -->
         <section class="settings-card">
           <h3>About</h3>
           <div class="settings-rows">
@@ -228,18 +185,12 @@ export function Settings() {
           </div>
         </section>
 
-        <!-- 8.4: Quick Actions card -->
+        <!-- Quick Actions card -->
         <section class="settings-card">
           <h3>Quick Actions</h3>
           <div class="quick-actions">
-            <button class="action-btn" onClick=${() => { handleReimport(); }}>
-              Reconfigure hooks
-            </button>
             <button class="action-btn" onClick=${handleExport}>
               Open DB viewer
-            </button>
-            <button class="action-btn" onClick=${() => window.open("/api/export", "_blank")}>
-              View events.jsonl
             </button>
             <button class="action-btn" onClick=${load}>
               Check for updates

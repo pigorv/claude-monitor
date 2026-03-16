@@ -15,14 +15,13 @@ Local observability dashboard for Claude Code sessions.
 
 ```
 src/
-  cli/          # CLI entry point and commands (import, start, status, setup)
+  cli/          # CLI entry point and commands (import, start, status)
   server/       # Hono HTTP server, routes, middleware
-  ingestion/    # JSONL parser, hook handler, transcript importer, file watcher
+  ingestion/    # JSONL parser, transcript importer, thinking extractor, token tracker
   analysis/     # Context pressure scoring, risk heuristics, session summary
   shared/       # Types, constants, logger
   frontend/     # Preact app, pages, components
   db/           # SQLite schema, connection, migrations, queries
-hooks/          # capture.mjs — standalone hook script invoked by Claude Code
 test/           # Tests and fixtures
 ```
 
@@ -39,7 +38,6 @@ npm test             # Run tests
 ## Conventions
 
 - Keep dependencies minimal — check architecture doc before adding any new dep
-- All hooks must run with `async: true` and complete in < 50ms
 - Database operations use synchronous better-sqlite3 API
 - Frontend uses HTM tagged templates (no JSX transform needed)
 - Error messages should be actionable — tell the user what to do, not just what failed

@@ -160,20 +160,6 @@ export function deleteEventsBySession(sessionId: string): number {
   return result.changes;
 }
 
-export function deleteHookEventsBySession(sessionId: string): number {
-  const db = getDb();
-  const result = db.prepare('DELETE FROM events WHERE session_id = ? AND event_source = ?').run(sessionId, 'hook');
-  return result.changes;
-}
-
-export function eventExists(sessionId: string, eventType: string, toolName: string | null, timestamp: string): boolean {
-  const db = getDb();
-  const row = db.prepare(
-    'SELECT 1 FROM events WHERE session_id = ? AND event_type = ? AND tool_name IS ? AND timestamp = ?',
-  ).get(sessionId, eventType, toolName, timestamp);
-  return row !== undefined;
-}
-
 export function getEventCountBySession(sessionId: string): number {
   const db = getDb();
   const row = db.prepare('SELECT COUNT(*) as count FROM events WHERE session_id = ?').get(sessionId) as { count: number };

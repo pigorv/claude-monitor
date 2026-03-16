@@ -5,7 +5,6 @@ import { DEFAULT_CONFIG, VERSION } from '../../shared/constants.js';
 import * as logger from '../../shared/logger.js';
 import { getDb, closeDb } from '../../db/connection.js';
 import { startServer } from '../../server/app.js';
-import { createFileWatcher } from '../../ingestion/file-watcher.js';
 
 const USAGE = `Usage: claude-monitor start [options]
 
@@ -81,12 +80,7 @@ export async function startCommand(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  // Start file watcher for hook events
-  const watcher = createFileWatcher();
-  watcher.start();
-
   const shutdown = () => {
-    watcher.stop();
     closeDb();
     server.close();
     process.exit(0);

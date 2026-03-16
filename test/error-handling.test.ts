@@ -203,27 +203,3 @@ describe('Server startup: port conflict', () => {
   });
 });
 
-// ── File watcher: batch inserts and dedup ─────────────────────────────
-
-describe('File watcher batch handling', () => {
-  let tmpDir: string;
-
-  before(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'fw-batch-'));
-    getDb(join(tmpDir, 'test.sqlite'));
-  });
-
-  after(() => {
-    closeDb();
-    rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it('MAX_READ_CHUNK prevents OOM on large files', async () => {
-    // This is a unit-level structural test — the constant exists and limits reads
-    const { createFileWatcher } = await import('../src/ingestion/file-watcher.js');
-    const eventsFile = join(tmpDir, 'events.jsonl');
-    const watcher = createFileWatcher(eventsFile);
-    assert.ok(watcher);
-    assert.equal(watcher.isRunning, false);
-  });
-});

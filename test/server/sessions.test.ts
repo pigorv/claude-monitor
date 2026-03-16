@@ -88,9 +88,9 @@ describe('Sessions routes', () => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    insertEvent.run('sess-1', 'tool_call_start', 'hook', 'Read', '2026-01-15T10:01:00Z', 1, 100, 50, 10, 0.1, 200, '{"file_path":"/src/main.ts"}');
-    insertEvent.run('sess-1', 'tool_call_start', 'hook', 'Write', '2026-01-15T10:02:00Z', 2, 200, 100, 20, 0.2, 300, '{"file_path":"/src/output.ts"}');
-    insertEvent.run('sess-1', 'compaction', 'hook', null, '2026-01-15T10:05:00Z', 3, 500, 200, 50, 0.5, null, null);
+    insertEvent.run('sess-1', 'tool_call_start', 'transcript_import', 'Read', '2026-01-15T10:01:00Z', 1, 100, 50, 10, 0.1, 200, '{"file_path":"/src/main.ts"}');
+    insertEvent.run('sess-1', 'tool_call_start', 'transcript_import', 'Write', '2026-01-15T10:02:00Z', 2, 200, 100, 20, 0.2, 300, '{"file_path":"/src/output.ts"}');
+    insertEvent.run('sess-1', 'compaction', 'transcript_import', null, '2026-01-15T10:05:00Z', 3, 500, 200, 50, 0.5, null, null);
 
     // Insert agent relationship for sess-1
     db.prepare(`
@@ -394,7 +394,7 @@ describe('Sessions routes', () => {
       INSERT INTO events (session_id, event_type, event_source, tool_name, timestamp,
         sequence_num, agent_id, duration_ms, input_data)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run('sess-1', 'tool_call_start', 'hook', 'Read', '2026-01-15T10:03:00Z', 4,
+    `).run('sess-1', 'tool_call_start', 'transcript_import', 'Read', '2026-01-15T10:03:00Z', 4,
       'agent-abc', 150, '{"file_path":"/src/utils.ts"}');
 
     const res = await app.request('/api/sessions/sess-1');

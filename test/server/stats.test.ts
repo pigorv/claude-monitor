@@ -30,7 +30,7 @@ describe('Stats route', () => {
     db.prepare(`
       INSERT INTO events (session_id, event_type, event_source, timestamp, sequence_num)
       VALUES (?, ?, ?, ?, ?)
-    `).run('sess-1', 'tool_call_start', 'hook', '2026-01-15T10:01:00Z', 1);
+    `).run('sess-1', 'tool_call_start', 'transcript_import', '2026-01-15T10:01:00Z', 1);
 
     app = createApp();
   });

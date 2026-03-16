@@ -14,11 +14,7 @@ Local observability dashboard for [Claude Code](https://docs.anthropic.com/en/do
 # Install globally (or use npx)
 npm install -g claude-monitor
 
-# Configure Claude Code hooks (writes to ~/.claude/settings.local.json)
-claude-monitor setup
-
-# Restart Claude Code to pick up hooks, then use it normally.
-# When ready to review, import existing transcripts and start the dashboard:
+# Import existing transcripts and start the dashboard:
 claude-monitor import ~/.claude/projects/
 claude-monitor start
 ```
@@ -28,7 +24,7 @@ The dashboard opens at `http://localhost:4173`.
 ## Requirements
 
 - Node.js >= 20
-- Claude Code (for hook integration)
+- Claude Code (for transcript files)
 
 ## CLI Commands
 
@@ -43,17 +39,6 @@ Options:
   --db <path>           Custom database path (default: ~/.claude-monitor/data.sqlite)
   --verbose             Enable debug logging
 ```
-
-### `claude-monitor setup`
-
-Configure Claude Code hooks to capture session events in real time.
-
-```
-Options:
-  --dry-run             Show what would be written without modifying files
-```
-
-Writes hook configuration to `~/.claude/settings.local.json`. Hooks run asynchronously with zero impact on Claude Code performance. After setup, restart Claude Code or review via `/hooks`.
 
 ### `claude-monitor import <path>`
 
@@ -72,7 +57,7 @@ claude-monitor import --force ~/.claude/projects/
 
 ### `claude-monitor status`
 
-Show current hook configuration, database stats, and server status.
+Show database stats and server status.
 
 ## Dashboard Views
 
@@ -94,11 +79,9 @@ Tree view of sub-agent relationships. Each node shows agent ID, status, duration
 
 ### Settings
 
-Hook status, database stats (size, session/event counts), and actions (re-import transcripts, refresh stats).
+Database stats (size, session/event counts), and actions (re-import transcripts, export database).
 
 ## How It Works
-
-**Hook capture**: The `setup` command registers async hooks for 7 Claude Code events (PreToolUse, PostToolUse, SubagentStart, SubagentStop, PreCompact, SessionStart, SessionEnd). A lightweight capture script (`hooks/capture.mjs`) appends events to `~/.claude-monitor/events.jsonl`. The dashboard server watches this file and ingests new events into SQLite.
 
 **Transcript import**: The `import` command parses JSONL transcript files from `~/.claude/projects/`, extracting thinking blocks, tool calls, token progression, and compaction points. Everything is stored in a local SQLite database with WAL mode for concurrent reads/writes.
 
@@ -111,7 +94,6 @@ All data is stored locally in `~/.claude-monitor/`:
 | File | Purpose |
 |------|---------|
 | `data.sqlite` | Session and event database |
-| `events.jsonl` | Hook event buffer (watched by server) |
 
 ## Architecture
 
@@ -132,7 +114,7 @@ npm install
 npm run build          # Build CLI + frontend
 npm run dev            # Start server in dev mode
 npm run dev:frontend   # Start Vite dev server
-npm test               # Run tests (243 tests)
+npm test               # Run tests
 npm run typecheck      # TypeScript type checking
 ```
 

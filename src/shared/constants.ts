@@ -21,7 +21,6 @@ const dataDir = join(homedir(), '.claude-monitor');
 export const DEFAULT_CONFIG = Object.freeze({
   dataDir,
   dbPath: join(dataDir, 'data.sqlite'),
-  eventsFilePath: join(dataDir, 'events.jsonl'),
   defaultPort: 4173,
   claudeProjectsPath: join(homedir(), '.claude', 'projects'),
 });

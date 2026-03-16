@@ -1,34 +1,15 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { existsSync, statSync } from 'node:fs';
 import { DEFAULT_CONFIG, VERSION } from '../../shared/constants.js';
 import { getDb, closeDb } from '../../db/connection.js';
 
 const USAGE = `Usage: claude-monitor status
 
-  Show current hook configuration, database stats, and server status.`;
+  Show database stats and server status.`;
 
 interface StatusInfo {
   version: string;
-  hooks: { configured: boolean; details: string };
   database: { path: string; exists: boolean; sizeBytes: number; sessionCount: number; eventCount: number };
   server: { running: boolean; port: number };
-}
-
-function checkHooks(): { configured: boolean; details: string } {
-  const settingsPath = join(homedir(), '.claude', 'settings.local.json');
-  if (!existsSync(settingsPath)) {
-    return { configured: false, details: 'No settings.local.json found — run "claude-monitor setup" to configure hooks' };
-  }
-  try {
-    const content = readFileSync(settingsPath, 'utf-8');
-    if (content.includes('claude-monitor')) {
-      return { configured: true, details: 'Hooks detected in ~/.claude/settings.local.json' };
-    }
-    return { configured: false, details: 'settings.local.json exists but no claude-monitor hooks found' };
-  } catch {
-    return { configured: false, details: 'Could not read settings.local.json' };
-  }
 }
 
 function checkDatabase(dbPath: string): { path: string; exists: boolean; sizeBytes: number; sessionCount: number; eventCount: number } {
@@ -77,22 +58,16 @@ export async function statusCommand(args: string[]): Promise<void> {
   const port = DEFAULT_CONFIG.defaultPort;
   const dbPath = DEFAULT_CONFIG.dbPath;
 
-  const hooks = checkHooks();
   const database = checkDatabase(dbPath);
   const serverRunning = await checkServer(port);
 
   const status: StatusInfo = {
     version: VERSION,
-    hooks,
     database,
     server: { running: serverRunning, port },
   };
 
   console.log(`claude-monitor v${status.version}\n`);
-
-  // Hooks
-  console.log(`Hooks: ${status.hooks.configured ? 'configured' : 'not configured'}`);
-  console.log(`  ${status.hooks.details}\n`);
 
   // Database
   console.log(`Database: ${status.database.exists ? 'exists' : 'not found'}`);

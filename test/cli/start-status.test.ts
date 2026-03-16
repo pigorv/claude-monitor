@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { mkdirSync, rmSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 const CLI = join(import.meta.dirname, '..', '..', 'dist', 'index.js');
@@ -56,11 +56,6 @@ describe('status command', () => {
     assert.ok(stdout.includes('Usage: claude-monitor status'));
   });
 
-  it('shows hooks as not configured when no settings file', () => {
-    const { stdout } = run('status');
-    assert.ok(stdout.includes('Hooks: not configured'));
-  });
-
   it('shows database as not found when no DB', () => {
     const { stdout } = run('status');
     assert.ok(stdout.includes('Database:'));
@@ -69,16 +64,6 @@ describe('status command', () => {
   it('shows server as not running when no server', () => {
     const { stdout } = run('status');
     assert.ok(stdout.includes('Server: not running'));
-  });
-
-  it('detects hooks when settings file has claude-monitor', () => {
-    const claudeDir = join(testHome, '.claude');
-    mkdirSync(claudeDir, { recursive: true });
-    writeFileSync(join(claudeDir, 'settings.local.json'), JSON.stringify({
-      hooks: { PostToolUse: { command: 'node /path/to/claude-monitor/hooks/capture.mjs' } }
-    }));
-    const { stdout } = run('status');
-    assert.ok(stdout.includes('Hooks: configured'));
   });
 
   it('shows version', () => {

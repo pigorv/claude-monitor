@@ -2,7 +2,6 @@
 
 import { VERSION } from '../shared/constants.js';
 import { importCommand } from './commands/import.js';
-import { setupCommand } from './commands/setup.js';
 import { startCommand } from './commands/start.js';
 import { statusCommand } from './commands/status.js';
 
@@ -12,9 +11,8 @@ Usage: claude-monitor <command> [options]
 
 Commands:
   start           Start the dashboard server
-  status          Show hook configuration, DB stats, and server status
+  status          Show DB stats and server status
   import <path>   Import JSONL transcript file(s) or a directory
-  setup           Configure Claude Code hooks for event capture
   help            Show this help message
 
 Options:
@@ -46,9 +44,6 @@ async function main(): Promise<void> {
       break;
     case 'import':
       await importCommand(args.slice(1));
-      break;
-    case 'setup':
-      await setupCommand(args.slice(1));
       break;
     default:
       console.error(`Unknown command: ${command}`);

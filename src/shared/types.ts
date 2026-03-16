@@ -17,7 +17,7 @@ export type EventType =
   | 'user_message'
   | 'notification';
 
-export type EventSource = 'hook' | 'transcript_import';
+export type EventSource = 'transcript_import';
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
@@ -107,50 +107,6 @@ export interface AgentRelationship {
   files_total_tokens: number;
   spawn_timestamp: string | null;
   complete_timestamp: string | null;
-}
-
-// ── Hook payload interfaces ─────────────────────────────────────────
-
-export interface HookPayload {
-  session_id: string;
-  transcript_path: string;
-  cwd: string;
-}
-
-export interface PreToolUsePayload extends HookPayload {
-  tool_name: string;
-  tool_input: Record<string, unknown>;
-}
-
-export interface PostToolUsePayload extends HookPayload {
-  tool_name: string;
-  tool_input: Record<string, unknown>;
-  tool_response: Record<string, unknown>;
-}
-
-export interface SubagentStartPayload extends HookPayload {
-  agent_id: string;
-  agent_type: string;
-}
-
-export interface SubagentStopPayload extends HookPayload {
-  agent_id: string;
-  agent_type: string;
-  agent_transcript_path: string;
-  last_assistant_message: string;
-}
-
-export interface PreCompactPayload extends HookPayload {
-  trigger: 'manual' | 'auto';
-}
-
-export interface SessionStartPayload extends HookPayload {
-  model: string;
-  source: SessionSource;
-}
-
-export interface SessionEndPayload extends HookPayload {
-  reason: string;
 }
 
 // ── JSONL transcript types ──────────────────────────────────────────
@@ -328,11 +284,6 @@ export interface SessionStats {
   files_written: string[];
 }
 
-export interface HookStatus {
-  configured: boolean;
-  script_exists: boolean;
-}
-
 export interface HealthResponse {
   status: 'ok';
   version: string;
@@ -343,17 +294,6 @@ export interface HealthResponse {
   db_size_bytes: number;
   session_count: number;
   event_count: number;
-  hooks_configured: boolean;
-  hooks?: Record<string, HookStatus>;
   oldest_session?: string | null;
   newest_session?: string | null;
-}
-
-export interface IngestRequest {
-  events: Record<string, unknown>[];
-}
-
-export interface IngestResponse {
-  ingested: number;
-  errors: string[];
 }

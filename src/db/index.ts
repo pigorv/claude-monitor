@@ -17,7 +17,6 @@ export {
   listEventsBySession,
   getTokenTimeline,
   getEventCountBySession,
-  eventExists,
 } from './queries/events.js';
 export type { EventFilters } from './queries/events.js';
 export {
