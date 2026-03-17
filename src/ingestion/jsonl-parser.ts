@@ -53,6 +53,9 @@ export function parseLine(line: string): TranscriptMessage | null {
   // Extract model
   const model = (messageWrapper['model'] as string | undefined) ?? undefined;
 
+  // Extract message ID (for deduplication — multiple JSONL lines share the same API message)
+  const messageId = (messageWrapper['id'] as string | undefined) ?? undefined;
+
   return {
     uuid: raw['uuid'] as string,
     parentUuid: (raw['parentUuid'] as string | null) ?? null,
@@ -63,6 +66,7 @@ export function parseLine(line: string): TranscriptMessage | null {
     sessionId: (raw['sessionId'] as string | undefined) ?? undefined,
     cwd: (raw['cwd'] as string | undefined) ?? undefined,
     model,
+    messageId,
   };
 }
 

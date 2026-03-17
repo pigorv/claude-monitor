@@ -51,7 +51,7 @@ describe('resolveThreshold', () => {
   it('resolves opus from full model string', () => {
     const t = resolveThreshold('claude-opus-4-6');
     assert.equal(t.model, 'opus');
-    assert.equal(t.maxTokens, 200_000);
+    assert.equal(t.maxTokens, 1_000_000);
   });
 
   it('resolves sonnet from model string', () => {

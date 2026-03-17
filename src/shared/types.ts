@@ -156,6 +156,7 @@ export interface TranscriptMessage {
   sessionId?: string;
   cwd?: string;
   model?: string;
+  messageId?: string;
 }
 
 // ── Analysis types ──────────────────────────────────────────────────

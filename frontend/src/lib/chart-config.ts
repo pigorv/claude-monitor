@@ -1,20 +1,11 @@
-import type { TokenDataPoint } from "../../../src/shared/types";
+import type { TokenDataPoint, ContextThresholds } from "../../../src/shared/types";
+import { MODEL_THRESHOLDS } from "../../../src/shared/model-thresholds";
 import type uPlot from "uplot";
 
 // ── Model threshold resolution ─────────────────────────────────────
 
-interface ChartThresholds {
-  maxTokens: number;
-  warningPct: number;
-  dangerPct: number;
-  autoCompactPct: number;
-}
-
-const MODEL_THRESHOLDS: Record<string, ChartThresholds> = {
-  opus:   { maxTokens: 200_000, autoCompactPct: 75.0,  warningPct: 60.0, dangerPct: 70.0 },
-  sonnet: { maxTokens: 200_000, autoCompactPct: 83.5,  warningPct: 65.0, dangerPct: 75.0 },
-  haiku:  { maxTokens: 200_000, autoCompactPct: 90.0,  warningPct: 70.0, dangerPct: 80.0 },
-};
+/** Alias kept for backward-compat within chart code. */
+export type ChartThresholds = ContextThresholds;
 
 export function resolveThresholds(model: string | null | undefined): ChartThresholds {
   if (!model) return MODEL_THRESHOLDS.sonnet;
@@ -255,6 +246,10 @@ export function tooltipPlugin(chartData: ChartData): uPlot.Plugin {
           content += `<div class="tt-row"><span class="tt-dot" style="background:#6d28d9"></span>Context: ${fmt(effectiveCtx)} (${pt.context_pct.toFixed(1)}%)</div>`;
           content += `<div class="tt-row"><span class="tt-dot" style="background:#15803d"></span>Output: ${fmt(pt.output_tokens)}</div>`;
           content += `<div class="tt-row"><span class="tt-dot" style="background:#a78bfa"></span>Cache read: ${fmt(pt.cache_read_tokens)}</div>`;
+          const cacheWrite = pt.cache_write_tokens ?? 0;
+          if (cacheWrite > 0) {
+            content += `<div class="tt-row"><span class="tt-dot" style="background:#c4b5fd"></span>Cache write: ${fmt(cacheWrite)}</div>`;
+          }
           if (pt.is_compaction) {
             content += `<div class="tt-compaction">Compaction</div>`;
           }

@@ -68,7 +68,22 @@ export function buildTokenSnapshots(
   const snapshots: TokenSnapshot[] = [];
   let prevInputTokens = 0;
 
-  for (const msg of messages) {
+  // Deduplicate: when multiple JSONL lines share the same messageId, only
+  // process the last one (it carries the final cumulative usage data).
+  const skipIndices = new Set<number>();
+  const lastByMessageId = new Map<string, number>();
+  for (let i = 0; i < messages.length; i++) {
+    const mid = messages[i].messageId;
+    if (mid) {
+      const prev = lastByMessageId.get(mid);
+      if (prev !== undefined) skipIndices.add(prev);
+      lastByMessageId.set(mid, i);
+    }
+  }
+
+  for (let i = 0; i < messages.length; i++) {
+    if (skipIndices.has(i)) continue;
+    const msg = messages[i];
     if (msg.type !== 'assistant' || !msg.usage) continue;
 
     const resolvedModel = model ?? msg.model ?? null;
@@ -83,6 +98,9 @@ export function buildTokenSnapshots(
     // - cache_read: tokens read from cache
     // - cache_write: tokens being written to cache for the first time
     const effectiveContextTokens = inputTokens + cacheRead + cacheWrite;
+
+    // Skip zero-token messages (empty responses after /exit, etc.)
+    if (effectiveContextTokens === 0 && outputTokens === 0) continue;
 
     // Detect compaction: significant drop in effective context tokens
     // Skip zero-token messages (incomplete/empty messages at session boundaries)
@@ -109,6 +127,18 @@ export function buildTokenSnapshots(
 
 /**
  * Compute aggregate token stats from snapshots.
+ *
+ * After streaming dedup (handled upstream), each snapshot represents one
+ * unique API call. The per-call token fields are:
+ *
+ *   - output_tokens: tokens generated in THIS call (incremental) -- sum gives total output
+ *   - cache_read_tokens: tokens served from cache in THIS call (incremental) -- sum gives total reads
+ *   - cache_write_tokens: tokens written to cache in THIS call (incremental) -- sum gives total writes
+ *   - input_tokens: non-cached input tokens in THIS call
+ *
+ * total_input_tokens uses the MAX effective context (input + cache_read + cache_write)
+ * across all snapshots, representing peak context window usage. This correctly
+ * handles compaction resets -- summing would double-count pre/post compaction tokens.
  */
 export function computeAggregates(snapshots: TokenSnapshot[]): TokenAggregates {
   if (snapshots.length === 0) {

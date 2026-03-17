@@ -44,10 +44,10 @@ export function TokenChart({ timeline, model, compactionDetails }: TokenChartPro
     if (!el) return;
 
     const updateSize = () => {
-      const rect = el.getBoundingClientRect();
-      if (rect.width > 0) {
-        // Subtract padding (20px * 2)
-        setDimensions({ width: rect.width - 40, height: 220 });
+      const style = getComputedStyle(el);
+      const contentWidth = el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      if (contentWidth > 0) {
+        setDimensions({ width: contentWidth, height: 220 });
       }
     };
 
@@ -107,9 +107,11 @@ export function TokenChart({ timeline, model, compactionDetails }: TokenChartPro
   // Context stats
   const peakUtilization = Math.max(...timeline.map((p) => p.context_pct));
   const peakEffectiveContext = Math.max(...timeline.map((p) => p.input_tokens + p.cache_read_tokens + (p.cache_write_tokens ?? 0)));
-  const totalCache = timeline.reduce((s, p) => s + p.cache_read_tokens, 0);
-  const totalContext = timeline.reduce((s, p) => s + p.input_tokens + p.cache_read_tokens + (p.cache_write_tokens ?? 0), 0);
-  const cacheHitRate = totalContext > 0 ? (totalCache / totalContext) * 100 : 0;
+  const totalCacheRead = timeline.reduce((s, p) => s + p.cache_read_tokens, 0);
+  const totalNonCachedInput = timeline.reduce((s, p) => s + p.input_tokens, 0);
+  const cacheHitRate = (totalCacheRead + totalNonCachedInput) > 0
+    ? (totalCacheRead / (totalCacheRead + totalNonCachedInput)) * 100
+    : 0;
   const contextResets = compactionEvents.length;
 
   // Peak utilization timestamp and pre-compaction label
