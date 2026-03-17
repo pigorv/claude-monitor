@@ -115,7 +115,7 @@ describe('Heatmap', () => {
   it('applies color based on context percentage', () => {
     const timeline = [makePoint(90)];
     const out = render(html`<${Heatmap} timeline=${timeline} />`);
-    assert.ok(out.includes('#ef4444'), 'high context should use red');
+    assert.ok(out.includes('rgba(185, 28, 28'), 'high context should use red');
   });
 });
 
@@ -245,7 +245,9 @@ describe('EventCard', () => {
     for (const t of types) {
       const evt = makeEvent({ event_type: t as any });
       const out = render(html`<${EventCard} event=${evt} />`);
-      assert.ok(out.includes('event-card'), `${t} should render event-card`);
+      // tool_call_start renders as lightweight tool-row-standalone, not event-card
+      const expected = t === 'tool_call_start' ? 'tool-row-standalone' : 'event-card';
+      assert.ok(out.includes(expected), `${t} should render ${expected}`);
     }
   });
 });
