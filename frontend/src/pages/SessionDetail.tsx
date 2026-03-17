@@ -69,6 +69,22 @@ function signalDotColor(value: number): string {
   return "var(--green)";
 }
 
+const SIGNAL_THRESHOLDS: Record<string, number> = {
+  context_utilization: 0.10,
+  compaction_count: 0.10,
+  post_compaction_drift: 0.05,
+  long_tool_output: 0.10,
+  deep_nesting: 0.05,
+};
+
+function chipState(name: string, weightedValue: number): { className: string; threshold: string | null } {
+  const t = SIGNAL_THRESHOLDS[name];
+  if (t == null) return { className: "", threshold: null };
+  if (weightedValue >= t * 3) return { className: "danger", threshold: `▲ >${t.toFixed(2)}` };
+  if (weightedValue >= t) return { className: "warn", threshold: `▲ >${t.toFixed(2)}` };
+  return { className: "", threshold: null };
+}
+
 const SIGNAL_FRIENDLY_NAMES: Record<string, string> = {
   context_utilization: "context",
   compaction_count: "compactions",
@@ -283,12 +299,18 @@ export function SessionDetail({ id }: { id: string }) {
           ${data.risk.signals.length > 0 && html`
             <div class="risk-signals">
               ${data.risk.signals.map(
-                (sig) => html`
-                  <span class="signal-badge" title=${sig.description}>
-                    <span class="signal-dot" style="background: ${signalDotColor(sig.value * sig.weight)}"></span>
-                    ${friendlySignalName(sig.name)}: ${(sig.value * sig.weight).toFixed(2)}
-                  </span>
-                `
+                (sig) => {
+                  const wv = sig.value * sig.weight;
+                  const cs = chipState(sig.name, wv);
+                  return html`
+                    <span class="risk-chip ${cs.className}" title=${sig.description}>
+                      <span class="risk-chip-dot" style="background: ${signalDotColor(wv)}"></span>
+                      <span class="risk-chip-label">${friendlySignalName(sig.name)}</span>
+                      <span class="risk-chip-value">${wv.toFixed(2)}</span>
+                      ${cs.threshold && html`<span class="risk-chip-threshold">${cs.threshold}</span>`}
+                    </span>
+                  `;
+                }
               )}
             </div>
           `}

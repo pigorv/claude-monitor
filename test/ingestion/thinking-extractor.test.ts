@@ -291,6 +291,52 @@ describe('extractAllEvents', () => {
     assert.ok(startEvt.output_data?.includes('was rejected'));
   });
 
+  it('should skip tool_result with no matching tool_use (orphaned cross-session)', () => {
+    // Simulates ExitPlanMode boundary: tool_result appears without a prior tool_use
+    const messages: TranscriptMessage[] = [
+      makeMsg({
+        type: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'tool-orphan',
+            content: "The user doesn't want to proceed with this tool use. The tool use was rejected.",
+            is_error: true,
+          },
+          { type: 'text', text: 'Implement the following plan:' },
+        ],
+      }),
+    ];
+
+    const events = extractAllEvents(messages);
+    // Should only have the user_message, no tool_call_end
+    assert.equal(events.length, 1);
+    assert.equal(events[0].event_type, 'user_message');
+  });
+
+  it('should drop orphaned tool_call_end in mergeToolCallEvents', () => {
+    // Defensive: if an orphaned tool_call_end somehow makes it through extraction
+    const events: ReturnType<typeof extractAllEvents> = [
+      {
+        event_type: 'user_message',
+        timestamp: '2026-01-01T00:00:00.000Z',
+        input_preview: 'hello',
+      },
+      {
+        event_type: 'tool_call_end',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        tool_use_id: 'no-matching-start',
+        output_preview: 'rejected output',
+        metadata: { permission_status: 'rejected' },
+      },
+    ];
+
+    const merged = mergeToolCallEvents(events);
+    // Orphaned end should be dropped
+    assert.equal(merged.length, 1);
+    assert.equal(merged[0].event_type, 'user_message');
+  });
+
   it('should not set metadata for successful tool results', () => {
     const messages: TranscriptMessage[] = [
       makeMsg({
