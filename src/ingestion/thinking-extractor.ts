@@ -136,6 +136,14 @@ function extractAssistantEvents(
       event.cache_write_tokens = msg.usage.cache_creation_input_tokens;
     }
 
+    // Detect special assistant message subtypes
+    const textLower = textParts.toLowerCase();
+    if (textLower.includes('[request interrupted')) {
+      event.metadata = { ...(event.metadata || {}), subtype: 'interrupted' };
+    } else if (textParts.trim() === 'No response requested.' || textParts.trim() === 'No response requested') {
+      event.metadata = { ...(event.metadata || {}), subtype: 'no_response' };
+    }
+
     events.push(event);
   }
 }
@@ -222,6 +230,11 @@ function parseUserMessageTags(text: string): { cleanText: string; metadata: Reco
   // Detect system-generated messages
   if (/<local-command-caveat>/.test(text) || /<local-command-stdout>/.test(text) || /<task-notification>/.test(text)) {
     metadata.subtype = 'system_generated';
+  }
+
+  // Detect /context command output (contains token usage table)
+  if (metadata.subtype === 'system_generated' && /(?:System prompt|Free space|Messages)\s+\d/.test(text)) {
+    metadata.context_output = true;
   }
 
   // Detect skill expansions and extract skill name from path

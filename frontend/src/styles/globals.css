@@ -41,6 +41,10 @@
   --red-bg: #fef2f2;
   --red-border: #fecaca;
 
+  --blue: #2563eb;
+  --blue-bg: rgba(59,130,246,0.04);
+  --blue-border: rgba(59,130,246,0.3);
+
   --teal: #0e7490;
   --teal-bg: #ecfeff;
   --teal-border: #a5f3fc;

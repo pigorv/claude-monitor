@@ -107,7 +107,8 @@ export type TimelineItem =
   | { type: "event"; event: Event }
   | { type: "agent-group"; agentId: string; agent: AgentRelationship; agentDescription?: string }
   | { type: "compaction"; event: Event }
-  | { type: "tool-group"; events: Event[]; groupKey: string };
+  | { type: "tool-group"; events: Event[]; groupKey: string }
+  | { type: "system-group"; events: Event[] };
 
 export function groupTimelineItems(events: Event[], agents?: AgentRelationship[]): TimelineItem[] {
   const hasAgentData = agents && agents.length > 0;
@@ -191,6 +192,30 @@ export function groupTimelineItems(events: Event[], agents?: AgentRelationship[]
         const group = events.slice(i, j);
         items.push({ type: "tool-group", events: group, groupKey: `tg-${evt.id}` });
         i = j;
+      } else {
+        items.push({ type: "event", event: evt });
+        i++;
+      }
+    // Group consecutive system-generated user messages
+    } else if (evt.event_type === 'user_message') {
+      const evtMeta = tryParseJson(evt.metadata);
+      if (evtMeta?.subtype === 'system_generated' && !evtMeta?.command) {
+        // Look ahead for consecutive system_generated messages
+        let j = i + 1;
+        while (j < events.length) {
+          const nextEvt = events[j];
+          if (nextEvt.event_type !== 'user_message') break;
+          const nextMeta = tryParseJson(nextEvt.metadata);
+          if (nextMeta?.subtype !== 'system_generated' || nextMeta?.command) break;
+          j++;
+        }
+        if (j - i >= 2) {
+          items.push({ type: "system-group", events: events.slice(i, j) });
+          i = j;
+        } else {
+          items.push({ type: "event", event: evt });
+          i++;
+        }
       } else {
         items.push({ type: "event", event: evt });
         i++;
@@ -363,6 +388,32 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
                     </div>
                   </div>
                 `;
+                })()
+              : item.type === "system-group"
+              ? (() => {
+                  const groupKey = `sg-${item.events[0].id}`;
+                  const isExpanded = expandedToolGroups[groupKey];
+                  const firstPreview = item.events[0].input_preview || '[system message]';
+                  return html`
+                    <div key=${groupKey} class="event-card">
+                      <div class="event-dot dot-sys"></div>
+                      <div class="event-content">
+                        <div class="sys-group" onClick=${() => toggleToolGroup(groupKey)}>
+                          <span class="sys-label">system</span>
+                          <span class="sys-count">×${item.events.length}</span>
+                          <span class="sys-text">${truncate(firstPreview, 60)}</span>
+                          <span class="sys-expand">${isExpanded ? '▾' : '▸'}</span>
+                        </div>
+                        ${isExpanded && html`
+                          <div style="margin-top: 4px;">
+                            ${item.events.map(evt => html`
+                              <${EventCard} key=${evt.id} event=${evt} sessionStart=${sessionStart} />
+                            `)}
+                          </div>
+                        `}
+                      </div>
+                    </div>
+                  `;
                 })()
               : html`<${EventCard}
                   key=${item.event.id}
