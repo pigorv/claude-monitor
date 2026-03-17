@@ -66,6 +66,7 @@ function makeEvent(overrides: Partial<Omit<Event, 'id'>> = {}): Omit<Event, 'id'
     input_tokens: 1000,
     output_tokens: 500,
     cache_read_tokens: 200,
+    cache_write_tokens: 100,
     context_pct: 10.5,
     input_preview: 'file.ts',
     input_data: JSON.stringify({ file_path: '/tmp/file.ts' }),

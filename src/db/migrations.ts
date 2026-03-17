@@ -80,6 +80,10 @@ DROP INDEX IF EXISTS idx_events_session_tool;
 CREATE INDEX idx_events_session_tool_v2 ON events(session_id, tool_name) WHERE tool_name IS NOT NULL;
 `;
 
+const MIGRATION_008_EVENTS_CACHE_WRITE = `
+ALTER TABLE events ADD COLUMN cache_write_tokens INTEGER;
+`;
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -88,6 +92,7 @@ const MIGRATIONS: Migration[] = [
   { id: 5, name: '005-agent-rel-unique', sql: MIGRATION_005_AGENT_REL_UNIQUE },
   { id: 6, name: '006-perf-indexes', sql: MIGRATION_006_PERF_INDEXES },
   { id: 7, name: '007-index-cleanup', sql: MIGRATION_007_INDEX_CLEANUP },
+  { id: 8, name: '008-events-cache-write', sql: MIGRATION_008_EVENTS_CACHE_WRITE },
 ];
 
 export function runMigrations(db: Database.Database): void {

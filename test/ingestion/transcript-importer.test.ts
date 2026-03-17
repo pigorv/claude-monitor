@@ -87,7 +87,7 @@ describe('importTranscript', () => {
     assert.equal(session.started_at, '2026-01-01T00:01:00.000Z');
     assert.equal(session.ended_at, '2026-01-01T00:01:10.000Z');
     assert.ok(session.duration_ms! > 0);
-    assert.equal(session.total_input_tokens, 1500); // cumulative, last value
+    assert.equal(session.total_input_tokens, 2300); // max effective context (input + cache_read + cache_write)
     assert.equal(session.total_output_tokens, 250); // 200 + 50
     assert.equal(session.total_cache_read_tokens, 1300); // 500 + 800
     assert.equal(session.tool_call_count, 1); // Read tool
@@ -240,7 +240,7 @@ describe('importTranscript with sample fixture', () => {
     assert.ok(session);
     assert.equal(session.model, 'claude-opus-4-6');
     assert.equal(session.project_path, '/tmp/project');
-    assert.equal(session.tool_call_count, 1);
+    assert.equal(session.tool_call_count, 3);
 
     // Token timeline should have data points
     const timeline = getTokenTimeline('sess-001');

@@ -21,12 +21,12 @@ export function insertEvent(event: Omit<Event, 'id'>): number {
     INSERT INTO events (
       session_id, parent_event_id, agent_id, event_type, event_source, tool_name,
       timestamp, sequence_num, input_tokens, output_tokens, cache_read_tokens,
-      context_pct, input_preview, input_data, output_preview, output_data,
+      cache_write_tokens, context_pct, input_preview, input_data, output_preview, output_data,
       thinking_summary, thinking_text, duration_ms, metadata
     ) VALUES (
       @session_id, @parent_event_id, @agent_id, @event_type, @event_source, @tool_name,
       @timestamp, @sequence_num, @input_tokens, @output_tokens, @cache_read_tokens,
-      @context_pct, @input_preview, @input_data, @output_preview, @output_data,
+      @cache_write_tokens, @context_pct, @input_preview, @input_data, @output_preview, @output_data,
       @thinking_summary, @thinking_text, @duration_ms, @metadata
     )
   `);
@@ -42,12 +42,12 @@ export function insertEvents(events: Omit<Event, 'id'>[]): number[] {
     INSERT INTO events (
       session_id, parent_event_id, agent_id, event_type, event_source, tool_name,
       timestamp, sequence_num, input_tokens, output_tokens, cache_read_tokens,
-      context_pct, input_preview, input_data, output_preview, output_data,
+      cache_write_tokens, context_pct, input_preview, input_data, output_preview, output_data,
       thinking_summary, thinking_text, duration_ms, metadata
     ) VALUES (
       @session_id, @parent_event_id, @agent_id, @event_type, @event_source, @tool_name,
       @timestamp, @sequence_num, @input_tokens, @output_tokens, @cache_read_tokens,
-      @context_pct, @input_preview, @input_data, @output_preview, @output_data,
+      @cache_write_tokens, @context_pct, @input_preview, @input_data, @output_preview, @output_data,
       @thinking_summary, @thinking_text, @duration_ms, @metadata
     )
   `);
@@ -108,7 +108,7 @@ export function listEventsBySession(
 
   const columns = filters.includeThinking
     ? '*'
-    : 'id, session_id, parent_event_id, agent_id, event_type, event_source, tool_name, timestamp, sequence_num, input_tokens, output_tokens, cache_read_tokens, context_pct, input_preview, input_data, output_preview, output_data, thinking_summary, duration_ms, metadata';
+    : 'id, session_id, parent_event_id, agent_id, event_type, event_source, tool_name, timestamp, sequence_num, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, context_pct, input_preview, input_data, output_preview, output_data, thinking_summary, duration_ms, metadata';
 
   const limit = filters.limit ?? 100;
   const offset = filters.offset ?? 0;
@@ -131,11 +131,12 @@ export function getTokenTimeline(sessionId: string): TokenDataPoint[] {
       COALESCE(input_tokens, 0) as input_tokens,
       COALESCE(output_tokens, 0) as output_tokens,
       COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
       COALESCE(context_pct, 0) as context_pct,
       event_type,
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
     FROM events
-    WHERE session_id = ? AND input_tokens IS NOT NULL
+    WHERE session_id = ? AND input_tokens IS NOT NULL AND agent_id IS NULL
     ORDER BY sequence_num ASC, timestamp ASC
   `);
   return _tokenTimelineStmt.all(sessionId) as TokenDataPoint[];
@@ -148,7 +149,7 @@ export function getMiniTimeline(sessionId: string, maxPoints: number = 20): Mini
       COALESCE(context_pct, 0) as context_pct,
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
     FROM events
-    WHERE session_id = ? AND context_pct IS NOT NULL
+    WHERE session_id = ? AND context_pct IS NOT NULL AND agent_id IS NULL
     ORDER BY sequence_num ASC, timestamp ASC
   `);
   const rows = _miniTimelineStmt.all(sessionId) as { context_pct: number; is_compaction: number }[];
@@ -202,7 +203,7 @@ export function getMiniTimelinesForSessions(sessionIds: string[], maxPoints: num
       COALESCE(context_pct, 0) as context_pct,
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
     FROM events
-    WHERE session_id IN (${placeholders}) AND context_pct IS NOT NULL
+    WHERE session_id IN (${placeholders}) AND context_pct IS NOT NULL AND agent_id IS NULL
     ORDER BY session_id, sequence_num ASC, timestamp ASC
   `).all(...sessionIds) as { session_id: string; context_pct: number; is_compaction: number }[];
 

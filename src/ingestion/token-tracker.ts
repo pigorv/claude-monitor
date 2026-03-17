@@ -78,7 +78,11 @@ export function buildTokenSnapshots(
     const cacheWrite = msg.usage.cache_creation_input_tokens ?? 0;
 
     // Effective context = new tokens + cached tokens (already in context window)
-    const effectiveContextTokens = inputTokens + cacheRead;
+    // All three components are in the context window:
+    // - input_tokens: non-cached input
+    // - cache_read: tokens read from cache
+    // - cache_write: tokens being written to cache for the first time
+    const effectiveContextTokens = inputTokens + cacheRead + cacheWrite;
 
     // Detect compaction: significant drop in effective context tokens
     // Skip zero-token messages (incomplete/empty messages at session boundaries)
@@ -118,9 +122,9 @@ export function computeAggregates(snapshots: TokenSnapshot[]): TokenAggregates {
     };
   }
 
-  // input_tokens is cumulative — use the max observed value to handle
-  // anomalous last snapshots (e.g. compaction or near-zero final value)
-  let maxInputTokens = 0;
+  // Effective context = input + cache_read + cache_write per snapshot.
+  // Use the max effective context seen (handles compaction resets).
+  let maxEffectiveContext = 0;
   let totalOutput = 0;
   let totalCacheRead = 0;
   let totalCacheWrite = 0;
@@ -128,7 +132,8 @@ export function computeAggregates(snapshots: TokenSnapshot[]): TokenAggregates {
   let compactionCount = 0;
 
   for (const s of snapshots) {
-    if (s.input_tokens > maxInputTokens) maxInputTokens = s.input_tokens;
+    const effective = s.input_tokens + s.cache_read_tokens + s.cache_write_tokens;
+    if (effective > maxEffectiveContext) maxEffectiveContext = effective;
     totalOutput += s.output_tokens;
     totalCacheRead += s.cache_read_tokens;
     totalCacheWrite += s.cache_write_tokens;
@@ -137,7 +142,7 @@ export function computeAggregates(snapshots: TokenSnapshot[]): TokenAggregates {
   }
 
   return {
-    total_input_tokens: maxInputTokens,
+    total_input_tokens: maxEffectiveContext,
     total_output_tokens: totalOutput,
     total_cache_read_tokens: totalCacheRead,
     total_cache_write_tokens: totalCacheWrite,
@@ -155,6 +160,7 @@ export function snapshotsToDataPoints(snapshots: TokenSnapshot[]): TokenDataPoin
     input_tokens: s.input_tokens,
     output_tokens: s.output_tokens,
     cache_read_tokens: s.cache_read_tokens,
+    cache_write_tokens: s.cache_write_tokens,
     context_pct: s.context_pct,
     event_type: s.is_compaction ? 'compaction' : 'assistant_message',
     is_compaction: s.is_compaction,

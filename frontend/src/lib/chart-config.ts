@@ -29,7 +29,7 @@ export function resolveThresholds(model: string | null | undefined): ChartThresh
 
 export interface ChartData {
   timestamps: number[];      // epoch seconds
-  inputTokens: number[];
+  effectiveContext: number[]; // input + cache_read + cache_write (total context window usage)
   outputTokens: number[];
   cacheReadTokens: number[];
   contextPct: number[];
@@ -39,7 +39,7 @@ export interface ChartData {
 
 export function transformTimeline(timeline: TokenDataPoint[]): ChartData {
   const timestamps: number[] = [];
-  const inputTokens: number[] = [];
+  const effectiveContext: number[] = [];
   const outputTokens: number[] = [];
   const cacheReadTokens: number[] = [];
   const contextPct: number[] = [];
@@ -48,14 +48,15 @@ export function transformTimeline(timeline: TokenDataPoint[]): ChartData {
   for (let i = 0; i < timeline.length; i++) {
     const p = timeline[i];
     timestamps.push(new Date(p.timestamp).getTime() / 1000);
-    inputTokens.push(p.input_tokens);
+    // Effective context = all tokens in the context window
+    effectiveContext.push(p.input_tokens + p.cache_read_tokens + (p.cache_write_tokens ?? 0));
     outputTokens.push(p.output_tokens);
     cacheReadTokens.push(p.cache_read_tokens);
     contextPct.push(p.context_pct);
     if (p.is_compaction) compactionIndices.push(i);
   }
 
-  return { timestamps, inputTokens, outputTokens, cacheReadTokens, contextPct, compactionIndices, points: timeline };
+  return { timestamps, effectiveContext, outputTokens, cacheReadTokens, contextPct, compactionIndices, points: timeline };
 }
 
 // ── uPlot plugins ──────────────────────────────────────────────────
@@ -84,6 +85,10 @@ export function thresholdPlugin(thresholds: ChartThresholds): uPlot.Plugin {
     ctx.beginPath();
     ctx.roundRect(lx, ly, tw + px * 2, h, r);
     ctx.fill();
+    // Pill border
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
     // Pill text
     ctx.fillStyle = color;
     ctx.fillText(text, lx + px, ly + h - py - 2);
@@ -245,11 +250,11 @@ export function tooltipPlugin(chartData: ChartData): uPlot.Plugin {
 
           const fmt = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + "K" : String(n);
 
+          const effectiveCtx = pt.input_tokens + pt.cache_read_tokens + (pt.cache_write_tokens ?? 0);
           let content = `<div class="tt-time">${new Date(pt.timestamp).toLocaleTimeString()}</div>`;
-          content += `<div class="tt-row"><span class="tt-dot" style="background:#6d28d9"></span>Input: ${fmt(pt.input_tokens)}</div>`;
+          content += `<div class="tt-row"><span class="tt-dot" style="background:#6d28d9"></span>Context: ${fmt(effectiveCtx)} (${pt.context_pct.toFixed(1)}%)</div>`;
           content += `<div class="tt-row"><span class="tt-dot" style="background:#15803d"></span>Output: ${fmt(pt.output_tokens)}</div>`;
-          content += `<div class="tt-row"><span class="tt-dot" style="background:#a78bfa"></span>Cache: ${fmt(pt.cache_read_tokens)}</div>`;
-          content += `<div class="tt-row">Context: ${pt.context_pct.toFixed(1)}%</div>`;
+          content += `<div class="tt-row"><span class="tt-dot" style="background:#a78bfa"></span>Cache read: ${fmt(pt.cache_read_tokens)}</div>`;
           if (pt.is_compaction) {
             content += `<div class="tt-compaction">Compaction</div>`;
           }
@@ -267,7 +272,7 @@ export function tooltipPlugin(chartData: ChartData): uPlot.Plugin {
 
 // ── Build uPlot options ────────────────────────────────────────────
 
-/** Gradient fill function for the input tokens series */
+/** Gradient fill function for the effective context series */
 function inputGradientFill(u: uPlot, _seriesIdx: number): string | CanvasGradient {
   const { top, height } = u.bbox;
   // bbox isn't ready during legend init — return a flat color fallback
@@ -291,6 +296,15 @@ export function buildChartOpts(
     height,
     cursor: {
       drag: { x: true, y: false, setScale: true },
+      points: {
+        size: (_u: uPlot, _seriesIdx: number) => 5 * devicePixelRatio,
+        width: 0,
+        stroke: "transparent",
+        fill: (_u: uPlot, seriesIdx: number) => {
+          const fills = ["", "#6d28d9", "#15803d", "#a78bfa"];
+          return fills[seriesIdx] || "#888";
+        },
+      },
     },
     scales: {
       x: { time: true },
@@ -330,7 +344,7 @@ export function buildChartOpts(
     series: [
       {}, // x-axis (timestamps)
       {
-        label: "Input Tokens",
+        label: "Context",
         stroke: "#6d28d9",
         width: 2,
         fill: inputGradientFill as any,
@@ -339,7 +353,7 @@ export function buildChartOpts(
       {
         label: "Output Tokens",
         stroke: "#15803d",
-        width: 1.5,
+        width: 2,
         points: { show: false },
       },
       {

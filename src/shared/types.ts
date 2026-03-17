@@ -66,6 +66,7 @@ export interface Event {
   input_tokens: number | null;
   output_tokens: number | null;
   cache_read_tokens: number | null;
+  cache_write_tokens: number | null;
   context_pct: number | null;
   input_preview: string | null;
   input_data: string | null;
@@ -186,6 +187,7 @@ export interface TokenDataPoint {
   input_tokens: number;
   output_tokens: number;
   cache_read_tokens: number;
+  cache_write_tokens: number;
   context_pct: number;
   event_type: string;
   is_compaction: boolean;
