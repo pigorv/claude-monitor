@@ -138,22 +138,8 @@ function parseContextOutput(raw: string): ContextData | null {
 
 // Command deduplication: returns args to show, or null if body equals command name
 function getCommandArgs(meta: Record<string, unknown>): string | null {
-  const cmd = (meta.command as string) || '';
-  const msg = (meta.command_message as string) || '';
   const args = (meta.command_args as string) || '';
-
-  // Strip leading / from command for comparison
-  const cmdName = cmd.replace(/^\//, '');
-
-  // If message body equals command name or is empty, no args to show
-  if (!msg || msg === cmdName || msg === cmd) return null;
-
-  // If args field exists, prefer it
-  if (args && args !== cmdName && args !== cmd) return args;
-
-  // Otherwise use message minus the command name prefix
-  const cleaned = msg.replace(new RegExp('^' + cmdName + '\\s*', 'i'), '').trim();
-  return cleaned || null;
+  return args || null;
 }
 
 // Event type labels for pills
@@ -322,11 +308,14 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
     const cmdArgs = getCommandArgs(meta!);
 
     return html`
-      <div class="event-card event-user-message">
+      <div class=${"event-card event-user-message" + (hasExpandable ? " expandable" : "")}
+        onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
+      >
         <div class="event-dot dot-cmd"></div>
         <div class="event-content">
           <div class="event-header">
             <span class="event-time">${formatTime(event.timestamp, sessionStart)}</span>
+            ${hasExpandable && html`<span class="event-expand">${expanded ? "▾" : "▸"}</span>`}
           </div>
           <div class="cmd-block">
             <div class="cmd-header">
@@ -334,6 +323,16 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
               ${cmdArgs && html`<span class="cmd-args">${cmdArgs}</span>`}
             </div>
           </div>
+          ${expanded && html`
+            <div class="event-detail">
+              ${event.input_data && html`
+                <div class="detail-section">
+                  <div class="detail-label">Input</div>
+                  <pre class="detail-content">${event.input_data}</pre>
+                </div>
+              `}
+            </div>
+          `}
         </div>
       </div>
     `;
