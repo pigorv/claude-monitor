@@ -58,7 +58,7 @@ function makeEvent(overrides: Partial<Omit<Event, 'id'>> = {}): Omit<Event, 'id'
     session_id: 'test-session-1',
     parent_event_id: null,
     agent_id: null,
-    event_type: 'tool_call_end',
+    event_type: 'assistant_message',
     event_source: 'transcript_import',
     tool_name: 'Read',
     timestamp: '2025-01-01T00:05:00.000Z',

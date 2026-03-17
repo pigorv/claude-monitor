@@ -137,6 +137,8 @@ export function getTokenTimeline(sessionId: string): TokenDataPoint[] {
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
     FROM events
     WHERE session_id = ? AND input_tokens IS NOT NULL AND agent_id IS NULL
+      AND event_type IN ('assistant_message', 'compaction')
+      AND (COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0) + COALESCE(output_tokens, 0)) > 0
     ORDER BY sequence_num ASC, timestamp ASC
   `);
   return _tokenTimelineStmt.all(sessionId) as TokenDataPoint[];
@@ -150,6 +152,8 @@ export function getMiniTimeline(sessionId: string, maxPoints: number = 20): Mini
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
     FROM events
     WHERE session_id = ? AND context_pct IS NOT NULL AND agent_id IS NULL
+      AND event_type IN ('assistant_message', 'compaction')
+      AND (COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0) + COALESCE(output_tokens, 0)) > 0
     ORDER BY sequence_num ASC, timestamp ASC
   `);
   const rows = _miniTimelineStmt.all(sessionId) as { context_pct: number; is_compaction: number }[];
