@@ -25,6 +25,9 @@ export function createTranscriptWatcher(options?: {
 
   // Track mtime per file so we only import new/modified transcripts
   const knownMtimes = new Map<string, number>();
+  // Track last import time per file to debounce rapid changes
+  const lastImportTime = new Map<string, number>();
+  const DEBOUNCE_MS = 10_000; // Don't reimport the same file more than once per 10s
   let interval: ReturnType<typeof setInterval> | null = null;
   let running = false;
   let scanning = false;
@@ -82,10 +85,20 @@ export function createTranscriptWatcher(options?: {
         const prev = knownMtimes.get(filePath);
         if (prev !== undefined && prev >= mtime) continue;
 
-        // New or modified file — attempt import
+        // Debounce: skip if we recently imported this file
+        const isReimport = prev !== undefined;
+        if (isReimport) {
+          const lastImport = lastImportTime.get(filePath);
+          if (lastImport && (Date.now() - lastImport) < DEBOUNCE_MS) continue;
+        }
+
+        // New or modified file — attempt import.
+        // Always force re-import when the file has been modified since last scan,
+        // so that in-progress sessions get updated as more data is written.
         try {
-          const result = await importTranscript(filePath);
+          const result = await importTranscript(filePath, { force: isReimport });
           knownMtimes.set(filePath, mtime);
+          lastImportTime.set(filePath, Date.now());
 
           if (!result.skipped) {
             logger.info('Auto-imported transcript', {

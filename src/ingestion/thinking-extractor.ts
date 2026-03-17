@@ -148,6 +148,12 @@ function extractUserEvents(
     if (block.type === 'tool_result') {
       const pending = pendingToolUses.get(block.tool_use_id);
       const outputStr = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
+      const isError = 'is_error' in block && block.is_error === true;
+      const isRejected = isError && typeof block.content === 'string'
+        && block.content.includes('was rejected');
+      const endMetadata: Record<string, unknown> | undefined =
+        isRejected ? { permission_status: 'rejected' } :
+        isError ? { tool_error: true } : undefined;
       events.push({
         event_type: 'tool_call_end',
         timestamp: msg.timestamp,
@@ -155,6 +161,7 @@ function extractUserEvents(
         tool_use_id: block.tool_use_id,
         output_preview: truncate(outputStr, PREVIEW_LIMITS.outputPreview),
         output_data: outputStr,
+        metadata: endMetadata,
       });
       if (pending) {
         pendingToolUses.delete(block.tool_use_id);
@@ -274,6 +281,10 @@ export function mergeToolCallEvents(events: ParsedEvent[]): ParsedEvent[] {
       if (start) {
         start.output_preview = evt.output_preview;
         start.output_data = evt.output_data;
+        // Merge metadata from end event (permission_status, tool_error, etc.)
+        if (evt.metadata) {
+          start.metadata = { ...(start.metadata || {}), ...evt.metadata };
+        }
         // Calculate duration from timestamps
         const startMs = new Date(start.timestamp).getTime();
         const endMs = new Date(evt.timestamp).getTime();
@@ -317,6 +328,9 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
     result?: string;
   }> = [];
 
+  // Track seen agentIds to merge resumed agents with same ID
+  const agentIdMap = new Map<string, number>(); // agentId → index in agents[]
+
   // Find Agent/Task tool_call_start events that have been merged (have output_data)
   for (let i = 0; i < events.length; i++) {
     const evt = events[i];
@@ -338,9 +352,6 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
       const agentId = realAgentId ? `agent-${realAgentId}` : `agent-${i}`;
 
       // Find the range of events that belong to this agent
-      // For merged events, the agent's child events are between this event and the next
-      // non-child event or the end of the list.
-      // We look for the next event at the same "level" (another Agent start, user_message, etc.)
       let endIdx = i;
 
       // If this merged event has output_data, find child events by timestamp
@@ -348,7 +359,6 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
         const durationMs = (evt.metadata?.duration_ms as number) || 0;
         if (durationMs > 0) {
           const endTime = new Date(evt.timestamp).getTime() + durationMs;
-          // Mark events between start and end timestamps
           for (let j = i + 1; j < events.length; j++) {
             const childTime = new Date(events[j].timestamp).getTime();
             if (childTime <= endTime) {
@@ -369,6 +379,17 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
       if (!evt.metadata) evt.metadata = {};
       evt.metadata._synthetic_agent_id = agentId;
 
+      // If this agent was already seen (resumed agent), merge into existing entry
+      const existingIdx = agentIdMap.get(agentId);
+      if (existingIdx !== undefined) {
+        const existing = agents[existingIdx];
+        existing.endIdx = endIdx;
+        existing.endTimestamp = endIdx > i ? events[endIdx].timestamp : evt.timestamp;
+        if (evt.output_data) existing.result = truncate(evt.output_data, 500);
+        continue;
+      }
+
+      agentIdMap.set(agentId, agents.length);
       agents.push({
         agentId,
         description,

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractThinkingBlocks, extractAllEvents } from '../../src/ingestion/thinking-extractor.js';
+import { extractThinkingBlocks, extractAllEvents, mergeToolCallEvents } from '../../src/ingestion/thinking-extractor.js';
 import type { TranscriptMessage } from '../../src/shared/types.js';
 
 function makeMsg(overrides: Partial<TranscriptMessage>): TranscriptMessage {
@@ -202,5 +202,115 @@ describe('extractAllEvents', () => {
 
   it('should return empty array for empty input', () => {
     assert.deepEqual(extractAllEvents([]), []);
+  });
+
+  it('should mark rejected tool results with permission_status metadata', () => {
+    const messages: TranscriptMessage[] = [
+      makeMsg({
+        type: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'tool-rej', name: 'Bash', input: { command: 'rm -rf /' } },
+        ],
+      }),
+      makeMsg({
+        type: 'user',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'tool-rej',
+            content: "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.",
+            is_error: true,
+          },
+        ],
+      }),
+    ];
+
+    const events = extractAllEvents(messages);
+    const endEvt = events.find((e) => e.event_type === 'tool_call_end');
+    assert.ok(endEvt);
+    assert.deepEqual(endEvt.metadata, { permission_status: 'rejected' });
+  });
+
+  it('should mark error tool results with tool_error metadata', () => {
+    const messages: TranscriptMessage[] = [
+      makeMsg({
+        type: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'tool-err', name: 'Bash', input: { command: 'ls /nope' } },
+        ],
+      }),
+      makeMsg({
+        type: 'user',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'tool-err',
+            content: 'Exit code 1\nls: /nope: No such file or directory',
+            is_error: true,
+          },
+        ],
+      }),
+    ];
+
+    const events = extractAllEvents(messages);
+    const endEvt = events.find((e) => e.event_type === 'tool_call_end');
+    assert.ok(endEvt);
+    assert.deepEqual(endEvt.metadata, { tool_error: true });
+  });
+
+  it('should propagate permission_status through mergeToolCallEvents', () => {
+    const messages: TranscriptMessage[] = [
+      makeMsg({
+        type: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'tool-m', name: 'Write', input: { file_path: '/tmp/x' } },
+        ],
+      }),
+      makeMsg({
+        type: 'user',
+        timestamp: '2026-01-01T00:00:02.000Z',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'tool-m',
+            content: "The user doesn't want to proceed with this tool use. The tool use was rejected.",
+            is_error: true,
+          },
+        ],
+      }),
+    ];
+
+    const events = extractAllEvents(messages);
+    const merged = mergeToolCallEvents(events);
+
+    const startEvt = merged.find((e) => e.event_type === 'tool_call_start');
+    assert.ok(startEvt);
+    assert.equal(startEvt.metadata?.permission_status, 'rejected');
+    assert.ok(startEvt.output_data?.includes('was rejected'));
+  });
+
+  it('should not set metadata for successful tool results', () => {
+    const messages: TranscriptMessage[] = [
+      makeMsg({
+        type: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'tool-ok', name: 'Read', input: { file_path: '/tmp/f' } },
+        ],
+      }),
+      makeMsg({
+        type: 'user',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        content: [
+          { type: 'tool_result', tool_use_id: 'tool-ok', content: 'file contents' },
+        ],
+      }),
+    ];
+
+    const events = extractAllEvents(messages);
+    const endEvt = events.find((e) => e.event_type === 'tool_call_end');
+    assert.ok(endEvt);
+    assert.equal(endEvt.metadata, undefined);
   });
 });

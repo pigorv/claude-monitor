@@ -18,6 +18,7 @@ events.get('/api/sessions/:id/events', (c) => {
   if (q('event_type')) filters.eventType = q('event_type');
   if (q('tool_name')) filters.toolName = q('tool_name');
   if (q('agent_id')) filters.agentId = q('agent_id');
+  if (q('parent_only') === 'true') filters.parentOnly = true;
   if (q('include_thinking') === 'true') filters.includeThinking = true;
   if (q('limit')) {
     const v = parseInt(q('limit')!, 10);

@@ -48,12 +48,10 @@ function extractFilePath(event: Event): string | null {
   const toolsWithPaths = ["Read", "Write", "Edit", "Grep", "Glob"];
   if (!event.tool_name || !toolsWithPaths.includes(event.tool_name)) return null;
   const text = event.input_preview || event.input_data || "";
-  // Match file_path or path value in JSON-like strings
   const match = text.match(/file_path["':\s]+["']([^"']{2,})["']/);
   if (match) return match[1];
   const pathMatch = text.match(/["']path["':\s]+["']([^"']{2,})["']/);
   if (pathMatch) return pathMatch[1];
-  // Try path-like string (must start with / and have at least one segment)
   const simpleMatch = text.match(/["']?(\/\w[^\s"']+)["']?/);
   return simpleMatch ? simpleMatch[1] : null;
 }
@@ -130,8 +128,8 @@ const TOOL_BADGE_CLASS: Record<string, string> = {
   Edit: "tool-write",
   Bash: "tool-bash",
   Agent: "tool-agent",
-  Grep: "tool-read",
-  Glob: "tool-read",
+  Grep: "tool-grep",
+  Glob: "tool-glob",
 };
 
 // Dot color per event type for the timeline rail
@@ -163,7 +161,7 @@ function getDotStyle(eventType: string, isSystemGenerated?: boolean, isSkillExpa
     return `background: var(--bg-muted); border: 1.5px dotted var(--text3);`;
   }
   if (isSkillExpansion) {
-    return `background: var(--bg-card); border: 1.5px dashed var(--yellow);`;
+    return `background: transparent; border: 2px dashed var(--orange);`;
   }
   const bg = DOT_COLORS[eventType] || "var(--text3)";
   const border = DOT_BORDER_COLORS[eventType];
@@ -172,6 +170,17 @@ function getDotStyle(eventType: string, isSystemGenerated?: boolean, isSkillExpa
     return `background: ${bg}; border: 1.5px ${isDashed ? 'dashed' : 'solid'} ${border};`;
   }
   return `background: ${bg};`;
+}
+
+// Check if a tool event has an error (works for all tool types)
+function isToolErrorEvent(event: Event): boolean {
+  const meta = parseMetadata(event);
+  if (meta?.tool_error) return true;
+  if (meta?.permission_status === "rejected") return true;
+  const output = event.output_data || "";
+  const exitMatch = output.match(/"exit_code"\s*:\s*(\d+)/);
+  if (exitMatch && exitMatch[1] !== "0") return true;
+  return false;
 }
 
 export function EventCard({ event, sessionStart }: EventCardProps) {
@@ -187,6 +196,8 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
   const isSkillExpansion = meta?.subtype === "skill_expansion";
   const skillName = isSkillExpansion ? (meta?.skill_name as string || null) : null;
   const isSystemGenerated = meta?.subtype === "system_generated";
+  const isRejected = meta?.permission_status === "rejected";
+  const isToolError = meta?.tool_error === true;
   const toolSummary = getToolSummary(event);
 
   // Expandable: user, assistant, thinking, compaction, and tool events
@@ -200,10 +211,7 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
       event.output_preview
     );
 
-  // Determine extra CSS classes for special message types
-  const extraClass = isSkillExpansion ? " event-skill-expansion" : isSystemGenerated ? " event-system-tagged" : "";
-
-  // Change 3: ToolSearch — render as a minimal inline row
+  // ToolSearch — render as a minimal inline row
   if (event.tool_name === "ToolSearch") {
     const tsInput = tryParseJson(event.input_data);
     const tsQuery = tsInput?.query ? String(tsInput.query) : null;
@@ -217,13 +225,82 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
     `;
   }
 
-  // Change 4: TaskOutput — add task-event class and dot override
+  // Gap 2: Lightweight tool rows for standalone tool_call_start events
+  // Gaps 11 & 12: No timestamp, no type pill on tool rows
+  if (event.event_type === "tool_call_start") {
+    const isErr = isToolErrorEvent(event);
+
+    return html`
+      <div class=${"tool-row-standalone" + (isErr ? " tool-row-standalone-error" : "")}
+        onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
+      >
+        <div class=${"event-dot dot-tool" + (isErr ? " dot-tool-err" : "")}></div>
+        <div class="tool-row-content">
+          <div class=${"tool-row" + (isErr ? " tool-row-error" : "")}>
+            <span class=${"tool-badge " + toolBadgeClass}>${event.tool_name}</span>
+            ${isErr && html`<span class="err-badge">error</span>`}
+            <span class="tool-name">${toolSummary || event.tool_name}</span>
+            <span class="tool-dur">${formatDuration(event.duration_ms)}</span>
+            <span class="tool-row-expand">${expanded ? "▾" : "›"}</span>
+          </div>
+          ${expanded && html`
+            <div class="event-detail">
+              ${event.tool_name === "Edit" && (() => {
+                const input = tryParseJson(event.input_data);
+                if (!input?.old_string) return null;
+                const diffLines = computeLineDiff(String(input.old_string), String(input.new_string || ""));
+                return html`
+                  <div class="detail-section">
+                    <div class="detail-label">Edit: ${input.file_path || ""}</div>
+                    <div class="diff-view">
+                      ${diffLines.map((line) => html`
+                        <div class=${"diff-line diff-line-" + line.type}>
+                          <span class="diff-line-prefix">${line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}</span>
+                          <span class="diff-line-text">${line.text}</span>
+                        </div>
+                      `)}
+                    </div>
+                  </div>
+                `;
+              })()}
+              ${event.tool_name !== "Edit" && event.input_data && html`
+                <div class="detail-section">
+                  <div class="detail-label">Input</div>
+                  <pre class="detail-content">${event.input_data}</pre>
+                </div>
+              `}
+              ${(event.output_preview || event.output_data) && !(event.tool_name === "Edit" && /has been (updated|created) successfully/.test(event.output_preview || "")) && html`
+                <div class="detail-section">
+                  <div class="detail-label">Output</div>
+                  <pre class="detail-content">${event.output_data || event.output_preview}</pre>
+                </div>
+              `}
+              ${(() => {
+                const tokenStr = formatTokenMeta(event.input_tokens ?? null, event.output_tokens ?? null, event.cache_read_tokens ?? null);
+                return tokenStr ? html`
+                  <div class="detail-section detail-tokens">
+                    <span>${tokenStr}</span>
+                  </div>
+                ` : null;
+              })()}
+            </div>
+          `}
+        </div>
+      </div>
+    `;
+  }
+
+  // Determine extra CSS classes for special message types
+  const extraClass = isSkillExpansion ? " event-skill-expansion" : isSystemGenerated ? " event-system-tagged" : "";
+  const permissionClass = isRejected ? " event-tool-rejected" : isToolError ? " event-tool-error" : "";
+
+  // TaskOutput — add task-event class and dot override
   const isTaskOutput = event.tool_name === "TaskOutput";
   const taskClass = isTaskOutput ? " task-event" : "";
 
   return html`
     <div
-      class=${typeClass + (hasExpandable ? " expandable" : "") + extraClass + taskClass}
+      class=${typeClass + (hasExpandable ? " expandable" : "") + extraClass + taskClass + permissionClass}
       onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
     >
       <div class=${isTaskOutput ? "event-dot event-dot-task" : "event-dot"} style=${getDotStyle(event.event_type, !!isSystemGenerated, !!isSkillExpansion)}></div>
@@ -235,6 +312,8 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
         ${isSystemGenerated && html`<span class="event-pill pill-gray">system</span>`}
         ${!isToolEvent && !isCommand && !isSkillExpansion && !isSystemGenerated && !SUPPRESS_PILL_TYPES.has(event.event_type) && html`<span class=${"event-pill " + pillClass}>${label}</span>`}
         ${event.tool_name && html`<span class=${"tool-badge " + toolBadgeClass}>${event.tool_name}</span>`}
+        ${isRejected && html`<span class="permission-badge rejected">rejected</span>`}
+        ${isToolError && !isRejected && html`<span class="permission-badge error">error</span>`}
         ${isTaskOutput && html`<span class="tool-summary">Sub-agent result</span>`}
         ${toolSummary && html`<span class="tool-summary">${toolSummary}</span>`}
         ${event.event_type === "subagent_start" && event.input_preview && html`<span class="agent-desc">${truncate(event.input_preview, 60)}</span>`}
@@ -260,7 +339,7 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
       `}
 
       ${!expanded && event.event_type === "assistant_message" && event.output_preview && html`
-        <div class="event-body event-body-assistant markdown-content"
+        <div class="event-body event-body-assistant msg markdown-content"
           dangerouslySetInnerHTML=${{ __html: renderMarkdown(event.output_preview) }}
           onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}
         />
@@ -274,7 +353,7 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
 
       ${!expanded && event.event_type === "user_message" && isSkillExpansion && html`
         <div class="event-body skill-expansion-body" onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}>
-          <span class="skill-expansion-label">[skill expansion content]</span>
+          <span class="skill-expansion-label">${event.input_preview ? truncate(event.input_preview, 120) : "[skill expansion content]"}</span>
         </div>
       `}
 
@@ -312,31 +391,7 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
               <pre class="detail-content">${event.thinking_text}</pre>
             </div>
           `}
-          ${event.event_type === "tool_call_start" && event.tool_name === "Edit" && (() => {
-            const input = tryParseJson(event.input_data);
-            if (!input?.old_string) return null;
-            const diffLines = computeLineDiff(String(input.old_string), String(input.new_string || ""));
-            return html`
-              <div class="detail-section">
-                <div class="detail-label">Edit: ${input.file_path || ""}</div>
-                <div class="diff-view">
-                  ${diffLines.map((line) => html`
-                    <div class=${"diff-line diff-line-" + line.type}>
-                      <span class="diff-line-prefix">${line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}</span>
-                      <span class="diff-line-text">${line.text}</span>
-                    </div>
-                  `)}
-                </div>
-              </div>
-            `;
-          })()}
-          ${event.event_type === "tool_call_start" && event.tool_name !== "Edit" && event.input_data && html`
-            <div class="detail-section">
-              <div class="detail-label">Input</div>
-              <pre class="detail-content">${event.input_data}</pre>
-            </div>
-          `}
-          ${event.event_type !== "tool_call_start" && event.input_preview && html`
+          ${event.input_preview && html`
             <div class="detail-section">
               <div class="detail-label">Input</div>
               <pre class="detail-content">${event.input_data || event.input_preview}</pre>
@@ -350,7 +405,7 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
               />
             </div>
           `}
-          ${event.output_preview && event.event_type !== "assistant_message" && !(event.tool_name === "Edit" && /has been (updated|created) successfully/.test(event.output_preview || "")) && html`
+          ${event.output_preview && event.event_type !== "assistant_message" && html`
             <div class="detail-section">
               <div class="detail-label">Output</div>
               <pre class="detail-content">${event.output_data || event.output_preview}</pre>

@@ -8,8 +8,8 @@ import type {
   SessionStats,
   InternalToolCall,
 } from '../../shared/types.js';
-import { getSession, listSessions, getAgentRelationships, getAgentToolCalls, getAgentTokenTimeline, getLinkedSessions } from '../../db/queries/sessions.js';
-import { getTokenTimeline, getMiniTimeline, getEventCountBySession } from '../../db/queries/events.js';
+import { getSession, listSessions, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions } from '../../db/queries/sessions.js';
+import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getEventCountBySession } from '../../db/queries/events.js';
 import { getSessionStats, getToolFrequency } from '../../db/queries/stats.js';
 import type { SessionFilters } from '../../db/queries/sessions.js';
 import { riskLevel } from '../../analysis/risk-scoring.js';
@@ -35,9 +35,8 @@ function estimateCost(model: string | null, inputTokens: number, outputTokens: n
   return Math.round(cost * 1_000_000) / 1_000_000;
 }
 
-function sessionToSummary(session: Session): SessionSummary {
+function sessionToSummary(session: Session, miniTimeline?: import('../../shared/types.js').MiniTimelinePoint[]): SessionSummary {
   const score = session.risk_score ?? 0;
-  const miniTimeline = getMiniTimeline(session.id);
   return {
     id: session.id,
     project_name: session.project_name ?? 'unknown',
@@ -56,7 +55,7 @@ function sessionToSummary(session: Session): SessionSummary {
     risk_level: riskLevel(score),
     summary: session.summary ?? '',
     cost_estimate_usd: estimateCost(session.model, session.total_input_tokens, session.total_output_tokens),
-    mini_timeline: miniTimeline,
+    mini_timeline: miniTimeline ?? [],
   };
 }
 
@@ -87,8 +86,11 @@ sessions.get('/api/sessions', (c) => {
 
   const { sessions: rows, total } = listSessions(filters);
 
+  // Batch-fetch mini timelines for all sessions in a single query
+  const miniTimelines = getMiniTimelinesForSessions(rows.map((s) => s.id));
+
   const response: SessionListResponse = {
-    sessions: rows.map(sessionToSummary),
+    sessions: rows.map((s) => sessionToSummary(s, miniTimelines.get(s.id))),
     total,
     limit: filters.limit ?? 50,
     offset: filters.offset ?? 0,
@@ -143,8 +145,12 @@ sessions.get('/api/sessions/:id', (c) => {
   const compactionDetails = analyzeCompactions(id);
 
   // Agent internal tool calls + efficiency data (Story 2.7 + agent efficiency)
+  // Batch-fetch all tool calls and timelines in 2 queries instead of 2*N
+  const allToolCalls = getAllAgentToolCalls(id);
+  const allAgentTimelines = getAllAgentTokenTimelines(id);
+
   const agentsWithTools = agents.map((agent) => {
-    const toolCalls = getAgentToolCalls(id, agent.child_agent_id);
+    const toolCalls = allToolCalls.get(agent.child_agent_id) ?? [];
     const internalToolCalls: InternalToolCall[] = toolCalls.map((tc) => ({
       tool_name: tc.tool_name,
       file_path: tc.file_path ?? undefined,
@@ -154,7 +160,7 @@ sessions.get('/api/sessions/:id', (c) => {
       input_preview: tc.input_preview ?? undefined,
       result_preview: tc.result_preview ?? undefined,
     }));
-    const agentTimeline = getAgentTokenTimeline(id, agent.child_agent_id);
+    const agentTimeline = allAgentTimelines.get(agent.child_agent_id) ?? [];
     return { ...agent, internal_tool_calls: internalToolCalls, token_timeline: agentTimeline };
   });
 

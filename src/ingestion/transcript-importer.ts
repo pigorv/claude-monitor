@@ -11,7 +11,7 @@ import { buildTokenSnapshots, computeAggregates, estimateContextPct } from './to
 import { computeRiskAssessment } from '../analysis/risk-scoring.js';
 import { generateSessionSummary } from '../analysis/session-summary.js';
 import { computeAgentEfficiency, inferExecutionModes, analyzeAgentFileReads } from '../analysis/agent-efficiency.js';
-import { getAgentTokenTimeline, updateAgentRelationship } from '../db/queries/sessions.js';
+import { getAllAgentTokenTimelines, updateAgentRelationship } from '../db/queries/sessions.js';
 import type { RiskAssessment } from '../shared/types.js';
 import { detectAndLinkSessions } from './session-linker.js';
 
@@ -77,6 +77,26 @@ export async function importTranscript(
   const parsedEvents = mergeToolCallEvents(rawEvents);
   const agentInfos = assignAgentIds(parsedEvents);
 
+  // Compute tool call and subagent counts once (used by risk, summary, and session record)
+  const toolCounts = new Map<string, number>();
+  let toolCallCount = 0;
+  let subagentCount = 0;
+  for (const e of parsedEvents) {
+    if (e.event_type === 'tool_call_start') {
+      toolCallCount++;
+      if (e.tool_name) {
+        toolCounts.set(e.tool_name, (toolCounts.get(e.tool_name) ?? 0) + 1);
+      }
+      if (e.tool_name === 'Task' || e.tool_name === 'Agent') {
+        subagentCount++;
+      }
+    }
+  }
+  const topTools = [...toolCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name]) => name);
+
   // Build token snapshots
   const model = deriveModel(messages);
   const snapshots = buildTokenSnapshots(messages, model);
@@ -88,29 +108,21 @@ export async function importTranscript(
     events: parsedEvents,
     model,
     compactionCount: aggregates.compaction_count,
-    subagentCount: parsedEvents.filter(
-      (e) => e.event_type === 'tool_call_start' && (e.tool_name === 'Task' || e.tool_name === 'Agent'),
-    ).length,
+    subagentCount,
   });
 
-  // Derive top 3 tools
-  const toolCounts = new Map<string, number>();
-  for (const e of parsedEvents) {
-    if (e.event_type === 'tool_call_start' && e.tool_name) {
-      toolCounts.set(e.tool_name, (toolCounts.get(e.tool_name) ?? 0) + 1);
+  const durationMs = new Date(messages[messages.length - 1].timestamp).getTime() - new Date(messages[0].timestamp).getTime();
+
+  // Find first user message text for title
+  const titleUserMsg = messages.find((m) => m.type === 'user');
+  let firstUserMessage: string | undefined;
+  if (titleUserMsg) {
+    const textBlocks = titleUserMsg.content.filter((b) => b.type === 'text');
+    if (textBlocks.length > 0) {
+      firstUserMessage = textBlocks.map((b) => (b as { type: 'text'; text: string }).text).join('\n');
     }
   }
-  const topTools = [...toolCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([name]) => name);
 
-  // Generate summary
-  const toolCallCount = parsedEvents.filter((e) => e.event_type === 'tool_call_start').length;
-  const subagentCount = parsedEvents.filter(
-    (e) => e.event_type === 'tool_call_start' && (e.tool_name === 'Task' || e.tool_name === 'Agent'),
-  ).length;
-  const durationMs = new Date(messages[messages.length - 1].timestamp).getTime() - new Date(messages[0].timestamp).getTime();
   const summary = generateSessionSummary({
     model,
     durationMs: durationMs > 0 ? durationMs : null,
@@ -120,10 +132,11 @@ export async function importTranscript(
     subagentCount,
     peakContextPct: aggregates.peak_context_pct > 0 ? aggregates.peak_context_pct : null,
     riskLevel: riskAssessment.level,
+    firstUserMessage,
   });
 
   // Build session record
-  const session = buildSessionRecord(sessionId, filePath, messages, model, aggregates, parsedEvents, riskAssessment, summary);
+  const session = buildSessionRecord(sessionId, filePath, messages, model, aggregates, toolCallCount, subagentCount, riskAssessment, summary);
 
   // Build event records with token info from snapshots
   const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model);
@@ -144,14 +157,21 @@ export async function importTranscript(
     if (eventRecords.length > 0) {
       insertEvents(eventRecords);
     }
-    // Insert agent relationships from transcript
+    // Upsert agent relationships from transcript (handles resumed agents with same ID)
+    const upsertAgentRel = db.prepare(`INSERT INTO agent_relationships (
+      parent_session_id, child_agent_id, prompt_preview, result_preview,
+      prompt_data, result_data, started_at, ended_at, duration_ms, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(parent_session_id, child_agent_id) DO UPDATE SET
+      ended_at = MAX(agent_relationships.ended_at, excluded.ended_at),
+      duration_ms = excluded.duration_ms,
+      result_preview = COALESCE(excluded.result_preview, agent_relationships.result_preview),
+      result_data = COALESCE(excluded.result_data, agent_relationships.result_data),
+      status = excluded.status`);
     for (const agent of agentInfos) {
       const startMs = new Date(agent.startTimestamp).getTime();
       const endMs = new Date(agent.endTimestamp).getTime();
-      db.prepare(`INSERT INTO agent_relationships (
-        parent_session_id, child_agent_id, prompt_preview, result_preview,
-        prompt_data, result_data, started_at, ended_at, duration_ms, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      upsertAgentRel.run(
         sessionId,
         agent.agentId,
         agent.description ? agent.description.slice(0, 200) : null,
@@ -174,9 +194,29 @@ export async function importTranscript(
       }));
       const executionModes = inferExecutionModes(agents);
 
+      // Batch-fetch all agent token timelines in one query
+      const allTimelines = getAllAgentTokenTimelines(sessionId);
+
+      // Prepare the update statement once — all iterations use the same columns
+      const updateAgentRelStmt = db.prepare(`UPDATE agent_relationships SET
+        prompt_tokens = @prompt_tokens,
+        result_tokens = @result_tokens,
+        peak_context_tokens = @peak_context_tokens,
+        compression_ratio = @compression_ratio,
+        agent_compaction_count = @agent_compaction_count,
+        parent_headroom_at_return = @parent_headroom_at_return,
+        parent_impact_pct = @parent_impact_pct,
+        result_classification = @result_classification,
+        execution_mode = @execution_mode,
+        files_read_count = @files_read_count,
+        files_total_tokens = @files_total_tokens,
+        spawn_timestamp = @spawn_timestamp,
+        complete_timestamp = @complete_timestamp
+      WHERE parent_session_id = @parentSessionId AND child_agent_id = @childAgentId`);
+
       for (let idx = 0; idx < agentInfos.length; idx++) {
         const agent = agentInfos[idx];
-        const agentTimeline = getAgentTokenTimeline(sessionId, agent.agentId);
+        const agentTimeline = allTimelines.get(agent.agentId) ?? [];
 
         // Find parent's input_tokens at the time the agent result entered context
         const parentTokensAtReturn = findParentTokensAtReturn(eventRecords, agent.endTimestamp);
@@ -193,7 +233,7 @@ export async function importTranscript(
         const agentEvents = eventRecords.filter((e) => e.agent_id === agent.agentId);
         const fileReads = analyzeAgentFileReads(agentEvents);
 
-        updateAgentRelationship(sessionId, agent.agentId, {
+        updateAgentRelStmt.run({
           prompt_tokens: efficiency.prompt_tokens,
           result_tokens: efficiency.result_tokens,
           peak_context_tokens: efficiency.peak_context_tokens,
@@ -207,12 +247,32 @@ export async function importTranscript(
           files_total_tokens: fileReads.filesTotalTokens,
           spawn_timestamp: agent.startTimestamp,
           complete_timestamp: agent.endTimestamp,
-        } as any);
+          parentSessionId: sessionId,
+          childAgentId: agent.agentId,
+        });
       }
     }
 
   // After importing the parent, discover and import subagent transcripts
   const subagentEventCount = await importSubagentTranscripts(sessionId, filePath);
+
+  // Update session totals to include agent tokens so that
+  // parentTokens = sessionTotal - agentTotal yields a correct positive value
+  if (subagentEventCount > 0) {
+    const agentTotals = db.prepare(`
+      SELECT COALESCE(SUM(input_tokens_total), 0) as agent_input,
+             COALESCE(SUM(output_tokens_total), 0) as agent_output
+      FROM agent_relationships
+      WHERE parent_session_id = ? AND input_tokens_total IS NOT NULL
+    `).get(sessionId) as { agent_input: number; agent_output: number };
+
+    db.prepare(`
+      UPDATE sessions SET
+        total_input_tokens = total_input_tokens + ?,
+        total_output_tokens = total_output_tokens + ?
+      WHERE id = ?
+    `).run(agentTotals.agent_input, agentTotals.agent_output, sessionId);
+  }
 
   // Detect and link plan↔implementation session pairs
   const firstUserMsg = messages.find((m) => m.type === 'user');
@@ -369,15 +429,6 @@ async function importSubagentFile(
   // Build event records
   const eventRecords = buildEventRecords(parentSessionId, parsedEvents, messages, model);
 
-  // Clear ALL events for this subagent before inserting transcript data.
-  // Previously only deleted hook events, causing duplicates on re-import.
-  const db = getDb();
-  db.prepare('DELETE FROM events WHERE session_id = ? AND agent_id = ?')
-    .run(parentSessionId, agentId);
-  if (eventRecords.length > 0) {
-    insertEvents(eventRecords);
-  }
-
   // Count tool calls in the subagent
   const toolCallCount = parsedEvents.filter((e) => e.event_type === 'tool_call_start').length;
 
@@ -398,72 +449,84 @@ async function importSubagentFile(
     ? new Date(endedAt).getTime() - new Date(startedAt).getTime()
     : null;
 
-  // Upsert agent_relationships — update if exists (from parent transcript's assignAgentIds),
-  // or insert if this is a new agent not seen in the parent transcript
-  const existingRel = db.prepare(
-    'SELECT id FROM agent_relationships WHERE parent_session_id = ? AND child_agent_id = ?',
-  ).get(parentSessionId, agentId) as { id: number } | undefined;
+  // Wrap all DB writes in a single transaction
+  const db = getDb();
+  db.transaction(() => {
+    // Clear ALL events for this subagent before inserting transcript data.
+    // Previously only deleted hook events, causing duplicates on re-import.
+    db.prepare('DELETE FROM events WHERE session_id = ? AND agent_id = ?')
+      .run(parentSessionId, agentId);
+    if (eventRecords.length > 0) {
+      insertEvents(eventRecords);
+    }
 
-  if (existingRel) {
-    db.prepare(`UPDATE agent_relationships SET
-      child_transcript_path = ?,
-      tool_call_count = ?,
-      input_tokens_total = ?,
-      output_tokens_total = ?,
-      started_at = COALESCE(started_at, ?),
-      ended_at = COALESCE(ended_at, ?),
-      duration_ms = COALESCE(duration_ms, ?),
-      status = 'completed'
-    WHERE id = ?`).run(
-      filePath,
-      toolCallCount,
-      totalInput,
-      totalOutput,
-      startedAt,
-      endedAt,
-      durationMs && durationMs > 0 ? durationMs : null,
-      existingRel.id,
-    );
-  } else {
-    // Extract prompt from the first user message
-    const firstUserMsg = messages.find((m) => m.type === 'user');
-    const promptText = firstUserMsg
-      ? firstUserMsg.content
-          .filter((b) => b.type === 'text')
-          .map((b) => (b as { text: string }).text)
-          .join('\n')
-      : null;
-    // Extract result from the last assistant message
-    const lastAssistantMsg = [...messages].reverse().find((m) => m.type === 'assistant');
-    const resultText = lastAssistantMsg
-      ? lastAssistantMsg.content
-          .filter((b) => b.type === 'text')
-          .map((b) => (b as { text: string }).text)
-          .join('\n')
-      : null;
+    // Upsert agent_relationships — update if exists (from parent transcript's assignAgentIds),
+    // or insert if this is a new agent not seen in the parent transcript
+    const existingRel = db.prepare(
+      'SELECT id FROM agent_relationships WHERE parent_session_id = ? AND child_agent_id = ?',
+    ).get(parentSessionId, agentId) as { id: number } | undefined;
 
-    db.prepare(`INSERT INTO agent_relationships (
-      parent_session_id, child_agent_id, child_transcript_path,
-      prompt_preview, result_preview, prompt_data, result_data,
-      started_at, ended_at, duration_ms,
-      input_tokens_total, output_tokens_total, tool_call_count, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      parentSessionId,
-      agentId,
-      filePath,
-      promptText ? promptText.slice(0, 200) : null,
-      resultText ? resultText.slice(0, 200) : null,
-      promptText,
-      resultText,
-      startedAt,
-      endedAt,
-      durationMs && durationMs > 0 ? durationMs : null,
-      totalInput,
-      totalOutput,
-      toolCallCount,
-      'completed',
-    );
-  }
+    if (existingRel) {
+      db.prepare(`UPDATE agent_relationships SET
+        child_transcript_path = ?,
+        tool_call_count = ?,
+        input_tokens_total = ?,
+        output_tokens_total = ?,
+        started_at = COALESCE(started_at, ?),
+        ended_at = COALESCE(ended_at, ?),
+        duration_ms = COALESCE(duration_ms, ?),
+        status = 'completed'
+      WHERE id = ?`).run(
+        filePath,
+        toolCallCount,
+        totalInput,
+        totalOutput,
+        startedAt,
+        endedAt,
+        durationMs && durationMs > 0 ? durationMs : null,
+        existingRel.id,
+      );
+    } else {
+      // Extract prompt from the first user message
+      const firstUserMsg = messages.find((m) => m.type === 'user');
+      const promptText = firstUserMsg
+        ? firstUserMsg.content
+            .filter((b) => b.type === 'text')
+            .map((b) => (b as { text: string }).text)
+            .join('\n')
+        : null;
+      // Extract result from the last assistant message
+      const lastAssistantMsg = [...messages].reverse().find((m) => m.type === 'assistant');
+      const resultText = lastAssistantMsg
+        ? lastAssistantMsg.content
+            .filter((b) => b.type === 'text')
+            .map((b) => (b as { text: string }).text)
+            .join('\n')
+        : null;
+
+      db.prepare(`INSERT INTO agent_relationships (
+        parent_session_id, child_agent_id, child_transcript_path,
+        prompt_preview, result_preview, prompt_data, result_data,
+        started_at, ended_at, duration_ms,
+        input_tokens_total, output_tokens_total, tool_call_count, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        parentSessionId,
+        agentId,
+        filePath,
+        promptText ? promptText.slice(0, 200) : null,
+        resultText ? resultText.slice(0, 200) : null,
+        promptText,
+        resultText,
+        startedAt,
+        endedAt,
+        durationMs && durationMs > 0 ? durationMs : null,
+        totalInput,
+        totalOutput,
+        toolCallCount,
+        'completed',
+      );
+    }
+  })();
 
   logger.debug('Imported subagent transcript', {
     parentSessionId,
@@ -510,7 +573,8 @@ function buildSessionRecord(
   messages: TranscriptMessage[],
   model: string | null,
   aggregates: ReturnType<typeof computeAggregates>,
-  parsedEvents: ParsedEvent[],
+  toolCallCount: number,
+  subagentCount: number,
   riskAssessment: RiskAssessment,
   summary: string,
 ): Session {
@@ -521,12 +585,6 @@ function buildSessionRecord(
   const startedAt = messages[0].timestamp;
   const endedAt = messages[messages.length - 1].timestamp;
   const durationMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
-
-  // Count tool calls and subagents
-  const toolCallCount = parsedEvents.filter((e) => e.event_type === 'tool_call_start').length;
-  const subagentCount = parsedEvents.filter(
-    (e) => e.event_type === 'tool_call_start' && (e.tool_name === 'Task' || e.tool_name === 'Agent'),
-  ).length;
 
   return {
     id: sessionId,

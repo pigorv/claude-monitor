@@ -95,7 +95,10 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
 
   return html`
     <button class="copy-btn" onClick=${handleCopy} title="Copy to clipboard">
-      ${copied ? "Copied!" : label || "Copy"}
+      ${copied ? "Copied!" : html`
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.1"/><path d="M8 4V2.5A1.5 1.5 0 006.5 1H2.5A1.5 1.5 0 001 2.5v4A1.5 1.5 0 002.5 8H4" stroke="currentColor" stroke-width="1.1"/></svg>
+        ${label || "Copy"}
+      `}
     </button>
   `;
 }
@@ -147,13 +150,53 @@ export function SessionDetail({ id }: { id: string }) {
   const score = data.risk.score;
   const peakPct = s.peak_context_pct;
 
+  // Compute compaction tokens lost
+  const tokensLost = (data.compaction_details || []).reduce(
+    (sum, c) => sum + Math.max(0, c.tokens_before - c.tokens_after), 0
+  );
+
+  // Top tool breakdown for stat card detail
+  const toolFreq = data.stats?.tool_frequency || {};
+  const topTools = Object.entries(toolFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name, count]) => `${count} ${name}`)
+    .join(" · ");
+
+  // Risk level label
+  const riskLabel = score >= 0.6 ? "high risk" : score >= 0.3 ? "medium risk" : score >= 0.1 ? "low risk" : "minimal risk";
+
+  // Peak context threshold label
+  const peakCtxLabel = peakPct != null
+    ? (peakPct >= 90 ? "critical" : peakPct >= 70 ? "warning" : peakPct >= 50 ? "elevated" : "safe")
+    : null;
+  const peakCtxThreshold = peakPct != null
+    ? (peakPct >= 70 ? "threshold 70%" : "threshold 60%")
+    : null;
+
   return html`
     <div class="page session-detail">
       <div class="session-header">
-        <div class="breadcrumb"><a href="#/">Sessions</a> / ${s.project_name || 'Unknown'}</div>
-        <h1>${modelLabel(s.model)} · ${s.project_name || 'Session'}</h1>
-        ${s.summary && html`<p class="session-summary">${s.summary}</p>`}
-        <p class="page-sub">${formatDuration(s.duration_ms)} · ${formatTokens(totalTokens)} tokens · ended ${formatEndTime(s.ended_at)}</p>
+        <div class="breadcrumb">
+          <a href="#/">Sessions</a>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="opacity:0.4"><path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="color:var(--text3)">${s.project_name || 'Unknown'}</span>
+        </div>
+        <h1 class="session-title">${s.summary || s.project_name || 'Session'}</h1>
+        <div class="session-subtitle">
+          <span class="model-tag">${modelLabel(s.model)}</span>
+          <span class="sep">·</span>
+          <span class="meta-item">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="color:var(--text3)"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3.5V6L7.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            ${formatDuration(s.duration_ms)}
+          </span>
+          <span class="sep">·</span>
+          ${formatTokens(totalTokens)} tokens
+          <span class="sep">·</span>
+          ${s.tool_call_count} tool calls
+          <span class="sep">·</span>
+          <span style="color:var(--text3)">ended ${formatEndTime(s.ended_at)}</span>
+        </div>
       </div>
 
       ${data.linked_sessions && data.linked_sessions.length > 0 && html`
@@ -169,16 +212,19 @@ export function SessionDetail({ id }: { id: string }) {
         </div>
       `}
 
-      <div class="resume-cmd">
-        <span class="resume-cmd-dollar">$</span>
-        <code class="resume-cmd-text">claude --resume ${s.id}</code>
-        <${CopyButton} text=${"claude --resume " + s.id} label="Copy" />
+      <div class="resume-row">
+        <div class="resume-cmd">
+          <span class="resume-cmd-dollar">$</span>
+          <code class="resume-cmd-text">claude --resume ${s.id}</code>
+          <${CopyButton} text=${"claude --resume " + s.id} label="Copy" />
+        </div>
       </div>
 
       <div class="stats stats-4">
         <div class="stat-card compact">
           <div class="label">Peak Context</div>
           <div class="value" style="color: ${peakCtxColor(peakPct)}">${peakPct != null ? Math.round(peakPct) + "%" : "—"}</div>
+          ${peakCtxLabel && html`<div class="detail">${peakCtxLabel} — ${peakCtxThreshold}</div>`}
           ${peakPct != null && html`
             <div class="progress">
               <div class="fill" style="width: ${Math.min(peakPct, 100)}%; background: ${peakCtxColor(peakPct)}"></div>
@@ -188,14 +234,20 @@ export function SessionDetail({ id }: { id: string }) {
         <div class="stat-card compact">
           <div class="label">Compactions</div>
           <div class="value" style="color: ${s.compaction_count > 0 ? 'var(--orange)' : 'var(--text)'}">${s.compaction_count}</div>
+          ${tokensLost > 0
+            ? html`<div class="detail">~${formatTokens(tokensLost)} tokens lost</div>`
+            : html`<div class="detail" style="color: var(--green)">none triggered</div>`
+          }
         </div>
         <div class="stat-card compact">
           <div class="label">Tool Calls</div>
           <div class="value">${s.tool_call_count}</div>
+          ${topTools && html`<div class="detail">${topTools}</div>`}
         </div>
         <div class="stat-card compact">
           <div class="label">Risk Score</div>
           <div class="value" style="color: ${riskColor(score)}">${score.toFixed(2)}</div>
+          <div class="detail">${riskLabel}</div>
           <div class="progress">
             <div class="fill" style="width: ${Math.min(score * 100, 100)}%; background: ${riskColor(score)}"></div>
           </div>
@@ -225,7 +277,7 @@ export function SessionDetail({ id }: { id: string }) {
 
       <div class="tab-content">
         ${tab === "timeline" && html`
-          <${Timeline} sessionId=${id} sessionStart=${s.started_at} />
+          <${Timeline} sessionId=${id} sessionStart=${s.started_at} agents=${data.agents} parentInputTokens=${s.total_input_tokens} parentOutputTokens=${s.total_output_tokens} />
         `}
         ${tab === "context" && html`
           ${data.risk.signals.length > 0 && html`

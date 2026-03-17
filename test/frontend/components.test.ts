@@ -145,18 +145,17 @@ describe('EventCard', () => {
     } as SessionEvent;
   }
 
-  it('renders assistant message with pill badge', () => {
+  it('renders assistant message with event card class', () => {
     const out = render(html`<${EventCard} event=${makeEvent()} />`);
     assert.ok(out.includes('event-card'), 'should have event-card class');
-    assert.ok(out.includes('pill-purple'), 'assistant should use purple pill');
-    assert.ok(out.includes('Assistant'), 'should show type label');
+    assert.ok(out.includes('event-assistant-message'), 'should have assistant message type class');
   });
 
   it('renders user message type', () => {
     const evt = makeEvent({ event_type: 'user_message', input_preview: 'Fix bug' });
     const out = render(html`<${EventCard} event=${evt} />`);
-    assert.ok(out.includes('pill-blue'), 'user should use blue pill');
-    assert.ok(out.includes('User'), 'should show User label');
+    assert.ok(out.includes('event-user-message'), 'should have user message type class');
+    assert.ok(out.includes('Fix bug'), 'should show user message text');
   });
 
   it('renders tool call with tool badge', () => {
@@ -183,7 +182,7 @@ describe('EventCard', () => {
     assert.ok(out.includes('Auto-compaction triggered'), 'should show title');
     assert.ok(out.includes('500.0K'), 'should show before tokens');
     assert.ok(out.includes('200.0K'), 'should show after tokens');
-    assert.ok(out.includes('85% ctx'), 'should show context percentage');
+    assert.ok(out.includes('85%'), 'should show context percentage');
   });
 
   it('renders thinking event with summary preview', () => {
@@ -193,7 +192,7 @@ describe('EventCard', () => {
       thinking_text: 'Full thinking content here',
     });
     const out = render(html`<${EventCard} event=${evt} />`);
-    assert.ok(out.includes('pill-yellow'), 'thinking should use yellow pill');
+    assert.ok(out.includes('event-thinking'), 'thinking should have thinking type class');
     assert.ok(out.includes('Analyzing the code...'), 'should show summary in collapsed state');
   });
 
@@ -205,17 +204,16 @@ describe('EventCard', () => {
     assert.ok(out.includes('var(--red)'), 'context >= 70% should be red');
   });
 
-  it('renders context mini-bar green for low context', () => {
+  it('hides context mini-bar for low context', () => {
     const evt = makeEvent({ context_pct: 15 });
     const out = render(html`<${EventCard} event=${evt} />`);
-    assert.ok(out.includes('var(--green)'), 'context < 30% should be green');
+    assert.ok(!out.includes('ctx-minibar'), 'context < 50% should not render minibar');
   });
 
-  it('renders agent ID when present', () => {
+  it('renders event card when agent ID is present', () => {
     const evt = makeEvent({ agent_id: 'agent-abc123def456' });
     const out = render(html`<${EventCard} event=${evt} />`);
-    assert.ok(out.includes('event-agent'), 'should render agent span');
-    assert.ok(out.includes('agent:agent-abc123'), 'should truncate agent ID to 12 chars');
+    assert.ok(out.includes('event-card'), 'should still render event card');
   });
 
   it('renders duration when present', () => {
@@ -224,10 +222,10 @@ describe('EventCard', () => {
     assert.ok(out.includes('2.5s'), 'should format duration');
   });
 
-  it('renders relative time from session start', () => {
+  it('renders timestamp', () => {
     const evt = makeEvent({ timestamp: '2026-01-15T10:05:30Z' });
     const out = render(html`<${EventCard} event=${evt} sessionStart=${'2026-01-15T10:00:00Z'} />`);
-    assert.ok(out.includes('+5m30s'), 'should show relative time');
+    assert.ok(out.includes('event-time'), 'should show event time');
   });
 
   it('renders expand indicator for expandable events', () => {
@@ -309,10 +307,10 @@ describe('AgentTree', () => {
     assert.ok(out.includes('sub-agents'), 'should show plural count');
   });
 
-  it('renders agent table with data', () => {
+  it('renders gantt chart with data', () => {
     const agents = [makeAgent()];
     const out = render(html`<${AgentTree} agents=${agents} sessionStart=${'2026-01-15T10:00:00Z'} />`);
-    assert.ok(out.includes('agent-table'), 'should render table');
+    assert.ok(out.includes('gantt-chart'), 'should render gantt chart');
     assert.ok(out.includes('agent-abc123'), 'should show agent ID');
     assert.ok(out.includes('completed'), 'should show status');
     assert.ok(out.includes('Search for the user model'), 'should show description from prompt preview');
@@ -322,16 +320,16 @@ describe('AgentTree', () => {
     const agents = [makeAgent()];
     const out = render(html`<${AgentTree} agents=${agents} />`);
     assert.ok(out.includes('70.0K'), 'should show combined tokens');
-    assert.ok(out.includes('tokens consumed'), 'should label tokens');
+    assert.ok(out.includes('tokens'), 'should label tokens');
     assert.ok(out.includes('8'), 'should show tool call count');
   });
 
-  it('renders token flow arrows in table', () => {
+  it('renders token info in gantt stats', () => {
     const agents = [makeAgent()];
     const out = render(html`<${AgentTree} agents=${agents} />`);
     assert.ok(out.includes('50.0K'), 'should show input tokens');
     assert.ok(out.includes('20.0K'), 'should show output tokens');
-    assert.ok(out.includes('token-flow'), 'should have token flow element');
+    assert.ok(out.includes('gantt-stat'), 'should have gantt stat elements');
   });
 
   it('does not render removed components', () => {
@@ -393,13 +391,13 @@ describe('Signal badges (context mini-bars)', () => {
     } as SessionEvent;
   }
 
-  it('green for context < 30%', () => {
+  it('no minibar for context < 50%', () => {
     const out = render(html`<${EventCard} event=${makeEvent(20)} />`);
-    assert.ok(out.includes('var(--green)'));
+    assert.ok(!out.includes('ctx-minibar'), 'context < 50% should not render minibar');
   });
 
-  it('yellow for context 30-60%', () => {
-    const out = render(html`<${EventCard} event=${makeEvent(45)} />`);
+  it('yellow for context 50-59%', () => {
+    const out = render(html`<${EventCard} event=${makeEvent(55)} />`);
     assert.ok(out.includes('var(--yellow)'));
   });
 
