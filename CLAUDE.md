@@ -41,3 +41,7 @@ npm test             # Run tests
 - Database operations use synchronous better-sqlite3 API
 - Frontend uses HTM tagged templates (no JSX transform needed)
 - Error messages should be actionable — tell the user what to do, not just what failed
+
+## Changelog
+
+When making bug fixes or adding features, add a bullet under the `## [Unreleased]` section in `CHANGELOG.md` using the appropriate subsection (`Added`, `Changed`, `Fixed`, `Removed`). Keep entries concise — one line per change, written from the user's perspective.
