@@ -860,7 +860,7 @@
   position: relative;
   cursor: pointer;
 }
-.agent-event-body.expanded { max-height: 800px; }
+.agent-event-body.expanded { max-height: none; }
 .agent-event-body .fade {
   position: absolute;
   bottom: 0; left: 0; right: 0;

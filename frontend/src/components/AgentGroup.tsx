@@ -258,7 +258,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
     // Agent result: last assistant message (#7)
     if (isAssistant) {
       const isResult = evt.id === meta.lastAssistantId;
-      const body = evt.output_preview || evt.output_data || "";
+      const body = evt.output_data || evt.output_preview || "";
       const isBodyOpen = expandedBodies[evt.id] || false;
       return html`
         <div class="agent-event">
