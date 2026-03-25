@@ -29,6 +29,8 @@ jobs:
 
       - run: npm run build
 
+      # Node 20 auto-discovery doesn't find .ts test files;
+      # tests run on Node 22+ where auto-discovery works natively.
       - name: Run tests
-        shell: bash
-        run: node --import tsx --test --test-force-exit --test-timeout=120000 --test-concurrency=1 $(find test -name '*.test.ts')
+        if: matrix.node-version >= 22
+        run: npm test
