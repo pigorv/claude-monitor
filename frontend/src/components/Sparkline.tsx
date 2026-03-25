@@ -28,6 +28,15 @@ export function Sparkline({ data, width = 56, height = 20 }: SparklineProps) {
     })
     .join(" ");
 
+  // Compaction marker lines (vertical red lines)
+  const compactionLines = data
+    .map((d, i) => {
+      if (!d.is_compaction) return null;
+      const x = padding + i * xStep;
+      return { x };
+    })
+    .filter(Boolean) as { x: number }[];
+
   // Color by peak value
   const peak = Math.max(...data.map((d) => d.context_pct));
   let stroke = "var(--green)";
@@ -35,7 +44,7 @@ export function Sparkline({ data, width = 56, height = 20 }: SparklineProps) {
   else if (peak >= 30) stroke = "var(--yellow)";
 
   return html`
-    <svg class="spark" viewBox="0 0 ${width} ${height}">
+    <svg width=${width} height=${height} viewBox="0 0 ${width} ${height}">
       <polyline
         points=${points}
         fill="none"
@@ -44,6 +53,19 @@ export function Sparkline({ data, width = 56, height = 20 }: SparklineProps) {
         stroke-linejoin="round"
         stroke-linecap="round"
       />
+      ${compactionLines.map(
+        (l) => html`
+          <line
+            x1=${l.x}
+            y1="0"
+            x2=${l.x}
+            y2=${height}
+            stroke="var(--red)"
+            stroke-width="1"
+            opacity="0.5"
+          />
+        `
+      )}
     </svg>
   `;
 }

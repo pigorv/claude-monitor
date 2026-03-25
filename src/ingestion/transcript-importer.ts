@@ -609,6 +609,11 @@ function buildSessionRecord(
     end_reason: null,
     transcript_path: filePath,
     metadata: JSON.stringify({ risk_signals: riskAssessment.signals }),
+    agent_avg_compression: null,
+    agent_total_tokens: 0,
+    agent_pressure_events: 0,
+    agent_compacted_count: 0,
+    peak_concurrency: 0,
   };
 }
 

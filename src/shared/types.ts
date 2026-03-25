@@ -268,6 +268,33 @@ export interface LinkedSession {
   relationship: 'planning_session' | 'implementation_session';
 }
 
+export interface FileActivityEntry {
+  file_path: string;
+  read_count: number;
+  total_tokens: number;
+  first_read: string;
+  has_partial: boolean;
+  is_reread_after_compaction: boolean;
+  is_skill_file: boolean;
+}
+
+export interface FileActivityData {
+  files: FileActivityEntry[];
+  total_reread_tokens: number;
+  reread_after_compaction_count: number;
+  files_with_subagents: FileActivityEntry[];
+  total_reread_tokens_with_subagents: number;
+  reread_after_compaction_count_with_subagents: number;
+}
+
+export interface EventAnnotation {
+  index: number;
+  marker_type: 'file_read' | 'file_write' | 'agent' | 'bash' | 'other_tool';
+  tool_name: string;
+  label: string;
+  token_delta?: number;
+}
+
 export interface SessionDetailResponse {
   session: Session;
   token_timeline: TokenDataPoint[];
@@ -278,6 +305,9 @@ export interface SessionDetailResponse {
   event_count?: number;
   agent_efficiency?: AgentEfficiencyAggregates;
   linked_sessions?: LinkedSession[];
+  file_activity?: FileActivityData;
+  peak_parent_tokens?: number;
+  event_annotations?: EventAnnotation[];
 }
 
 export interface SessionStats {

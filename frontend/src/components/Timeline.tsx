@@ -68,13 +68,26 @@ function getToolSummary(event: Event): string | null {
     case "Grep":
       return input.pattern ? String(input.pattern) : null;
     case "Read":
-      return input.file_path ? shortenPath(String(input.file_path)) : null;
     case "Write":
-      return input.file_path ? shortenPath(String(input.file_path)) : null;
     case "Edit":
       return input.file_path ? shortenPath(String(input.file_path)) : null;
+    case "TaskCreate":
+      return input.subject ? truncate(String(input.subject), 60) : null;
+    case "TaskUpdate": {
+      const id = input.taskId || input.task_id || "?";
+      const status = input.status || "unknown";
+      return `#${id} → ${status}`;
+    }
+    case "ToolSearch":
+      return input.query ? String(input.query) : (input.tool_name ? String(input.tool_name) : null);
+    case "WebFetch":
+      return input.url ? truncate(String(input.url), 60) : null;
     default:
-      return null;
+      return (input.file_path ? shortenPath(String(input.file_path)) : null)
+        || (input.command ? truncate(String(input.command), 60) : null)
+        || (input.subject ? truncate(String(input.subject), 60) : null)
+        || (input.query ? String(input.query) : null)
+        || null;
   }
 }
 
@@ -235,7 +248,6 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState("");
-  const [includeThinking, setIncludeThinking] = useState(true);
   const [expandedToolGroups, setExpandedToolGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -250,7 +262,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
     const hasAgents = agents && agents.length > 0;
     fetchEvents(sessionId, {
       event_type: typeFilter || undefined,
-      include_thinking: includeThinking ? "true" : undefined,
+      include_thinking: "true",
       parent_only: hasAgents && !typeFilter ? "true" : undefined,
       limit: PAGE_SIZE,
       offset,
@@ -272,7 +284,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
     return () => {
       cancelled = true;
     };
-  }, [sessionId, typeFilter, includeThinking, offset]);
+  }, [sessionId, typeFilter, offset]);
 
   const toggleToolGroup = (key: string) => {
     setExpandedToolGroups((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -308,8 +320,6 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
             { label: "User", value: "user_message" },
             { label: "Assistant", value: "assistant_message" },
             { label: "Tools", value: "tool_call_start" },
-            { label: "Thinking", value: "thinking" },
-            { label: "Agents", value: "subagent_start" },
           ].map((chip) => html`
             <button
               key=${chip.value}
@@ -357,6 +367,16 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
                   const failCount = item.events.filter((e) => hasToolError(e)).length;
                   const duration = getGroupDuration(item.events);
                   const uniqueTools = [...new Set(item.events.map((e) => e.tool_name).filter(Boolean))] as string[];
+                  const groupToolName = item.events[0]?.tool_name || "";
+                  const isTaskCreate = groupToolName === "TaskCreate";
+                  const summaries = item.events.map((e, idx) => ({
+                    summary: getToolSummary(e),
+                    duration: formatDuration(e.duration_ms),
+                    index: idx + 1,
+                    toolName: e.tool_name || "",
+                  }));
+                  const hasSummaries = summaries.some((s) => s.summary);
+                  const isExpanded = expandedToolGroups[item.groupKey];
                   return html`
                   <div key=${item.groupKey} class="tool-group-row">
                     <div class="event-dot dot-tool-grp"></div>
@@ -371,16 +391,17 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
                         <span class="tg-meta">
                           ${failCount > 0 && html`<span class="tg-failed">${failCount} failed</span>`}
                           ${duration && html`<span>${duration}</span>`}
-                          <span class="tool-group-arrow">${expandedToolGroups[item.groupKey] ? "▾" : "▸"}</span>
+                          <span class="tool-group-arrow">${isExpanded ? "▾" : "▸"}</span>
                         </span>
                       </div>
-                      ${expandedToolGroups[item.groupKey] && html`
+                      ${isExpanded && html`
                         <div class="tool-group-card">
-                          ${item.events.map((evt) => html`
+                          ${item.events.map((evt, idx) => html`
                             <${EventCard}
                               key=${evt.id}
                               event=${evt}
                               sessionStart=${sessionStart}
+                              groupIndex=${isTaskCreate ? idx + 1 : undefined}
                             />
                           `)}
                         </div>

@@ -6,16 +6,21 @@
 .controls {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 
 .controls .sort-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text3);
   margin-left: auto;
   font-weight: 500;
+}
+
+.filter-chips {
+  display: flex;
+  gap: 4px;
 }
 
 /* Project name + summary two-line cell */
@@ -25,41 +30,121 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  font-size: 12px;
 }
 
 .proj-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 
 .proj-summary {
-  font-size: 11px;
-  color: var(--text2);
-  margin-top: 3px;
-  max-width: 300px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  margin-top: 2px;
+  max-width: 280px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Compaction count styling */
-.cc {
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 500;
+/* Active session: pulsing green dot */
+.active-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  display: inline-block;
+  margin-left: 6px;
+  animation: pulse 2s ease-in-out infinite;
 }
 
-.cc.warn { color: var(--orange); }
-.cc.ok { color: var(--text3); }
+@keyframes pulse {
 
-/* Agent count styling */
-.ag {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Context label for 1M models */
+.ctx-label {
+  font-size: 9px;
+  opacity: 0.7;
+  font-weight: 700;
+}
+
+/* Compaction count badges */
+.cc {
+  font-size: 11px;
   font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--r-xs);
+  display: inline-block;
+}
+
+.cc.ok {
+  background: var(--green-bg);
+  color: var(--green);
+  border: 1px solid var(--green-border);
+}
+
+.cc.warn {
+  background: var(--orange-bg);
+  color: var(--orange);
+  border: 1px solid var(--orange-border);
+}
+
+.cc.danger {
+  background: var(--red-bg);
+  color: var(--red);
+  border: 1px solid var(--red-border);
+}
+
+/* Agent count badges */
+.ag {
+  font-size: 11px;
+  font-family: var(--mono);
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--r-xs);
+  display: inline-block;
+  background: var(--teal-bg);
   color: var(--teal);
+  border: 1px solid var(--teal-border);
+}
+
+.ag.none {
+  background: var(--bg-muted);
+  color: var(--text3);
+  border: 1px solid var(--border);
+}
+
+/* Center-align compactions & agents columns */
+td:nth-child(4),
+td:nth-child(5),
+th:nth-child(4),
+th:nth-child(5) {
+  text-align: center;
+}
+
+/* Sparkline cell */
+td.spark {
+  padding: 13px 10px;
+  vertical-align: middle;
+  text-align: center;
+}
+
+td.spark svg {
+  vertical-align: middle;
 }
 
 /* Sortable column headers */
@@ -87,4 +172,43 @@ th.sort-asc::after {
 th.sort-desc::after {
   content: "▼";
   font-size: 8px;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-muted);
+  font-size: 12px;
+  color: var(--text3);
+}
+
+.page-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.page-btns button {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-card);
+  color: var(--text2);
+  cursor: pointer;
+}
+
+.page-btns button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Orange text utility */
+.orange {
+  color: var(--orange);
 }

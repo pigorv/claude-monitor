@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { Event, TokenDataPoint, MiniTimelinePoint } from '../../shared/types.js';
+import type { Event, TokenDataPoint, MiniTimelinePoint, EventAnnotation } from '../../shared/types.js';
 import { getDb, onDbClose } from '../connection.js';
 
 // ── Cached prepared statements ──────────────────────────────────────
@@ -9,10 +9,11 @@ let _tokenTimelineStmt: Database.Statement | null = null;
 let _miniTimelineStmt: Database.Statement | null = null;
 let _deleteEventsBySessionStmt: Database.Statement | null = null;
 let _eventCountBySessionStmt: Database.Statement | null = null;
+let _annotationEventsStmt: Database.Statement | null = null;
 
 onDbClose(() => {
   _insertEventStmt = _getEventStmt = _tokenTimelineStmt = _miniTimelineStmt =
-    _deleteEventsBySessionStmt = _eventCountBySessionStmt = null;
+    _deleteEventsBySessionStmt = _eventCountBySessionStmt = _annotationEventsStmt = null;
 });
 
 export function insertEvent(event: Omit<Event, 'id'>): number {
@@ -262,4 +263,86 @@ export function getEventCountBySession(sessionId: string): number {
   _eventCountBySessionStmt ??= db.prepare('SELECT COUNT(*) as count FROM events WHERE session_id = ?');
   const row = _eventCountBySessionStmt.get(sessionId) as { count: number };
   return row.count;
+}
+
+interface AnnotationEventRow {
+  sequence_num: number;
+  event_type: string;
+  tool_name: string | null;
+  file_path: string | null;
+  input_preview: string | null;
+  output_chars: number | null;
+}
+
+function classifyTool(toolName: string): EventAnnotation['marker_type'] {
+  switch (toolName) {
+    case 'Read': case 'ReadFile': case 'Glob': case 'Grep':
+      return 'file_read';
+    case 'Write': case 'Edit': case 'MultiEdit': case 'NotebookEdit':
+      return 'file_write';
+    case 'Agent': case 'Task': case 'SendMessage':
+      return 'agent';
+    case 'Bash':
+      return 'bash';
+    default:
+      return 'other_tool';
+  }
+}
+
+function extractLabel(row: AnnotationEventRow): string {
+  if (row.file_path) return row.file_path;
+  if (row.input_preview) {
+    // Try to extract a file path or meaningful snippet from the preview
+    const pathMatch = row.input_preview.match(/(?:file_path|path)["']?\s*[:=]\s*["']?([^\s"',}]+)/);
+    if (pathMatch) return pathMatch[1];
+    // For bash commands, show a short preview
+    if (row.tool_name === 'Bash') {
+      const cmdMatch = row.input_preview.match(/(?:command)["']?\s*[:=]\s*["']?([^\n"']{1,60})/);
+      if (cmdMatch) return cmdMatch[1];
+    }
+  }
+  return row.tool_name ?? 'unknown';
+}
+
+export function getTokenTimelineAnnotations(sessionId: string): EventAnnotation[] {
+  const db = getDb();
+  _annotationEventsStmt ??= db.prepare(`
+    SELECT
+      sequence_num, event_type, tool_name,
+      json_extract(input_data, '$.file_path') as file_path,
+      input_preview,
+      length(output_data) as output_chars
+    FROM events
+    WHERE session_id = ? AND agent_id IS NULL
+      AND event_type IN ('assistant_message', 'compaction', 'tool_call_start')
+    ORDER BY sequence_num ASC, timestamp ASC
+  `);
+
+  const rows = _annotationEventsStmt.all(sessionId) as AnnotationEventRow[];
+
+  const annotations: EventAnnotation[] = [];
+  let pendingTools: AnnotationEventRow[] = [];
+  let timelineIndex = 0;
+
+  for (const row of rows) {
+    if (row.event_type === 'tool_call_start') {
+      pendingTools.push(row);
+    } else {
+      // assistant_message or compaction — emit annotations for preceding tools
+      for (const tool of pendingTools) {
+        if (!tool.tool_name) continue;
+        annotations.push({
+          index: timelineIndex,
+          marker_type: classifyTool(tool.tool_name),
+          tool_name: tool.tool_name,
+          label: extractLabel(tool),
+          token_delta: tool.output_chars != null ? Math.round(tool.output_chars / 4) : undefined,
+        });
+      }
+      pendingTools = [];
+      timelineIndex++;
+    }
+  }
+
+  return annotations;
 }

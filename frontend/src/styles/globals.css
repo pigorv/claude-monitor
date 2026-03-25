@@ -327,7 +327,10 @@ nav a.active {
   border-radius: var(--r-sm);
   font-weight: 600;
   letter-spacing: 0.02em;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
 }
 
 .model-pill.opus {
@@ -625,12 +628,6 @@ tbody tr:hover td {
 /* ═══════════════════════════════════════════
    SPARKLINE
    ═══════════════════════════════════════════ */
-.spark {
-  width: 56px;
-  height: 20px;
-  display: inline-block;
-  vertical-align: middle;
-}
 
 /* ═══════════════════════════════════════════
    PAGINATION

@@ -9,8 +9,8 @@ import type {
   InternalToolCall,
 } from '../../shared/types.js';
 import { getSession, listSessions, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions } from '../../db/queries/sessions.js';
-import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getEventCountBySession } from '../../db/queries/events.js';
-import { getSessionStats, getToolFrequency } from '../../db/queries/stats.js';
+import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
+import { getSessionStats, getToolFrequency, getFileActivity, getPeakParentTokens } from '../../db/queries/stats.js';
 import type { SessionFilters } from '../../db/queries/sessions.js';
 import { riskLevel } from '../../analysis/risk-scoring.js';
 import { MODEL_PRICING } from '../../shared/constants.js';
@@ -108,6 +108,7 @@ sessions.get('/api/sessions/:id', (c) => {
   }
 
   const tokenTimeline = getTokenTimeline(id);
+  const eventAnnotations = getTokenTimelineAnnotations(id);
   const agents = getAgentRelationships(id);
   const stats = getSessionStats(id);
   const toolFreq = getToolFrequency(id);
@@ -222,6 +223,11 @@ sessions.get('/api/sessions/:id', (c) => {
   const eventCount = getEventCountBySession(id);
   const linkedSessions = getLinkedSessions(id);
 
+  // File activity + peak parent tokens for Context tab
+  const compactionTimestamps = compactionDetails.map(cd => cd.timestamp);
+  const fileActivity = getFileActivity(id, compactionTimestamps);
+  const peakParentTokens = getPeakParentTokens(id);
+
   const response: SessionDetailResponse = {
     session,
     token_timeline: tokenTimeline,
@@ -232,6 +238,9 @@ sessions.get('/api/sessions/:id', (c) => {
     event_count: eventCount,
     agent_efficiency: agentEfficiency,
     linked_sessions: linkedSessions.length > 0 ? linkedSessions : undefined,
+    file_activity: fileActivity,
+    peak_parent_tokens: peakParentTokens ?? undefined,
+    event_annotations: eventAnnotations.length > 0 ? eventAnnotations : undefined,
   };
 
   return c.json(response);
