@@ -107,6 +107,14 @@ function getToolSummary(event: Event): string | null {
   }
 }
 
+// Detect partial Read tool call (has offset or limit params)
+function isPartialRead(event: Event): boolean {
+  if (event.tool_name !== "Read") return false;
+  const input = tryParseJson(event.input_data);
+  if (!input) return false;
+  return input.offset != null || input.limit != null;
+}
+
 // Extract TaskUpdate status for color-coded rendering
 function getTaskUpdateInfo(event: Event): { taskId: string; status: string } | null {
   if (event.tool_name !== "TaskUpdate") return null;
