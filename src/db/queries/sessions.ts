@@ -105,6 +105,7 @@ export interface SessionFilters {
 const ALLOWED_SORT_COLUMNS = new Set([
   'started_at', 'duration_ms', 'risk_score', 'total_input_tokens',
   'compaction_count', 'tool_call_count', 'subagent_count',
+  'project_name', 'model',
 ]);
 
 /** Columns needed by sessionToSummary() — excludes large TEXT fields like metadata */

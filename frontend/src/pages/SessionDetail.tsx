@@ -5,6 +5,7 @@ import { Timeline } from "../components/Timeline";
 import { TokenChart } from "../components/TokenChart";
 import { AgentTree } from "../components/AgentTree";
 import type { SessionDetailResponse } from "../../../src/shared/types";
+import { resolveThresholds } from "../lib/chart-config";
 import "../styles/session-detail.css";
 
 function formatDuration(ms: number | null | undefined): string {
@@ -48,53 +49,11 @@ function formatEndTime(endedAt: string | null): string {
   return d.toLocaleDateString();
 }
 
-function peakCtxColor(pct: number | null): string {
-  if (pct == null) return "var(--text)";
-  if (pct >= 90) return "var(--red)";
-  if (pct >= 70) return "var(--orange)";
-  if (pct >= 50) return "var(--yellow)";
+function peakAccentColor(pct: number): string {
+  if (pct >= 80) return "var(--red)";
+  if (pct >= 60) return "var(--orange)";
+  if (pct >= 40) return "var(--yellow)";
   return "var(--green)";
-}
-
-function riskColor(score: number): string {
-  if (score >= 0.6) return "var(--red)";
-  if (score >= 0.3) return "var(--orange)";
-  if (score >= 0.1) return "var(--yellow)";
-  return "var(--green)";
-}
-
-function signalDotColor(value: number): string {
-  if (value >= 0.3) return "var(--red)";
-  if (value >= 0.1) return "var(--yellow)";
-  return "var(--green)";
-}
-
-const SIGNAL_THRESHOLDS: Record<string, number> = {
-  context_utilization: 0.10,
-  compaction_count: 0.10,
-  post_compaction_drift: 0.05,
-  long_tool_output: 0.10,
-  deep_nesting: 0.05,
-};
-
-function chipState(name: string, weightedValue: number): { className: string; threshold: string | null } {
-  const t = SIGNAL_THRESHOLDS[name];
-  if (t == null) return { className: "", threshold: null };
-  if (weightedValue >= t * 3) return { className: "danger", threshold: `▲ >${t.toFixed(2)}` };
-  if (weightedValue >= t) return { className: "warn", threshold: `▲ >${t.toFixed(2)}` };
-  return { className: "", threshold: null };
-}
-
-const SIGNAL_FRIENDLY_NAMES: Record<string, string> = {
-  context_utilization: "context",
-  compaction_count: "compactions",
-  post_compaction_drift: "drift",
-  long_tool_output: "tool overflow",
-  deep_nesting: "nesting",
-};
-
-function friendlySignalName(name: string): string {
-  return SIGNAL_FRIENDLY_NAMES[name] || name;
 }
 
 type Tab = "timeline" | "context" | "agents";
@@ -163,32 +122,13 @@ export function SessionDetail({ id }: { id: string }) {
 
   const s = data.session;
   const totalTokens = s.total_input_tokens + s.total_output_tokens;
-  const score = data.risk.score;
-  const peakPct = s.peak_context_pct;
 
-  // Compute compaction tokens lost
-  const tokensLost = (data.compaction_details || []).reduce(
-    (sum, c) => sum + Math.max(0, c.tokens_before - c.tokens_after), 0
-  );
-
-  // Top tool breakdown for stat card detail
-  const toolFreq = data.stats?.tool_frequency || {};
-  const topTools = Object.entries(toolFreq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([name, count]) => `${count} ${name}`)
-    .join(" · ");
-
-  // Risk level label
-  const riskLabel = score >= 0.6 ? "high risk" : score >= 0.3 ? "medium risk" : score >= 0.1 ? "low risk" : "minimal risk";
-
-  // Peak context threshold label
-  const peakCtxLabel = peakPct != null
-    ? (peakPct >= 90 ? "critical" : peakPct >= 70 ? "warning" : peakPct >= 50 ? "elevated" : "safe")
-    : null;
-  const peakCtxThreshold = peakPct != null
-    ? (peakPct >= 70 ? "threshold 70%" : "threshold 60%")
-    : null;
+  // Context tab stat card data
+  const headerThresholds = resolveThresholds(s.model);
+  const peakContextPct = s.peak_context_pct ?? 0;
+  const fileCount = data.file_activity?.files.length ?? 0;
+  const rereadFiles = data.file_activity?.files.filter(f => f.read_count >= 2) ?? [];
+  const totalRereads = rereadFiles.reduce((sum, f) => sum + (f.read_count - 1), 0);
 
   return html`
     <div class="page session-detail">
@@ -236,37 +176,39 @@ export function SessionDetail({ id }: { id: string }) {
         </div>
       </div>
 
-      <div class="stats stats-4">
-        <div class="stat-card compact">
+      <div class="context-stats-row">
+        <div class="stat-card">
+          <div class="stat-card-accent" style="background: ${peakAccentColor(peakContextPct)}"></div>
           <div class="label">Peak Context</div>
-          <div class="value" style="color: ${peakCtxColor(peakPct)}">${peakPct != null ? Math.round(peakPct) + "%" : "—"}</div>
-          ${peakCtxLabel && html`<div class="detail">${peakCtxLabel} — ${peakCtxThreshold}</div>`}
-          ${peakPct != null && html`
-            <div class="progress">
-              <div class="fill" style="width: ${Math.min(peakPct, 100)}%; background: ${peakCtxColor(peakPct)}"></div>
-            </div>
-          `}
-        </div>
-        <div class="stat-card compact">
-          <div class="label">Compactions</div>
-          <div class="value" style="color: ${s.compaction_count > 0 ? 'var(--orange)' : 'var(--text)'}">${s.compaction_count}</div>
-          ${tokensLost > 0
-            ? html`<div class="detail">~${formatTokens(tokensLost)} tokens lost</div>`
-            : html`<div class="detail" style="color: var(--green)">none triggered</div>`
-          }
-        </div>
-        <div class="stat-card compact">
-          <div class="label">Tool Calls</div>
-          <div class="value">${s.tool_call_count}</div>
-          ${topTools && html`<div class="detail">${topTools}</div>`}
-        </div>
-        <div class="stat-card compact">
-          <div class="label">Risk Score</div>
-          <div class="value" style="color: ${riskColor(score)}">${score.toFixed(2)}</div>
-          <div class="detail">${riskLabel}</div>
+          <div class="value" style="color: ${peakAccentColor(peakContextPct)}">${peakContextPct.toFixed(0)}%</div>
+          <div class="detail">danger threshold 70%</div>
           <div class="progress">
-            <div class="fill" style="width: ${Math.min(score * 100, 100)}%; background: ${riskColor(score)}"></div>
+            <div class="fill" style="width: ${Math.min(peakContextPct, 100)}%; background: ${peakAccentColor(peakContextPct)}"></div>
           </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-accent" style="background: var(--accent)"></div>
+          <div class="label">Peak Tokens</div>
+          <div class="value">${data.peak_parent_tokens != null ? formatTokens(data.peak_parent_tokens) : "\u2014"}</div>
+          <div class="detail">of ${formatTokens(headerThresholds.maxTokens)} window \u00b7 parent only</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-accent" style="background: ${s.compaction_count > 0 ? 'var(--orange)' : 'var(--border)'}"></div>
+          <div class="label">Compactions</div>
+          <div class="value" style="color: ${s.compaction_count > 0 ? 'var(--orange)' : ''}">${s.compaction_count}</div>
+          <div class="detail">${s.compaction_count > 0 ? "auto-triggered" : "none"}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-accent" style="background: var(--accent)"></div>
+          <div class="label">Files Loaded</div>
+          <div class="value">${fileCount}</div>
+          <div class="detail">${totalRereads > 0 ? `${totalRereads} re-reads across ${rereadFiles.length} files` : "no re-reads"}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-accent" style="background: ${s.subagent_count > 0 ? 'var(--teal)' : 'var(--border)'}"></div>
+          <div class="label">Agents</div>
+          <div class="value">${s.subagent_count}</div>
+          <div class="detail">${s.subagent_count > 0 ? "sub-agents" : "none"}</div>
         </div>
       </div>
 
@@ -296,25 +238,14 @@ export function SessionDetail({ id }: { id: string }) {
           <${Timeline} sessionId=${id} sessionStart=${s.started_at} agents=${data.agents} parentInputTokens=${s.total_input_tokens} parentOutputTokens=${s.total_output_tokens} />
         `}
         ${tab === "context" && html`
-          ${data.risk.signals.length > 0 && html`
-            <div class="risk-signals">
-              ${data.risk.signals.map(
-                (sig) => {
-                  const wv = sig.value * sig.weight;
-                  const cs = chipState(sig.name, wv);
-                  return html`
-                    <span class="risk-chip ${cs.className}" title=${sig.description}>
-                      <span class="risk-chip-dot" style="background: ${signalDotColor(wv)}"></span>
-                      <span class="risk-chip-label">${friendlySignalName(sig.name)}</span>
-                      <span class="risk-chip-value">${wv.toFixed(2)}</span>
-                      ${cs.threshold && html`<span class="risk-chip-threshold">${cs.threshold}</span>`}
-                    </span>
-                  `;
-                }
-              )}
-            </div>
-          `}
-          <${TokenChart} timeline=${data.token_timeline} model=${s.model} compactionDetails=${data.compaction_details} />
+          <${TokenChart}
+            timeline=${data.token_timeline}
+            model=${s.model}
+            compactionDetails=${data.compaction_details}
+            session=${s}
+            fileActivity=${data.file_activity}
+            eventAnnotations=${data.event_annotations}
+          />
         `}
         ${tab === "agents" && html`
           <${AgentTree} agents=${data.agents} sessionStart=${s.started_at} agentEfficiency=${data.agent_efficiency} />

@@ -8,6 +8,7 @@ import { formatTokenMeta } from "../lib/format";
 interface EventCardProps {
   event: Event;
   sessionStart?: string;
+  groupIndex?: number;
 }
 
 function formatTime(iso: string, _sessionStart?: string): string {
@@ -83,14 +84,37 @@ function getToolSummary(event: Event): string | null {
     case "Grep":
       return input.pattern ? `${input.pattern}` : null;
     case "Read":
-      return input.file_path ? shortenPath(String(input.file_path)) : null;
     case "Write":
-      return input.file_path ? shortenPath(String(input.file_path)) : null;
     case "Edit":
       return input.file_path ? shortenPath(String(input.file_path)) : null;
+    case "TaskCreate":
+      return input.subject ? truncate(String(input.subject), 60) : null;
+    case "TaskUpdate": {
+      const id = input.taskId || input.task_id || "?";
+      const status = input.status || "unknown";
+      return `#${id} → ${status}`;
+    }
+    case "ToolSearch":
+      return input.query ? String(input.query) : (input.tool_name ? String(input.tool_name) : null);
+    case "WebFetch":
+      return input.url ? truncate(String(input.url), 60) : null;
     default:
-      return null;
+      return (input.file_path ? shortenPath(String(input.file_path)) : null)
+        || (input.command ? truncate(String(input.command), 60) : null)
+        || (input.subject ? truncate(String(input.subject), 60) : null)
+        || (input.query ? String(input.query) : null)
+        || null;
   }
+}
+
+// Extract TaskUpdate status for color-coded rendering
+function getTaskUpdateInfo(event: Event): { taskId: string; status: string } | null {
+  if (event.tool_name !== "TaskUpdate") return null;
+  const input = tryParseJson(event.input_data);
+  if (!input) return null;
+  const id = String(input.taskId || input.task_id || "?");
+  const status = String(input.status || "unknown");
+  return { taskId: id, status };
 }
 
 // Strip ANSI escape codes
@@ -232,7 +256,7 @@ function isToolErrorEvent(event: Event): boolean {
   return false;
 }
 
-export function EventCard({ event, sessionStart }: EventCardProps) {
+export function EventCard({ event, sessionStart, groupIndex }: EventCardProps) {
   const [expanded, setExpanded] = useState(false);
   const isToolEvent = event.event_type === "tool_call_start" || event.event_type === "tool_call_end";
   const label = TYPE_LABELS[event.event_type] || event.event_type;
@@ -394,9 +418,19 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
         <div class=${"event-dot dot-tool" + (isErr ? " dot-tool-err" : "")}></div>
         <div class="tool-row-content">
           <div class=${"tool-row" + (isErr ? " tool-row-error" : "")}>
+            ${groupIndex != null && html`<span class="tg-item-badge">#${groupIndex}</span>`}
             <span class=${"tool-badge " + toolBadgeClass}>${event.tool_name}</span>
             ${isErr && html`<span class="err-badge">error</span>`}
-            <span class="tool-name">${toolSummary || event.tool_name}</span>
+            ${(() => {
+              const tuInfo = getTaskUpdateInfo(event);
+              if (tuInfo) {
+                const statusClass = tuInfo.status === "completed" ? "status-completed"
+                  : tuInfo.status === "in_progress" ? "status-in-progress"
+                  : tuInfo.status === "blocked" ? "status-blocked" : "";
+                return html`<span class="tool-name">#${tuInfo.taskId} → <span class=${"status-val " + statusClass}>${tuInfo.status}</span></span>`;
+              }
+              return html`<span class="tool-name">${toolSummary || event.tool_name}</span>`;
+            })()}
             <span class="tool-dur">${formatDuration(event.duration_ms)}</span>
             <span class="tool-row-expand">${expanded ? "▾" : "›"}</span>
           </div>

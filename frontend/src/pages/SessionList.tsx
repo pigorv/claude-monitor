@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import { html } from "htm/preact";
 import { fetchSessions, fetchApi } from "../api/client";
-import { RiskBadge } from "../components/RiskBadge";
 import { Sparkline } from "../components/Sparkline";
 import type { SessionSummary, SessionListResponse } from "../../../src/shared/types";
 import "../styles/session-list.css";
@@ -49,8 +48,14 @@ function modelLabel(model: string | null | undefined): string {
   return model;
 }
 
+function isLargeContext(model: string | null | undefined): boolean {
+  if (!model) return false;
+  const m = model.toLowerCase();
+  // Opus 4.6+ supports 1M context window
+  return m.includes("opus");
+}
+
 function projectColor(name: string): string {
-  // Hash project name to a consistent color
   const colors = [
     "var(--purple)", "var(--accent)", "var(--teal)",
     "var(--orange)", "var(--green)", "var(--yellow)",
@@ -62,9 +67,15 @@ function projectColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
+function compactionClass(count: number): string {
+  if (count === 0) return "ok";
+  if (count <= 2) return "warn";
+  return "danger";
+}
+
 // ── Sort / filter types ─────────────────────────────────────────────
 
-type SortColumn = "started_at" | "project_name" | "model" | "duration_ms" | "tokens" | "tool_call_count" | "risk_score";
+type SortColumn = "started_at" | "project_name" | "model" | "duration_ms" | "compaction_count" | "subagent_count";
 type SortOrder = "asc" | "desc";
 
 const SORT_COLUMN_TO_API: Record<SortColumn, string> = {
@@ -72,14 +83,13 @@ const SORT_COLUMN_TO_API: Record<SortColumn, string> = {
   project_name: "project_name",
   model: "model",
   duration_ms: "duration_ms",
-  tokens: "total_input_tokens",
-  tool_call_count: "tool_call_count",
-  risk_score: "risk_score",
+  compaction_count: "compaction_count",
+  subagent_count: "subagent_count",
 };
 
 const PAGE_SIZE = 25;
 
-type ChipFilter = "all" | "compactions" | "subagents" | "high_risk" | "opus" | "sonnet";
+type ChipFilter = "all" | "opus" | "sonnet" | "haiku";
 
 // ── Stats interface ─────────────────────────────────────────────────
 
@@ -88,6 +98,7 @@ interface StatsData {
   total_input_tokens: number;
   total_output_tokens: number;
   avg_risk_score: number;
+  avg_duration_ms: number;
   total_compactions: number;
   total_subagents: number;
   sessions_with_compactions: number;
@@ -150,24 +161,14 @@ export function SessionList() {
     if (debouncedQuery) params.q = debouncedQuery;
 
     switch (chipFilter) {
-      case "compactions":
-        // Sessions with compactions - use min compaction filter or a workaround
-        // The API doesn't have a compaction filter directly, so we sort by compactions desc
-        params.sort = "compaction_count";
-        params.order = "desc";
-        break;
-      case "subagents":
-        params.sort = "subagent_count";
-        params.order = "desc";
-        break;
-      case "high_risk":
-        params.min_risk = "high";
-        break;
       case "opus":
         params.model = "opus";
         break;
       case "sonnet":
         params.model = "sonnet";
+        break;
+      case "haiku":
+        params.model = "haiku";
         break;
     }
 
@@ -224,19 +225,9 @@ export function SessionList() {
 
   // Stats calculations
   const totalTokens = stats ? stats.total_input_tokens + stats.total_output_tokens : 0;
-  const sessionsWithAgents = stats?.total_subagents ?? 0;
-  const compPerSession = stats && stats.session_count > 0
-    ? (stats.total_compactions / stats.session_count).toFixed(2)
-    : "0";
 
-  // Compute days range from stats
-  let dayRange = "";
-  if (stats?.oldest_session && stats?.newest_session) {
-    const oldest = new Date(stats.oldest_session);
-    const newest = new Date(stats.newest_session);
-    const days = Math.max(1, Math.ceil((newest.getTime() - oldest.getTime()) / 86400000));
-    dayRange = `${days}`;
-  }
+  // Count active sessions from loaded data
+  const activeSessions = data ? data.sessions.filter((s: SessionSummary) => s.status === "running").length : 0;
 
   // Unique projects count
   const uniqueProjects = data ? new Set(data.sessions.map((s: SessionSummary) => s.project_name)).size : 0;
@@ -245,38 +236,28 @@ export function SessionList() {
     <div class="page">
       <h1>Sessions</h1>
       <div class="page-sub">
-        ${stats ? `${stats.session_count} sessions across ${uniqueProjects} projects` : "Loading..."}
-        ${dayRange ? html` · last ${dayRange} days` : ""}
+        ${stats ? `Monitoring ${stats.session_count} sessions across ${uniqueProjects} projects` : "Loading..."}
       </div>
 
       <!-- Stats bar -->
-      <div class="stats stats-5">
+      <div class="stats stats-4">
         <div class="stat-card">
-          <div class="label">Sessions</div>
+          <div class="label">Total Sessions</div>
           <div class="value">${stats?.session_count ?? "—"}</div>
-          <div class="detail">${stats?.sessions_today ?? 0} today</div>
+          <div class="detail">${activeSessions > 0 ? `${activeSessions} active` : `${stats?.sessions_today ?? 0} today`}</div>
         </div>
         <div class="stat-card">
-          <div class="label">Tokens</div>
+          <div class="label">Total Tokens</div>
           <div class="value">${formatTokens(totalTokens)}</div>
           <div class="detail">${stats?.total_cost_estimate_usd ? formatCost(stats.total_cost_estimate_usd) + " est." : ""}</div>
         </div>
         <div class="stat-card">
-          <div class="label">Avg risk</div>
-          <div class="value" style=${`color: ${(stats?.avg_risk_score ?? 0) < 0.3 ? "var(--green)" : (stats?.avg_risk_score ?? 0) < 0.6 ? "var(--yellow)" : "var(--red)"}`}>
-            ${stats ? stats.avg_risk_score.toFixed(2) : "—"}
-          </div>
-          <div class="detail">${stats?.high_risk_sessions ? stats.high_risk_sessions + " high-risk" : ""}</div>
+          <div class="label">Total Compactions</div>
+          <div class="value orange">${stats?.total_compactions ?? "—"}</div>
         </div>
         <div class="stat-card">
-          <div class="label">Compactions</div>
-          <div class="value" style="color:var(--orange)">${stats?.total_compactions ?? "—"}</div>
-          <div class="detail">${compPerSession} / session</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Sub-agents</div>
-          <div class="value" style="color:var(--teal)">${stats?.total_subagents ?? "—"}</div>
-          <div class="detail">in ${stats?.sessions_with_compactions ?? 0} sessions</div>
+          <div class="label">Avg Duration</div>
+          <div class="value">${stats ? formatDuration(stats.avg_duration_ms) : "—"}</div>
         </div>
       </div>
 
@@ -288,17 +269,19 @@ export function SessionList() {
           value=${searchQuery}
           onInput=${handleSearch}
         />
-        ${["all", "compactions", "subagents", "high_risk", "opus", "sonnet"].map(
-          (f) => html`
-            <div
-              class=${`chip ${chipFilter === f ? "active" : ""}`}
-              onClick=${() => setChipFilter(f as ChipFilter)}
-            >
-              ${f === "all" ? "All" : f === "high_risk" ? "High risk" : f === "subagents" ? "Sub-agents" : f.charAt(0).toUpperCase() + f.slice(1)}
-            </div>
-          `
-        )}
-        <span class="sort-label">Sorted by newest</span>
+        <div class="filter-chips">
+          ${(["all", "opus", "sonnet", "haiku"] as const).map(
+            (f) => html`
+              <div
+                class=${`chip ${chipFilter === f ? "active" : ""}`}
+                onClick=${() => setChipFilter(f as ChipFilter)}
+              >
+                ${f.charAt(0).toUpperCase() + f.slice(1)}
+              </div>
+            `
+          )}
+        </div>
+        <span class="sort-label">Sort: Latest first</span>
       </div>
 
       ${loading && html`<div class="status-text">Loading sessions...</div>`}
@@ -310,14 +293,12 @@ export function SessionList() {
           <table>
             <thead>
               <tr>
-                <th class=${sortClass("project_name")} onClick=${() => toggleSort("project_name")}>Project / summary</th>
+                <th class=${sortClass("project_name")} onClick=${() => toggleSort("project_name")}>Session</th>
                 <th class=${sortClass("model")} onClick=${() => toggleSort("model")}>Model</th>
                 <th class=${sortClass("duration_ms")} onClick=${() => toggleSort("duration_ms")}>Duration</th>
-                <th class=${sortClass("tokens")} onClick=${() => toggleSort("tokens")}>Tokens</th>
-                <th>Context</th>
-                <th>C</th>
-                <th>Agents</th>
-                <th class=${sortClass("risk_score")} onClick=${() => toggleSort("risk_score")}>Risk</th>
+                <th class=${sortClass("compaction_count")} onClick=${() => toggleSort("compaction_count")}>Compactions</th>
+                <th class=${sortClass("subagent_count")} onClick=${() => toggleSort("subagent_count")}>Agents</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -328,33 +309,39 @@ export function SessionList() {
                       <div class="proj-name">
                         <div class="proj-dot" style=${`background:${projectColor(s.project_name || "default")}`}></div>
                         ${s.project_name || "—"}
+                        ${s.status === "running" ? html`<span class="active-dot" title="Active session"></span>` : null}
                       </div>
                       <div class="proj-summary">${s.summary || "—"}</div>
                     </td>
-                    <td><span class="model-pill ${modelClass(s.model)}">${modelLabel(s.model)}</span></td>
-                    <td class="mono">${formatDuration(s.duration_ms)}</td>
-                    <td class="mono">${formatTokens((s.total_input_tokens ?? 0) + (s.total_output_tokens ?? 0))}</td>
-                    <td><${Sparkline} data=${(s as any).mini_timeline || []} /></td>
                     <td>
-                      <span class="cc ${s.compaction_count > 0 ? "warn" : "ok"}">${s.compaction_count}</span>
+                      <span class="model-pill ${modelClass(s.model)}">
+                        ${modelLabel(s.model)}
+                        ${isLargeContext(s.model) ? html` <span class="ctx-label">1M</span>` : null}
+                      </span>
+                    </td>
+                    <td class="mono">${formatDuration(s.duration_ms)}</td>
+                    <td>
+                      <span class="cc ${compactionClass(s.compaction_count)}">${s.compaction_count}</span>
                     </td>
                     <td>
                       ${s.subagent_count > 0
                         ? html`<span class="ag">${s.subagent_count}</span>`
-                        : html`<span class="mono" style="color:var(--text3)">0</span>`
+                        : html`<span class="ag none">0</span>`
                       }
                     </td>
-                    <td><${RiskBadge} level=${s.risk_level || "low"} score=${s.risk_score} /></td>
+                    <td class="spark">
+                      <${Sparkline} data=${(s as any).mini_timeline || []} />
+                    </td>
                   </tr>
                 `
               )}
             </tbody>
           </table>
-          <div class="paging">
-            <span>${rangeStart}–${rangeEnd} of ${total}</span>
-            <div style="display:flex;gap:6px">
-              <button class="pg-btn" disabled=${!hasPrev} onClick=${() => setOffset(Math.max(0, offset - PAGE_SIZE))}>Previous</button>
-              <button class="pg-btn" disabled=${!hasNext} onClick=${() => setOffset(offset + PAGE_SIZE)}>Next</button>
+          <div class="pagination">
+            <span>Showing ${rangeStart}–${rangeEnd} of ${total} sessions</span>
+            <div class="page-btns">
+              <button disabled=${!hasPrev} onClick=${() => setOffset(Math.max(0, offset - PAGE_SIZE))}>← Previous</button>
+              <button disabled=${!hasNext} onClick=${() => setOffset(offset + PAGE_SIZE)}>Next →</button>
             </div>
           </div>
         </div>

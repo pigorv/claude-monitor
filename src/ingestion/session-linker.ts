@@ -26,23 +26,23 @@ const CONTENT_MATCH_LENGTH = 200;
  */
 export function detectAndLinkSessions(
   sessionId: string,
-  firstUserMessage: string | null,
+  _firstUserMessage: string | null,
   projectPath: string,
   startedAt: string,
   endedAt: string | null,
 ): void {
-  // Forward: this session is the implementation
-  if (firstUserMessage && firstUserMessage.trimStart().startsWith(PLAN_PREFIX)) {
-    const planBody = extractPlanBody(firstUserMessage);
-    if (planBody) {
-      const planSessionId = findPlanningSession(sessionId, projectPath, startedAt, planBody);
-      if (planSessionId) {
-        insertSessionLink(planSessionId, sessionId, 'plan_implementation');
-        logger.info('Linked planning session to implementation', {
-          plan: planSessionId,
-          implementation: sessionId,
-        });
-      }
+  // Forward: this session is the implementation.
+  // Check ALL user_message events (not just the first) because the plan text
+  // may appear in a later message when the first was interrupted or is a subagent prompt.
+  const planBody = findPlanBodyInUserMessages(sessionId);
+  if (planBody) {
+    const planSessionId = findPlanningSession(sessionId, projectPath, startedAt, planBody);
+    if (planSessionId) {
+      insertSessionLink(planSessionId, sessionId, 'plan_implementation');
+      logger.info('Linked planning session to implementation', {
+        plan: planSessionId,
+        implementation: sessionId,
+      });
     }
   }
 
@@ -57,6 +57,28 @@ export function detectAndLinkSessions(
       });
     }
   }
+}
+
+/**
+ * Search all user_message events for this session in the DB to find one
+ * that starts with the plan prefix. Returns the extracted plan body or null.
+ */
+function findPlanBodyInUserMessages(sessionId: string): string | null {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT input_data FROM events
+    WHERE session_id = ? AND event_type = 'user_message' AND input_data IS NOT NULL
+    ORDER BY sequence_num ASC
+    LIMIT 10
+  `).all(sessionId) as { input_data: string }[];
+
+  for (const row of rows) {
+    const trimmed = row.input_data.trimStart();
+    if (trimmed.startsWith(PLAN_PREFIX)) {
+      return extractPlanBody(trimmed);
+    }
+  }
+  return null;
 }
 
 /**
