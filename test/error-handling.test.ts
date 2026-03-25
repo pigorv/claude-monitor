@@ -8,8 +8,6 @@ import { createApp } from '../src/server/app.js';
 import { upsertSession } from '../src/db/queries/sessions.js';
 import type { Session } from '../src/shared/types.js';
 
-// Single top-level describe to ensure Node's test runner doesn't isolate
-// this file into a child process (which causes tsx compilation timeouts on CI).
 describe('Error handling', () => {
   // ── DB Connection error handling ──────────────────────────────────────
 

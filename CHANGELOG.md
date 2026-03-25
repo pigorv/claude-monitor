@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- CI pipeline: pinned Node 22, fixed test hanging and release workflow running zero tests
+
+### Changed
+
+- Improved text contrast for WCAG AA compliance (`--text2`, `--text3` tokens)
+- Added `:focus-visible` rings on buttons, chips, tabs, and pagination for keyboard navigation
+- Tool badges now use distinct colors: Grep (indigo), Glob (teal), Edit (emerald) are visually distinguishable
+- Bumped minimum font size from 9px to 10px across 15+ elements for better readability
+- Extracted inline `color-mix()` calls into reusable `--*-tint` CSS custom properties
+- Replaced hardcoded hex values with CSS variable references throughout session-detail styles
+- Gave `.risk-pill.critical` a distinct heavier style to differentiate from `.risk-pill.high`
+- Added phone breakpoint (480px) for single-column stat cards and narrower timeline
+- Removed duplicate/contradictory tool badge definitions between globals.css and session-detail.css
+
 ## [0.1.0] - 2026-03-17
 
 ### Added
