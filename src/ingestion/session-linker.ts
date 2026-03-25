@@ -99,7 +99,7 @@ function findPlanningSession(
     WHERE s.project_path = ?
       AND s.id != ?
       AND s.ended_at IS NOT NULL
-      AND datetime(s.ended_at) <= datetime(?, '+1 minutes')
+      AND datetime(s.ended_at) <= datetime(?, '+5 minutes')
       AND e.tool_name = 'ExitPlanMode'
       AND json_extract(e.input_data, '$.plan') LIKE ? ESCAPE '\\'
     ORDER BY datetime(s.ended_at) DESC
@@ -154,7 +154,7 @@ function findImplementationSession(
     JOIN events e ON e.session_id = s.id
     WHERE s.project_path = ?
       AND s.id != ?
-      AND datetime(s.started_at) >= datetime(?, '-1 minutes')
+      AND datetime(s.started_at) >= datetime(?, '-5 minutes')
       AND e.event_type = 'user_message'
       AND e.input_data LIKE ? ESCAPE '\\'
     ORDER BY datetime(s.started_at) ASC, e.sequence_num ASC

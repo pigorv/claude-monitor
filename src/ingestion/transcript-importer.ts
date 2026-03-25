@@ -641,14 +641,18 @@ function buildEventRecords(
   model: string | null,
 ): Omit<Event, 'id'>[] {
   // Build a map of timestamp → token snapshot for context_pct enrichment
-  const usageByTimestamp = new Map<string, { input_tokens: number; output_tokens: number; cache_read_tokens: number; context_pct: number }>();
+  const usageByTimestamp = new Map<string, { input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_write_tokens: number; context_pct: number }>();
   for (const msg of messages) {
     if (msg.type === 'assistant' && msg.usage) {
+      const cacheRead = msg.usage.cache_read_input_tokens ?? 0;
+      const cacheWrite = msg.usage.cache_creation_input_tokens ?? 0;
+      const effectiveContext = msg.usage.input_tokens + cacheRead + cacheWrite;
       usageByTimestamp.set(msg.timestamp, {
         input_tokens: msg.usage.input_tokens,
         output_tokens: msg.usage.output_tokens,
-        cache_read_tokens: msg.usage.cache_read_input_tokens ?? 0,
-        context_pct: estimateContextPct(msg.usage.input_tokens, model),
+        cache_read_tokens: cacheRead,
+        cache_write_tokens: cacheWrite,
+        context_pct: estimateContextPct(effectiveContext, model),
       });
     }
   }
@@ -669,6 +673,7 @@ function buildEventRecords(
       input_tokens: parsed.input_tokens ?? usage?.input_tokens ?? null,
       output_tokens: parsed.output_tokens ?? usage?.output_tokens ?? null,
       cache_read_tokens: parsed.cache_read_tokens ?? usage?.cache_read_tokens ?? null,
+      cache_write_tokens: parsed.cache_write_tokens ?? usage?.cache_write_tokens ?? null,
       context_pct: usage?.context_pct ?? null,
       input_preview: parsed.input_preview ?? null,
       input_data: parsed.input_data ?? null,

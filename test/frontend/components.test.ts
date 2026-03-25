@@ -6,6 +6,7 @@ import { Sparkline } from '../../frontend/src/components/Sparkline.js';
 import { Heatmap } from '../../frontend/src/components/Heatmap.js';
 import { EventCard } from '../../frontend/src/components/EventCard.js';
 import { AgentTree } from '../../frontend/src/components/AgentTree.js';
+import { groupTimelineItems } from '../../frontend/src/components/Timeline.js';
 import type { Event as SessionEvent, AgentRelationship, TokenDataPoint } from '../../src/shared/types.js';
 
 // ─── Sparkline ──────────────────────────────────────────
@@ -114,7 +115,7 @@ describe('Heatmap', () => {
   it('applies color based on context percentage', () => {
     const timeline = [makePoint(90)];
     const out = render(html`<${Heatmap} timeline=${timeline} />`);
-    assert.ok(out.includes('#ef4444'), 'high context should use red');
+    assert.ok(out.includes('rgba(185, 28, 28'), 'high context should use red');
   });
 });
 
@@ -244,7 +245,9 @@ describe('EventCard', () => {
     for (const t of types) {
       const evt = makeEvent({ event_type: t as any });
       const out = render(html`<${EventCard} event=${evt} />`);
-      assert.ok(out.includes('event-card'), `${t} should render event-card`);
+      // tool_call_start renders as lightweight tool-row-standalone, not event-card
+      const expected = t === 'tool_call_start' ? 'tool-row-standalone' : 'event-card';
+      assert.ok(out.includes(expected), `${t} should render ${expected}`);
     }
   });
 });
@@ -414,5 +417,169 @@ describe('Signal badges (context mini-bars)', () => {
   it('caps bar width at 100%', () => {
     const out = render(html`<${EventCard} event=${makeEvent(120)} />`);
     assert.ok(out.includes('width: 100%'), 'should cap at 100% width');
+  });
+});
+
+// ─── groupTimelineItems (tool grouping) ─────────────────
+
+describe('groupTimelineItems', () => {
+  function makeToolEvent(id: number, tool_name: string, overrides: Partial<SessionEvent> = {}): SessionEvent {
+    return {
+      id,
+      session_id: 'sess-1',
+      event_type: 'tool_call_start',
+      tool_name,
+      timestamp: `2026-01-15T10:0${id}:00Z`,
+      context_pct: 30,
+      duration_ms: 100,
+      input_preview: null,
+      output_preview: null,
+      thinking_summary: null,
+      thinking_text: null,
+      input_tokens: 100,
+      output_tokens: 50,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      agent_id: null,
+      input_data: null,
+      output_data: null,
+      metadata: null,
+      ...overrides,
+    } as SessionEvent;
+  }
+
+  function makeEvent(id: number, event_type: string, overrides: Partial<SessionEvent> = {}): SessionEvent {
+    return {
+      id,
+      session_id: 'sess-1',
+      event_type: event_type as any,
+      tool_name: null,
+      timestamp: `2026-01-15T10:0${id}:00Z`,
+      context_pct: 30,
+      duration_ms: null,
+      input_preview: null,
+      output_preview: null,
+      thinking_summary: null,
+      thinking_text: null,
+      input_tokens: 100,
+      output_tokens: 50,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      agent_id: null,
+      input_data: null,
+      output_data: null,
+      metadata: null,
+      ...overrides,
+    } as SessionEvent;
+  }
+
+  it('groups consecutive calls of the same tool', () => {
+    const events = [
+      makeToolEvent(1, 'Read'),
+      makeToolEvent(2, 'Read'),
+      makeToolEvent(3, 'Read'),
+    ];
+    const items = groupTimelineItems(events);
+    assert.equal(items.length, 1);
+    assert.equal(items[0].type, 'tool-group');
+    if (items[0].type === 'tool-group') {
+      assert.equal(items[0].events.length, 3);
+    }
+  });
+
+  it('does NOT group different tool types together', () => {
+    const events = [
+      makeToolEvent(1, 'Read'),
+      makeToolEvent(2, 'Glob'),
+      makeToolEvent(3, 'Write'),
+    ];
+    const items = groupTimelineItems(events);
+    assert.equal(items.length, 3);
+    assert.ok(items.every(i => i.type === 'event'), 'each different tool should be a standalone event');
+  });
+
+  it('creates separate groups for different consecutive tool runs', () => {
+    const events = [
+      makeToolEvent(1, 'Read'),
+      makeToolEvent(2, 'Read'),
+      makeToolEvent(3, 'Glob'),
+      makeToolEvent(4, 'Glob'),
+      makeToolEvent(5, 'Glob'),
+    ];
+    const items = groupTimelineItems(events);
+    assert.equal(items.length, 2);
+    assert.equal(items[0].type, 'tool-group');
+    assert.equal(items[1].type, 'tool-group');
+    if (items[0].type === 'tool-group' && items[1].type === 'tool-group') {
+      assert.equal(items[0].events.length, 2, 'first group should have 2 Read calls');
+      assert.equal(items[0].events[0].tool_name, 'Read');
+      assert.equal(items[1].events.length, 3, 'second group should have 3 Glob calls');
+      assert.equal(items[1].events[0].tool_name, 'Glob');
+    }
+  });
+
+  it('keeps single tool call as standalone event', () => {
+    const events = [
+      makeToolEvent(1, 'Read'),
+    ];
+    const items = groupTimelineItems(events);
+    assert.equal(items.length, 1);
+    assert.equal(items[0].type, 'event');
+  });
+
+  it('handles mixed tool and non-tool events', () => {
+    const events = [
+      makeEvent(1, 'assistant_message'),
+      makeToolEvent(2, 'Read'),
+      makeToolEvent(3, 'Read'),
+      makeEvent(4, 'user_message'),
+      makeToolEvent(5, 'Bash'),
+    ];
+    const items = groupTimelineItems(events);
+    assert.equal(items.length, 4);
+    assert.equal(items[0].type, 'event');        // assistant_message
+    assert.equal(items[1].type, 'tool-group');    // 2x Read
+    assert.equal(items[2].type, 'event');         // user_message
+    assert.equal(items[3].type, 'event');         // single Bash
+  });
+
+  it('does not group tool calls across a non-tool event boundary', () => {
+    const events = [
+      makeToolEvent(1, 'Read'),
+      makeToolEvent(2, 'Read'),
+      makeEvent(3, 'assistant_message'),
+      makeToolEvent(4, 'Read'),
+      makeToolEvent(5, 'Read'),
+    ];
+    const items = groupTimelineItems(events);
+    assert.equal(items.length, 3);
+    assert.equal(items[0].type, 'tool-group');
+    assert.equal(items[1].type, 'event');
+    assert.equal(items[2].type, 'tool-group');
+  });
+
+  it('renders compaction events as standalone', () => {
+    const events = [
+      makeToolEvent(1, 'Read'),
+      makeEvent(2, 'compaction'),
+      makeToolEvent(3, 'Read'),
+    ];
+    const items = groupTimelineItems(events);
+    assert.equal(items.length, 3);
+    assert.equal(items[0].type, 'event');
+    assert.equal(items[1].type, 'compaction');
+    assert.equal(items[2].type, 'event');
+  });
+
+  it('skips agent_id events (subagent filtering)', () => {
+    const events = [
+      makeToolEvent(1, 'Read'),
+      makeToolEvent(2, 'Read', { agent_id: 'agent-1' }),
+      makeToolEvent(3, 'Read'),
+    ];
+    const items = groupTimelineItems(events);
+    // agent_id event is skipped, leaving two non-consecutive Reads → 2 standalone events
+    assert.equal(items.length, 2);
+    assert.ok(items.every(i => i.type === 'event'));
   });
 });

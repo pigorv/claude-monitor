@@ -51,7 +51,7 @@ describe('resolveThreshold', () => {
   it('resolves opus from full model string', () => {
     const t = resolveThreshold('claude-opus-4-6');
     assert.equal(t.model, 'opus');
-    assert.equal(t.maxTokens, 200_000);
+    assert.equal(t.maxTokens, 1_000_000);
   });
 
   it('resolves sonnet from model string', () => {
@@ -185,7 +185,7 @@ describe('computeAggregates', () => {
     const snapshots = buildTokenSnapshots(messages);
     const agg = computeAggregates(snapshots);
 
-    assert.equal(agg.total_input_tokens, 2000); // cumulative, last value
+    assert.equal(agg.total_input_tokens, 2850); // max effective context (input + cache_read + cache_write)
     assert.equal(agg.total_output_tokens, 500); // 200 + 300, summed
     assert.equal(agg.total_cache_read_tokens, 1300); // 500 + 800
     assert.equal(agg.total_cache_write_tokens, 150); // 100 + 50

@@ -103,6 +103,131 @@ function getGroupDuration(groupEvents: Event[]): string | null {
   return `${(diffMs / 1000).toFixed(1)}s`;
 }
 
+export type TimelineItem =
+  | { type: "event"; event: Event }
+  | { type: "agent-group"; agentId: string; agent: AgentRelationship; agentDescription?: string }
+  | { type: "compaction"; event: Event }
+  | { type: "tool-group"; events: Event[]; groupKey: string }
+  | { type: "system-group"; events: Event[] };
+
+export function groupTimelineItems(events: Event[], agents?: AgentRelationship[]): TimelineItem[] {
+  const hasAgentData = agents && agents.length > 0;
+  const sortedAgents = hasAgentData
+    ? [...agents!].sort((a, b) => (a.started_at || "").localeCompare(b.started_at || ""))
+    : [];
+
+  const items: TimelineItem[] = [];
+  const agentInserted = new Set<string>();
+  let i = 0;
+
+  while (i < events.length) {
+    const evt = events[i];
+
+    // When we have agent data and parent_only mode, Agent/Task tool calls become agent groups
+    if (hasAgentData && evt.event_type === "tool_call_start" && (evt.tool_name === "Agent" || evt.tool_name === "Task") && !evt.agent_id) {
+      const toolMs = new Date(evt.timestamp).getTime();
+
+      let nextParentMs = toolMs + 30_000;
+      for (let j = i + 1; j < events.length; j++) {
+        if (events[j].event_type !== "tool_call_start" || (events[j].tool_name !== "Agent" && events[j].tool_name !== "Task")) {
+          nextParentMs = new Date(events[j].timestamp).getTime();
+          break;
+        }
+      }
+
+      const matched: AgentRelationship[] = [];
+      for (const a of sortedAgents) {
+        if (agentInserted.has(a.child_agent_id)) continue;
+        if (!a.started_at) continue;
+        const agentMs = new Date(a.started_at).getTime();
+        if (agentMs >= toolMs && agentMs < nextParentMs) {
+          matched.push(a);
+        }
+      }
+
+      for (const a of matched) {
+        agentInserted.add(a.child_agent_id);
+        items.push({
+          type: "agent-group",
+          agentId: a.child_agent_id,
+          agent: a,
+          agentDescription: a.prompt_preview || undefined,
+        });
+      }
+
+      let nextI = i + 1;
+      while (nextI < events.length
+        && events[nextI].event_type === "tool_call_start"
+        && (events[nextI].tool_name === "Agent" || events[nextI].tool_name === "Task")
+        && !events[nextI].agent_id) {
+        nextI++;
+      }
+
+      if (matched.length === 0) {
+        items.push({ type: "event", event: evt });
+      }
+
+      i = nextI;
+      continue;
+    }
+
+    // Fallback: agent events in non-parent-only mode
+    if (evt.agent_id) {
+      i++;
+      continue;
+    }
+
+    // Compaction events render as standalone banners
+    if (evt.event_type === "compaction") {
+      items.push({ type: "compaction", event: evt });
+      i++;
+    // Group consecutive tool calls of the SAME tool type (2+ in a row)
+    } else if (evt.event_type === "tool_call_start" && evt.tool_name) {
+      const toolName = evt.tool_name;
+      let j = i + 1;
+      while (j < events.length && events[j].event_type === "tool_call_start" && events[j].tool_name === toolName && !events[j].agent_id) {
+        j++;
+      }
+      if (j - i >= 2) {
+        const group = events.slice(i, j);
+        items.push({ type: "tool-group", events: group, groupKey: `tg-${evt.id}` });
+        i = j;
+      } else {
+        items.push({ type: "event", event: evt });
+        i++;
+      }
+    // Group consecutive system-generated user messages
+    } else if (evt.event_type === 'user_message') {
+      const evtMeta = tryParseJson(evt.metadata);
+      if (evtMeta?.subtype === 'system_generated' && !evtMeta?.command) {
+        // Look ahead for consecutive system_generated messages
+        let j = i + 1;
+        while (j < events.length) {
+          const nextEvt = events[j];
+          if (nextEvt.event_type !== 'user_message') break;
+          const nextMeta = tryParseJson(nextEvt.metadata);
+          if (nextMeta?.subtype !== 'system_generated' || nextMeta?.command) break;
+          j++;
+        }
+        if (j - i >= 2) {
+          items.push({ type: "system-group", events: events.slice(i, j) });
+          i = j;
+        } else {
+          items.push({ type: "event", event: evt });
+          i++;
+        }
+      } else {
+        items.push({ type: "event", event: evt });
+        i++;
+      }
+    } else {
+      items.push({ type: "event", event: evt });
+      i++;
+    }
+  }
+  return items;
+}
+
 export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, parentOutputTokens }: TimelineProps) {
   const [events, setEvents] = useState<Event[]>([]);
   const [total, setTotal] = useState(0);
@@ -153,105 +278,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
     setExpandedToolGroups((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Group agent events and tool calls
-  type TimelineItem =
-    | { type: "event"; event: Event }
-    | { type: "agent-group"; agentId: string; agent: AgentRelationship; agentDescription?: string }
-    | { type: "compaction"; event: Event }
-    | { type: "tool-group"; events: Event[]; groupKey: string };
-
-  const groupedItems = useMemo((): TimelineItem[] => {
-    const hasAgentData = agents && agents.length > 0;
-    const sortedAgents = hasAgentData
-      ? [...agents!].sort((a, b) => (a.started_at || "").localeCompare(b.started_at || ""))
-      : [];
-
-    const items: TimelineItem[] = [];
-    const agentInserted = new Set<string>();
-    let i = 0;
-
-    while (i < events.length) {
-      const evt = events[i];
-
-      // When we have agent data and parent_only mode, Agent/Task tool calls become agent groups
-      if (hasAgentData && evt.event_type === "tool_call_start" && (evt.tool_name === "Agent" || evt.tool_name === "Task") && !evt.agent_id) {
-        const toolMs = new Date(evt.timestamp).getTime();
-
-        let nextParentMs = toolMs + 30_000;
-        for (let j = i + 1; j < events.length; j++) {
-          if (events[j].event_type !== "tool_call_start" || (events[j].tool_name !== "Agent" && events[j].tool_name !== "Task")) {
-            nextParentMs = new Date(events[j].timestamp).getTime();
-            break;
-          }
-        }
-
-        const matched: AgentRelationship[] = [];
-        for (const a of sortedAgents) {
-          if (agentInserted.has(a.child_agent_id)) continue;
-          if (!a.started_at) continue;
-          const agentMs = new Date(a.started_at).getTime();
-          if (agentMs >= toolMs && agentMs < nextParentMs) {
-            matched.push(a);
-          }
-        }
-
-        for (const a of matched) {
-          agentInserted.add(a.child_agent_id);
-          items.push({
-            type: "agent-group",
-            agentId: a.child_agent_id,
-            agent: a,
-            agentDescription: a.prompt_preview || undefined,
-          });
-        }
-
-        let nextI = i + 1;
-        while (nextI < events.length
-          && events[nextI].event_type === "tool_call_start"
-          && (events[nextI].tool_name === "Agent" || events[nextI].tool_name === "Task")
-          && !events[nextI].agent_id) {
-          nextI++;
-        }
-
-        if (matched.length === 0) {
-          items.push({ type: "event", event: evt });
-        }
-
-        i = nextI;
-        continue;
-      }
-
-      // Fallback: agent events in non-parent-only mode
-      if (evt.agent_id) {
-        i++;
-        continue;
-      }
-
-      // Compaction events render as standalone banners
-      if (evt.event_type === "compaction") {
-        items.push({ type: "compaction", event: evt });
-        i++;
-      // Gap 13: Group consecutive tool calls of ANY type (2+ in a row)
-      } else if (evt.event_type === "tool_call_start" && evt.tool_name) {
-        let j = i + 1;
-        while (j < events.length && events[j].event_type === "tool_call_start" && events[j].tool_name && !events[j].agent_id) {
-          j++;
-        }
-        if (j - i >= 2) {
-          const group = events.slice(i, j);
-          items.push({ type: "tool-group", events: group, groupKey: `tg-${evt.id}` });
-          i = j;
-        } else {
-          items.push({ type: "event", event: evt });
-          i++;
-        }
-      } else {
-        items.push({ type: "event", event: evt });
-        i++;
-      }
-    }
-    return items;
-  }, [events, agents]);
+  const groupedItems = useMemo(() => groupTimelineItems(events, agents), [events, agents]);
 
   // Token budget bar data
   const budgetData = useMemo(() => {
@@ -361,6 +388,32 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
                     </div>
                   </div>
                 `;
+                })()
+              : item.type === "system-group"
+              ? (() => {
+                  const groupKey = `sg-${item.events[0].id}`;
+                  const isExpanded = expandedToolGroups[groupKey];
+                  const firstPreview = item.events[0].input_preview || '[system message]';
+                  return html`
+                    <div key=${groupKey} class="event-card">
+                      <div class="event-dot dot-sys"></div>
+                      <div class="event-content">
+                        <div class="sys-group" onClick=${() => toggleToolGroup(groupKey)}>
+                          <span class="sys-label">system</span>
+                          <span class="sys-count">×${item.events.length}</span>
+                          <span class="sys-text">${truncate(firstPreview, 60)}</span>
+                          <span class="sys-expand">${isExpanded ? '▾' : '▸'}</span>
+                        </div>
+                        ${isExpanded && html`
+                          <div style="margin-top: 4px;">
+                            ${item.events.map(evt => html`
+                              <${EventCard} key=${evt.id} event=${evt} sessionStart=${sessionStart} />
+                            `)}
+                          </div>
+                        `}
+                      </div>
+                    </div>
+                  `;
                 })()
               : html`<${EventCard}
                   key=${item.event.id}

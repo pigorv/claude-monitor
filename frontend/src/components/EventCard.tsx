@@ -93,6 +93,55 @@ function getToolSummary(event: Event): string | null {
   }
 }
 
+// Strip ANSI escape codes
+function stripAnsi(s: string): string {
+  return s.replace(/\x1b\[[0-9;]*m/g, '').replace(/\u001b\[[0-9;]*m/g, '');
+}
+
+// Parse /context output into structured data
+interface ContextRow { label: string; tokens: string; pct: string; pctNum: number; }
+interface ContextData { model: string; summary: string; rows: ContextRow[]; }
+
+function parseContextOutput(raw: string): ContextData | null {
+  const text = stripAnsi(raw);
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Look for model line (e.g., "Model: claude-opus-4-6")
+  let model = '';
+  const modelMatch = text.match(/Model:\s*(\S+)/i);
+  if (modelMatch) model = modelMatch[1];
+
+  // Look for summary line (e.g., "33k / 1000k tokens (3.3%)")
+  let summary = '';
+  const summaryMatch = text.match(/(\d[\d,.]*k?\s*\/\s*\d[\d,.]*k?\s*tokens?\s*\([\d.]+%\))/i);
+  if (summaryMatch) summary = summaryMatch[1];
+
+  // Parse rows: look for lines like "System prompt    5.6k    0.6%"
+  const rows: ContextRow[] = [];
+  const rowPattern = /^(.+?)\s{2,}([\d,.]+k?)\s+([\d.]+%)/;
+  for (const line of lines) {
+    const m = line.match(rowPattern);
+    if (m) {
+      const pctStr = m[3].replace('%', '');
+      rows.push({
+        label: m[1].trim(),
+        tokens: m[2].trim(),
+        pct: m[3].trim(),
+        pctNum: parseFloat(pctStr) || 0,
+      });
+    }
+  }
+
+  if (rows.length === 0) return null;
+  return { model, summary, rows };
+}
+
+// Command deduplication: returns args to show, or null if body equals command name
+function getCommandArgs(meta: Record<string, unknown>): string | null {
+  const args = (meta.command_args as string) || '';
+  return args || null;
+}
+
 // Event type labels for pills
 const TYPE_LABELS: Record<string, string> = {
   session_start: "start",
@@ -210,6 +259,114 @@ export function EventCard({ event, sessionStart }: EventCardProps) {
       event.input_preview ||
       event.output_preview
     );
+
+  // System-generated messages → inline muted row
+  if (event.event_type === 'user_message' && isSystemGenerated && !isCommand) {
+    const isContextOutput = meta?.context_output === true;
+    const contextData = isContextOutput ? parseContextOutput(event.input_data || event.input_preview || '') : null;
+
+    return html`
+      <div class="event-card event-user-message">
+        <div class="event-dot dot-sys"></div>
+        <div class="event-content">
+          <div class="sys-row" onClick=${() => setExpanded(!expanded)}>
+            <span class="sys-label">system</span>
+            <span class="sys-text">${contextData ? 'Context usage output' : truncate(event.input_preview || '[system message]', 80)}</span>
+            <span class="sys-expand">${expanded ? '▾' : '›'}</span>
+          </div>
+          ${expanded && !contextData && html`
+            <div class="sys-expanded">${event.input_data || event.input_preview}</div>
+          `}
+          ${contextData && html`
+            <div class="ctx-card">
+              <div class="ctx-header">
+                <div class="ctx-header-title">Context usage</div>
+                <div class="ctx-header-meta">${contextData.model}${contextData.summary ? ` · ${contextData.summary}` : ''}</div>
+              </div>
+              ${contextData.rows.map(row => html`
+                <div class=${"ctx-row" + (row.label.toLowerCase().includes('autocompact') || row.label.toLowerCase().includes('total') ? ' ctx-row-total' : '')}>
+                  <span class="ctx-row-label">${row.label}</span>
+                  <span class="ctx-row-right">
+                    <span class="ctx-val">${row.tokens}</span>
+                    <span class="ctx-pct">${row.pct}</span>
+                    <span class="ctx-bar">
+                      <span class=${"ctx-fill" + (row.label.toLowerCase().includes('free') ? ' ctx-fill-green' : '')}
+                        style=${"width: " + Math.min(row.pctNum, 100) + "%;"}></span>
+                    </span>
+                  </span>
+                </div>
+              `)}
+            </div>
+          `}
+        </div>
+      </div>
+    `;
+  }
+
+  // Slash commands → blue command block with dedup
+  if (event.event_type === 'user_message' && isCommand) {
+    const cmdArgs = getCommandArgs(meta!);
+
+    return html`
+      <div class=${"event-card event-user-message" + (hasExpandable ? " expandable" : "")}
+        onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
+      >
+        <div class="event-dot dot-cmd"></div>
+        <div class="event-content">
+          <div class="event-header">
+            <span class="event-time">${formatTime(event.timestamp, sessionStart)}</span>
+            ${hasExpandable && html`<span class="event-expand">${expanded ? "▾" : "▸"}</span>`}
+          </div>
+          <div class="cmd-block">
+            <div class="cmd-header">
+              <span class="cmd-pill">${meta!.command}</span>
+              ${cmdArgs && html`<span class="cmd-args">${cmdArgs}</span>`}
+            </div>
+          </div>
+          ${expanded && html`
+            <div class="event-detail">
+              ${event.input_data && html`
+                <div class="detail-section">
+                  <div class="detail-label">Input</div>
+                  <pre class="detail-content">${event.input_data}</pre>
+                </div>
+              `}
+            </div>
+          `}
+        </div>
+      </div>
+    `;
+  }
+
+  // Interrupted assistant message → amber style
+  if (event.event_type === 'assistant_message' && (meta?.subtype === 'interrupted' || (event.output_preview || '').includes('[Request interrupted'))) {
+    return html`
+      <div class="event-card event-assistant-message">
+        <div class="event-dot dot-interrupt"></div>
+        <div class="event-content">
+          <div class="event-header">
+            <span class="event-time">${formatTime(event.timestamp, sessionStart)}</span>
+          </div>
+          <div class="event-body msg msg-interrupt">${event.output_preview || '[Request interrupted by user]'}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // "No response requested" → muted inline
+  if (event.event_type === 'assistant_message' && (meta?.subtype === 'no_response' || (event.output_preview || '').trim() === 'No response requested.')) {
+    return html`
+      <div class="event-card event-assistant-message">
+        <div class="event-dot dot-muted"></div>
+        <div class="event-content">
+          <div class="event-header">
+            <span class="event-time">${formatTime(event.timestamp, sessionStart)}</span>
+          </div>
+          <div class="event-body msg msg-muted">No response requested.</div>
+        </div>
+      </div>
+    `;
+  }
 
   // ToolSearch — render as a minimal inline row
   if (event.tool_name === "ToolSearch") {

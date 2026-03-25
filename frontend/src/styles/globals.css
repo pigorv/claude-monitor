@@ -41,6 +41,10 @@
   --red-bg: #fef2f2;
   --red-border: #fecaca;
 
+  --blue: #2563eb;
+  --blue-bg: rgba(59,130,246,0.04);
+  --blue-border: rgba(59,130,246,0.3);
+
   --teal: #0e7490;
   --teal-bg: #ecfeff;
   --teal-border: #a5f3fc;
@@ -219,12 +223,22 @@ nav a.active {
 .stats-8 { grid-template-columns: repeat(8, 1fr); }
 
 .stat-card {
+  position: relative;
+  overflow: hidden;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--r);
   padding: 16px 18px;
   box-shadow: var(--shadow-sm);
   transition: all 0.2s;
+}
+
+.stat-card-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
 }
 
 .stat-card:hover {
@@ -410,6 +424,62 @@ nav a.active {
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+/* Risk chips */
+.risk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  transition: all 0.15s;
+}
+
+.risk-chip.warn {
+  background: var(--yellow-bg);
+  border-color: var(--yellow-border);
+}
+
+.risk-chip.danger {
+  background: var(--red-bg);
+  border-color: var(--red-border);
+}
+
+.risk-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.risk-chip-label {
+  font-weight: 500;
+  color: var(--text2);
+}
+
+.risk-chip-value {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.risk-chip-threshold {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text3);
+  margin-left: -2px;
+}
+
+.risk-chip.warn .risk-chip-threshold {
+  color: var(--yellow);
+}
+
+.risk-chip.danger .risk-chip-threshold {
+  color: var(--red);
 }
 
 /* ═══════════════════════════════════════════

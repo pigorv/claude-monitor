@@ -1,4 +1,5 @@
 import { PREVIEW_LIMITS } from '../shared/constants.js';
+import * as logger from '../shared/logger.js';
 import type { EventType, TranscriptMessage } from '../shared/types.js';
 
 // ── Event interfaces ────────────────────────────────────────────────
@@ -18,6 +19,7 @@ export interface ParsedEvent {
   input_tokens?: number;
   output_tokens?: number;
   cache_read_tokens?: number;
+  cache_write_tokens?: number;
   thinking_text?: string;
   thinking_summary?: string;
   input_preview?: string;
@@ -131,6 +133,15 @@ function extractAssistantEvents(
       event.input_tokens = msg.usage.input_tokens;
       event.output_tokens = msg.usage.output_tokens;
       event.cache_read_tokens = msg.usage.cache_read_input_tokens;
+      event.cache_write_tokens = msg.usage.cache_creation_input_tokens;
+    }
+
+    // Detect special assistant message subtypes
+    const textLower = textParts.toLowerCase();
+    if (textLower.includes('[request interrupted')) {
+      event.metadata = { ...(event.metadata || {}), subtype: 'interrupted' };
+    } else if (textParts.trim() === 'No response requested.' || textParts.trim() === 'No response requested') {
+      event.metadata = { ...(event.metadata || {}), subtype: 'no_response' };
     }
 
     events.push(event);
@@ -147,6 +158,10 @@ function extractUserEvents(
   for (const block of msg.content) {
     if (block.type === 'tool_result') {
       const pending = pendingToolUses.get(block.tool_use_id);
+      // Skip tool_result blocks with no matching tool_use in this transcript.
+      // This happens at session boundaries (e.g. ExitPlanMode) where a rejection
+      // from the previous session leaks into the new session's transcript.
+      if (!pending) continue;
       const outputStr = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
       const isError = 'is_error' in block && block.is_error === true;
       const isRejected = isError && typeof block.content === 'string'
@@ -157,15 +172,13 @@ function extractUserEvents(
       events.push({
         event_type: 'tool_call_end',
         timestamp: msg.timestamp,
-        tool_name: pending?.tool_name,
+        tool_name: pending.tool_name,
         tool_use_id: block.tool_use_id,
         output_preview: truncate(outputStr, PREVIEW_LIMITS.outputPreview),
         output_data: outputStr,
         metadata: endMetadata,
       });
-      if (pending) {
-        pendingToolUses.delete(block.tool_use_id);
-      }
+      pendingToolUses.delete(block.tool_use_id);
     } else if (block.type === 'text') {
       hasPlainText = true;
     }
@@ -217,6 +230,11 @@ function parseUserMessageTags(text: string): { cleanText: string; metadata: Reco
   // Detect system-generated messages
   if (/<local-command-caveat>/.test(text) || /<local-command-stdout>/.test(text) || /<task-notification>/.test(text)) {
     metadata.subtype = 'system_generated';
+  }
+
+  // Detect /context command output (contains token usage table)
+  if (metadata.subtype === 'system_generated' && /(?:System prompt|Free space|Messages)\s+\d/.test(text)) {
+    metadata.context_output = true;
   }
 
   // Detect skill expansions and extract skill name from path
@@ -292,8 +310,14 @@ export function mergeToolCallEvents(events: ParsedEvent[]): ParsedEvent[] {
           if (!start.metadata) start.metadata = {};
           start.metadata.duration_ms = endMs - startMs;
         }
-        continue; // skip the end event
+      } else {
+        // Orphaned tool_call_end with no matching start — drop it
+        logger.warn('Dropping orphaned tool_call_end (no matching tool_call_start)', {
+          tool_use_id: evt.tool_use_id,
+          tool_name: evt.tool_name,
+        });
       }
+      continue; // skip all end events (merged or orphaned)
     }
     result.push(evt);
   }

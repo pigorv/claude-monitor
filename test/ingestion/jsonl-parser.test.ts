@@ -143,9 +143,11 @@ describe('parseTranscript', () => {
       messages.push(msg);
     }
 
-    // The fixture has: system(skip), file-history-snapshot(skip), user, assistant, user(tool_result), assistant, malformed(skip)
-    // = 4 messages
-    assert.equal(messages.length, 4);
+    // The fixture has: system(skip), file-history-snapshot(skip),
+    // user, assistant, user(tool_result), assistant, assistant(tool_use),
+    // user(tool_result rejected), assistant(tool_use), user(tool_result error),
+    // malformed(skip)  = 8 messages
+    assert.equal(messages.length, 8);
 
     // First message is the user text
     assert.equal(messages[0].type, 'user');

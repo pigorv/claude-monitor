@@ -27,14 +27,16 @@ function downsample(timeline: TokenDataPoint[], maxCells: number): number[] {
   return result;
 }
 
-function cellColor(pct: number): string {
-  if (pct < 20) return "var(--green-bg)";
-  if (pct < 40) return "var(--green-border)";
-  if (pct < 55) return "#fde68a"; // warm yellow
-  if (pct < 70) return "var(--orange-border)";
-  if (pct < 80) return "#fb923c"; // orange
-  return "#ef4444"; // red
+export function cellColor(pct: number): string {
+  if (pct < 20) return "rgba(21, 128, 61, 0.15)";
+  if (pct < 40) return "rgba(21, 128, 61, 0.35)";
+  if (pct < 55) return "rgba(161, 98, 7, 0.25)";
+  if (pct < 70) return "rgba(194, 65, 12, 0.35)";
+  if (pct < 80) return "rgba(194, 65, 12, 0.55)";
+  return "rgba(185, 28, 28, 0.6)";
 }
+
+export const HEATMAP_LEGEND_STEPS = [10, 30, 47, 62, 75, 85];
 
 export function Heatmap({ timeline }: HeatmapProps) {
   const cells = downsample(timeline, MAX_CELLS);
