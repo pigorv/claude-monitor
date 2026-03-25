@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import {
   getDb,
   closeDb,
@@ -288,5 +289,35 @@ describe('Database Layer', () => {
       assert.ok(stats.filesRead.length >= 2);
       assert.ok(stats.filesWritten.length >= 1);
     });
+  });
+});
+
+// ── DB Connection error handling ──────────────────────────────────────
+
+describe('DB connection error handling', () => {
+  it('throws actionable error for unwritable directory', () => {
+    assert.throws(
+      () => getDb('/proc/nonexistent/deep/path/test.sqlite'),
+      (err: Error) => {
+        return err.message.includes('Cannot create database directory');
+      },
+    );
+  });
+
+  it('throws actionable error for corrupt DB file', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'db-corrupt-'));
+    const dbPath = join(dir, 'data.sqlite');
+    writeFileSync(dbPath, 'this is not a sqlite database at all');
+    try {
+      assert.throws(
+        () => getDb(dbPath),
+        (err: Error) => {
+          return err.message.includes('corrupt') || err.message.includes('not a database') || err.message.includes('Cannot open');
+        },
+      );
+    } finally {
+      closeDb();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

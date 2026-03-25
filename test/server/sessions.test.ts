@@ -4,8 +4,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getDb, closeDb } from '../../src/db/index.js';
+import { upsertSession } from '../../src/db/queries/sessions.js';
 import { createApp } from '../../src/server/app.js';
-import type { SessionListResponse, SessionDetailResponse } from '../../src/shared/types.js';
+import type { Session, SessionListResponse, SessionDetailResponse } from '../../src/shared/types.js';
 
 function makeSession(overrides: Record<string, unknown> = {}) {
   return {
@@ -416,5 +417,57 @@ describe('Sessions routes', () => {
     const body: SessionDetailResponse = await res.json();
     assert.equal(typeof body.event_count, 'number');
     assert.ok(body.event_count >= 3); // We inserted at least 3 events
+  });
+});
+
+// ── Sessions route: corrupt metadata ──────────────────────────────────
+
+describe('Sessions route: corrupt metadata handling', () => {
+  let tmpDir: string;
+  let app: ReturnType<typeof createApp>;
+
+  before(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'corrupt-meta-'));
+    getDb(join(tmpDir, 'test.sqlite'));
+    app = createApp();
+
+    const session = {
+      id: 'corrupt-meta-1',
+      project_path: '/tmp/proj',
+      project_name: 'proj',
+      model: 'sonnet',
+      source: null,
+      status: 'imported',
+      started_at: '2026-03-12T10:00:00.000Z',
+      ended_at: '2026-03-12T10:30:00.000Z',
+      duration_ms: 1800000,
+      total_input_tokens: 5000,
+      total_output_tokens: 1000,
+      total_cache_read_tokens: 0,
+      total_cache_write_tokens: 0,
+      peak_context_pct: 25.0,
+      compaction_count: 0,
+      tool_call_count: 5,
+      subagent_count: 0,
+      risk_score: 0.2,
+      summary: 'test session',
+      end_reason: null,
+      transcript_path: '/tmp/t.jsonl',
+      metadata: 'this is {not valid json!!!',
+    } as unknown as Session;
+    upsertSession(session);
+  });
+
+  after(() => {
+    closeDb();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('handles corrupt metadata without crashing', async () => {
+    const res = await app.request('/api/sessions/corrupt-meta-1');
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.session.id, 'corrupt-meta-1');
+    assert.deepEqual(body.risk.signals, []);
   });
 });

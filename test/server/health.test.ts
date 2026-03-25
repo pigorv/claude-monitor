@@ -1,6 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getDb, closeDb } from '../../src/db/index.js';
@@ -94,5 +94,109 @@ describe('Health route', () => {
     const body = await res.json();
     assert.equal(typeof body.db_engine, 'string');
     assert.equal(typeof body.server_port, 'number');
+  });
+});
+
+// ── Global API error handler ──────────────────────────────────────────
+
+describe('Global API error handler', () => {
+  let tmpDir: string;
+  let app: ReturnType<typeof createApp>;
+
+  before(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'error-handler-'));
+    getDb(join(tmpDir, 'test.sqlite'));
+    app = createApp();
+  });
+
+  after(() => {
+    closeDb();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns 500 JSON for internal server errors', async () => {
+    const res = await app.request('/api/sessions/nonexistent');
+    assert.equal(res.status, 404);
+    const body = await res.json();
+    assert.equal(body.error, 'Session not found');
+  });
+
+  it('returns proper 404 for unknown API routes', async () => {
+    const res = await app.request('/api/does-not-exist');
+    assert.equal(res.status, 404);
+  });
+});
+
+// ── Static file serving: path traversal ────────────────────────────────
+
+describe('Static file serving: path traversal', () => {
+  let tmpDir: string;
+  let app: ReturnType<typeof createApp>;
+
+  before(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'static-traversal-'));
+    getDb(join(tmpDir, 'test.sqlite'));
+    const frontendDir = join(tmpDir, 'frontend');
+    mkdirSync(join(frontendDir, 'assets'), { recursive: true });
+    writeFileSync(join(frontendDir, 'index.html'), '<html>test</html>');
+    writeFileSync(join(frontendDir, 'assets', 'app.js'), 'console.log("ok")');
+    writeFileSync(join(tmpDir, 'secret.txt'), 'DO NOT SERVE');
+    app = createApp({ frontendDir });
+  });
+
+  after(() => {
+    closeDb();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('serves valid static assets', async () => {
+    const res = await app.request('/assets/app.js');
+    assert.equal(res.status, 200);
+    const text = await res.text();
+    assert.equal(text, 'console.log("ok")');
+  });
+
+  it('path traversal attempts never serve files outside frontend dir', async () => {
+    for (const path of ['/assets/../secret.txt', '/assets/%2e%2e/secret.txt', '/assets/..%2fsecret.txt']) {
+      const res = await app.request(path);
+      const text = await res.text();
+      assert.ok(!text.includes('DO NOT SERVE'), `Path ${path} should not serve secret file`);
+    }
+  });
+
+  it('returns 404 for missing assets', async () => {
+    const res = await app.request('/assets/nonexistent.js');
+    assert.equal(res.status, 404);
+  });
+
+  it('serves SPA fallback for non-API routes', async () => {
+    const res = await app.request('/session/abc-123');
+    assert.equal(res.status, 200);
+    const text = await res.text();
+    assert.ok(text.includes('<html>'));
+  });
+});
+
+// ── Server startup: port conflict ─────────────────────────────────────
+
+describe('Server startup: port conflict', () => {
+  let tmpDir: string;
+
+  before(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'port-conflict-'));
+    getDb(join(tmpDir, 'test.sqlite'));
+  });
+
+  after(() => {
+    closeDb();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('startServer returns a promise', async () => {
+    const { startServer } = await import('../../src/server/app.js');
+    const server = await startServer(0);
+    assert.ok(server);
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 });
