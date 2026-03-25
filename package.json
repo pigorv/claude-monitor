@@ -38,7 +38,7 @@
     "build": "tsup && vite build",
     "dev": "tsup --watch",
     "dev:frontend": "vite dev",
-    "test": "node --import tsx --test --test-isolation=none --test-force-exit --test-timeout=60000",
+    "test": "node --import tsx --test --experimental-test-isolation=none --test-force-exit --test-timeout=60000",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
