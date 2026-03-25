@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- CI pipeline: pinned Node 22, fixed test hanging and release workflow running zero tests
+- Migrated test suite from `node:test` to Vitest for reliable CI execution
+- CI pipeline: pinned Node 22, fixed release workflow build order
 
 ### Changed
 

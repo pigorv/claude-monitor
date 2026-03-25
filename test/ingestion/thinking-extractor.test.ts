@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { extractThinkingBlocks, extractAllEvents, mergeToolCallEvents } from '../../src/ingestion/thinking-extractor.js';
 import type { TranscriptMessage } from '../../src/shared/types.js';

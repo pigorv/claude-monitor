@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { computeRiskAssessment, riskLevel } from '../../src/analysis/risk-scoring.js';
 import type { TokenSnapshot } from '../../src/ingestion/token-tracker.js';

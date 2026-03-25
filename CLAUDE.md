@@ -13,7 +13,7 @@ Local observability dashboard for Claude Code sessions. Imports JSONL transcript
 - **Database:** better-sqlite3 (WAL mode, synchronous API)
 - **Frontend:** Preact + HTM tagged templates (no JSX transform), uPlot for charts
 - **Build:** tsup (CLI → `dist/index.js`) + Vite (frontend → `dist/frontend/`)
-- **Tests:** Node.js built-in test runner (`node:test`)
+- **Tests:** Vitest
 - **Package manager:** npm
 
 ## Commands
@@ -22,13 +22,13 @@ Local observability dashboard for Claude Code sessions. Imports JSONL transcript
 npm run build          # Build CLI (tsup) + frontend (Vite)
 npm run dev            # tsup --watch (rebuilds CLI on change)
 npm run dev:frontend   # Vite dev server (proxies /api → localhost:4173)
-npm test               # node --import tsx --test
+npm test               # vitest run
 npm run typecheck      # tsc --noEmit
 ```
 
 Run a single test file:
 ```bash
-node --import tsx --test test/ingestion/thinking-extractor.test.ts
+npx vitest run test/ingestion/thinking-extractor.test.ts
 ```
 
 ## Architecture

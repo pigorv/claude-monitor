@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,14 +11,14 @@ describe('Health route', () => {
   let tmpDir: string;
   let app: ReturnType<typeof createApp>;
 
-  before(() => {
+  beforeAll(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'health-test-'));
     const dbPath = join(tmpDir, 'test.sqlite');
     getDb(dbPath);
     app = createApp();
   });
 
-  after(() => {
+  afterAll(() => {
     closeDb();
     rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -103,13 +103,13 @@ describe('Global API error handler', () => {
   let tmpDir: string;
   let app: ReturnType<typeof createApp>;
 
-  before(() => {
+  beforeAll(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'error-handler-'));
     getDb(join(tmpDir, 'test.sqlite'));
     app = createApp();
   });
 
-  after(() => {
+  afterAll(() => {
     closeDb();
     rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -133,7 +133,7 @@ describe('Static file serving: path traversal', () => {
   let tmpDir: string;
   let app: ReturnType<typeof createApp>;
 
-  before(() => {
+  beforeAll(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'static-traversal-'));
     getDb(join(tmpDir, 'test.sqlite'));
     const frontendDir = join(tmpDir, 'frontend');
@@ -144,7 +144,7 @@ describe('Static file serving: path traversal', () => {
     app = createApp({ frontendDir });
   });
 
-  after(() => {
+  afterAll(() => {
     closeDb();
     rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -182,12 +182,12 @@ describe('Static file serving: path traversal', () => {
 describe('Server startup: port conflict', () => {
   let tmpDir: string;
 
-  before(() => {
+  beforeAll(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'port-conflict-'));
     getDb(join(tmpDir, 'test.sqlite'));
   });
 
-  after(() => {
+  afterAll(() => {
     closeDb();
     rmSync(tmpDir, { recursive: true, force: true });
   });

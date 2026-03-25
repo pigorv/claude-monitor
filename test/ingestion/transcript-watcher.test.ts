@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, copyFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,14 +26,14 @@ describe('transcript-watcher', () => {
   let tmpDir: string;
   let projectsDir: string;
 
-  before(() => {
+  beforeAll(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'transcript-watcher-test-'));
     projectsDir = join(tmpDir, 'projects');
     mkdirSync(projectsDir, { recursive: true });
     getDb(join(tmpDir, 'test.sqlite'));
   });
 
-  after(() => {
+  afterAll(() => {
     closeDb();
     rmSync(tmpDir, { recursive: true, force: true });
   });

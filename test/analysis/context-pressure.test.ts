@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { computeContextPressure } from '../../src/analysis/context-pressure.js';
 import type { TokenSnapshot } from '../../src/ingestion/token-tracker.js';
