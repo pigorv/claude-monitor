@@ -199,7 +199,8 @@ describe('Server startup: port conflict', () => {
     // Start on a random high port
     const server = await startServer(0);
     assert.ok(server);
-    server.close();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 });
 
