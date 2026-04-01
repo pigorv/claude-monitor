@@ -1,6 +1,6 @@
 {
   "name": "claude-monitor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local observability dashboard for Claude Code sessions — context pressure, thinking inspection, sub-agent debugging",
   "type": "module",
   "license": "MIT",
