@@ -38,7 +38,7 @@
     "build": "tsup && vite build",
     "dev": "tsup --watch",
     "dev:frontend": "vite dev",
-    "test": "node --import tsx --test",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -58,6 +58,7 @@
     "tsx": "^4.21.0",
     "typescript": "^5.7.0",
     "uplot": "^1.6.31",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.1.1"
   }
 }

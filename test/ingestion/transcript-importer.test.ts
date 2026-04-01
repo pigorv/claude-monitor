@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
@@ -52,21 +52,19 @@ const SAMPLE_JSONL = [
   }),
 ].join('\n');
 
-// ── Setup / teardown ───────────────────────────────────────────────
-
-beforeEach(() => {
-  mkdirSync(TEST_DIR, { recursive: true });
-  getDb(DB_PATH);
-});
-
-afterEach(() => {
-  closeDb();
-  rmSync(TEST_DIR, { recursive: true, force: true });
-});
-
 // ── Tests ──────────────────────────────────────────────────────────
 
 describe('importTranscript', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
   it('imports a transcript and creates session + events', async () => {
     const filePath = join(TEST_DIR, 'session.jsonl');
     writeFileSync(filePath, SAMPLE_JSONL);
@@ -185,6 +183,16 @@ describe('importTranscript', () => {
 });
 
 describe('importTranscripts (batch)', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
   it('imports multiple files', async () => {
     const file1 = join(TEST_DIR, 'sess-a.jsonl');
     const file2 = join(TEST_DIR, 'sess-b.jsonl');
@@ -228,6 +236,16 @@ describe('importTranscripts (batch)', () => {
 });
 
 describe('importTranscript with sample fixture', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
   it('imports the sample-session.jsonl fixture', async () => {
     const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'sample-session.jsonl');
 

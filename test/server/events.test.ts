@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,7 +10,7 @@ describe('Events route', () => {
   let tmpDir: string;
   let app: ReturnType<typeof createApp>;
 
-  before(() => {
+  beforeAll(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'events-test-'));
     const dbPath = join(tmpDir, 'test.sqlite');
     const db = getDb(dbPath);
@@ -41,7 +41,7 @@ describe('Events route', () => {
     app = createApp();
   });
 
-  after(() => {
+  afterAll(() => {
     closeDb();
     rmSync(tmpDir, { recursive: true, force: true });
   });

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.test-dist/
 *.sqlite
 .claude-monitor/
 .DS_Store

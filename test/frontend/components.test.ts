@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import render from 'preact-render-to-string';
 import { html } from 'htm/preact';

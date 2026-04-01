@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
@@ -15,6 +15,7 @@ function run(...args: string[]): { stdout: string; stderr: string; exitCode: num
     const stdout = execFileSync('node', [CLI, ...args], {
       encoding: 'utf-8',
       env: { ...process.env, HOME: testHome },
+      timeout: 10_000,
     });
     return { stdout, stderr: '', exitCode: 0 };
   } catch (err: unknown) {

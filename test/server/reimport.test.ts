@@ -1,24 +1,23 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getDb, closeDb } from '../../src/db/index.js';
 import { createApp } from '../../src/server/app.js';
-import { DEFAULT_CONFIG } from '../../src/shared/constants.js';
 
 describe('Reimport route', () => {
   let tmpDir: string;
   let app: ReturnType<typeof createApp>;
 
-  before(() => {
+  beforeAll(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'reimport-test-'));
     const dbPath = join(tmpDir, 'test.sqlite');
     getDb(dbPath);
     app = createApp();
   });
 
-  after(() => {
+  afterAll(() => {
     closeDb();
     rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -32,18 +31,14 @@ describe('Reimport route', () => {
     assert.equal(typeof body.errors, 'number');
   });
 
-  it('returns 200 or 500 depending on projects directory existence', async () => {
+  it('returns 200 regardless of projects directory existence', async () => {
     const res = await app.request('/api/reimport', { method: 'POST' });
-
-    if (existsSync(DEFAULT_CONFIG.claudeProjectsPath)) {
-      // If ~/.claude/projects exists, route should succeed
-      assert.equal(res.status, 200);
-    } else {
-      // If it doesn't exist, route returns 500
-      assert.equal(res.status, 500);
-      const body = await res.json();
-      assert.ok(body.message.includes('Error scanning projects'));
-    }
+    // collectJsonlFilesRecursive catches missing-dir errors and returns [],
+    // so the route always returns 200 with imported/errors counts.
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(typeof body.imported, 'number');
+    assert.equal(typeof body.errors, 'number');
   });
 
   it('GET /api/reimport returns 404 (only POST allowed)', async () => {
