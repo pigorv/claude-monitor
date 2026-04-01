@@ -1,16 +1,16 @@
 {
-  "name": "claude-monitor",
+  "name": "@pigorv/claude-monitor",
   "version": "0.2.0",
   "description": "Local observability dashboard for Claude Code sessions — context pressure, thinking inspection, sub-agent debugging",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/anthropics/claude-monitor.git"
+    "url": "git+https://github.com/pigorv/claude-monitor.git"
   },
-  "homepage": "https://github.com/anthropics/claude-monitor#readme",
+  "homepage": "https://github.com/pigorv/claude-monitor#readme",
   "bugs": {
-    "url": "https://github.com/anthropics/claude-monitor/issues"
+    "url": "https://github.com/pigorv/claude-monitor/issues"
   },
   "keywords": [
     "claude",

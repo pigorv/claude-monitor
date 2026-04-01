@@ -108,7 +108,7 @@ See [`claude-monitor-architecture.md`](./claude-monitor-architecture.md) for ful
 ## Development
 
 ```bash
-git clone https://github.com/anthropics/claude-monitor.git
+git clone https://github.com/pigorv/claude-monitor.git
 cd claude-monitor
 npm install
 npm run build          # Build CLI + frontend

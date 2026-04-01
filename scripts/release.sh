@@ -61,4 +61,4 @@ git push origin main --follow-tags
 echo ""
 echo "Released v${new_version}"
 echo "The release workflow will publish to npm shortly."
-echo "Track it at: https://github.com/anthropics/claude-monitor/actions"
+echo "Track it at: https://github.com/pigorv/claude-monitor/actions"
