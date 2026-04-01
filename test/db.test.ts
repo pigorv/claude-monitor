@@ -297,7 +297,7 @@ describe('Database Layer', () => {
 describe('DB connection error handling', () => {
   it('throws actionable error for unwritable directory', () => {
     assert.throws(
-      () => getDb('/proc/nonexistent/deep/path/test.sqlite'),
+      () => getDb('/dev/null/deep/path/test.sqlite'),
       (err: Error) => {
         return err.message.includes('Cannot create database directory');
       },
