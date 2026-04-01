@@ -35,7 +35,7 @@ test/           # Tests and fixtures
 
 ## Key Conventions
 
-- **Dependencies**: Keep minimal. Check the [architecture doc](./claude-monitor-architecture.md) before adding any new dependency.
+- **Dependencies**: Keep minimal.
 - **Database**: Uses synchronous better-sqlite3 API with WAL mode. All timestamps are ISO 8601 strings.
 - **Frontend**: Uses Preact with HTM tagged templates — no JSX transform needed. Styles are plain CSS with custom properties (dark theme).
 - **Errors**: Should be actionable. Tell the user what to do, not just what failed.
@@ -53,4 +53,4 @@ Test files are in `test/` and follow the pattern `*.test.ts`. Fixtures are in `t
 
 ## Architecture
 
-Read [`claude-monitor-architecture.md`](./claude-monitor-architecture.md) for the full architecture — it covers the database schema, API contracts, JSONL transcript structure, and analysis engine design.
+See `CLAUDE.md` for architecture details covering the ingestion pipeline, database schema, API routes, and analysis engine.

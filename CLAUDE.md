@@ -79,7 +79,7 @@ Hash-based SPA routing. Pages: SessionList (filterable/sortable table), SessionD
 ## Changelog
 
 When making bug fixes or adding features, add a bullet under the `## [Unreleased]` section in `CHANGELOG.md` using the appropriate subsection (`Added`, `Changed`, `Fixed`, `Removed`). Keep entries concise — one line per change, written from the user's perspective.
-- Keep dependencies minimal — check `claude-monitor-architecture.md` before adding any
+- Keep dependencies minimal
 - Database operations are synchronous (better-sqlite3 API)
 - Frontend uses HTM tagged templates: `` html`<div>...</div>` `` — no JSX
 - Use `node:` prefix for Node.js built-in imports

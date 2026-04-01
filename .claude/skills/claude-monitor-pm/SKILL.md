@@ -46,7 +46,7 @@ Before designing anything, read the actual code that's relevant. This is non-neg
 - Look at the types in `src/shared/types.ts` and the DB schema in `src/db/schema.ts`
 - Check if there are existing API endpoints or frontend components you can extend rather than create from scratch
 
-The architecture doc (`claude-monitor-architecture.md`) and progress tracker (`PROGRESS.md`) provide high-level context, but always verify against the actual code.
+`CLAUDE.md` provides architecture context, but always verify against the actual code.
 
 **Key directories to know:**
 ```

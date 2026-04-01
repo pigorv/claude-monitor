@@ -1,109 +1,71 @@
 # claude-monitor
 
-Local observability dashboard for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) sessions. Track context pressure, inspect thinking processes, and debug sub-agent orchestration — all running locally on your machine.
+> Local observability dashboard for Claude Code sessions — see what your context window is actually doing.
 
-## What It Does
+[![CI](https://github.com/pigorv/claude-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/pigorv/claude-monitor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@pigorv/claude-monitor)](https://www.npmjs.com/package/@pigorv/claude-monitor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
-- **Context pressure visibility** — token utilization over time, compaction events, quality degradation zones
-- **Thinking process inspection** — extract and display Claude's reasoning chain to identify where wrong assumptions entered
-- **Sub-agent orchestration debugging** — visualize parent-child agent relationships, prompts, results, and token usage
+## Why?
 
-## Quickstart
+Claude Code sessions generate rich transcript data, but you can't see what's happening under the hood:
 
-```bash
-# Install globally (or use npx)
-npm install -g claude-monitor
+- **Context fills up silently** — you don't know you're at 90% until output quality drops. claude-monitor shows token utilization over time with warning and danger zones.
+- **Compactions degrade quality** — when Claude compresses its context, reasoning can drift. claude-monitor scores each session's risk (0.0-1.0) based on compaction count, post-compaction drift, and 3 other signals.
+- **Sub-agent calls are opaque** — spawned agents consume tokens and return results you never see. claude-monitor maps the full agent tree with prompts, results, and per-agent token costs.
 
-# Import existing transcripts and start the dashboard:
-claude-monitor import ~/.claude/projects/
-claude-monitor start
-```
-
-The dashboard opens at `http://localhost:4173`.
-
-## Requirements
-
-- Node.js >= 20
-- Claude Code (for transcript files)
-
-## CLI Commands
-
-### `claude-monitor start`
-
-Start the dashboard server and open the browser.
-
-```
-Options:
-  --port, -p <number>   Port number (default: 4173)
-  --no-open             Don't open browser automatically
-  --db <path>           Custom database path (default: ~/.claude-monitor/data.sqlite)
-  --verbose             Enable debug logging
-```
-
-### `claude-monitor import <path>`
-
-Import existing JSONL transcript files or directories.
+## Quick Start
 
 ```bash
-# Import a single transcript
-claude-monitor import ~/.claude/projects/-Users-me-myproject/abc123.jsonl
-
-# Import all transcripts in a directory
-claude-monitor import ~/.claude/projects/
-
-# Force re-import (overwrite existing)
-claude-monitor import --force ~/.claude/projects/
+npx @pigorv/claude-monitor start
 ```
 
-### `claude-monitor status`
+This imports transcripts from `~/.claude/projects/`, starts the dashboard at `http://localhost:4173`, and opens your browser.
 
-Show database stats and server status.
+To import transcripts without starting the server:
 
-## Dashboard Views
+```bash
+npx @pigorv/claude-monitor import ~/.claude/projects/
+```
 
-### Session List
+**Requirements:** Node.js >= 20, Claude Code (for transcript files)
 
-Filterable, sortable table of all imported sessions. Filter by date range, risk level, or status. Each row shows duration, token usage, context peak, compaction count, sub-agents, and risk score.
+## Features
 
-### Session Detail — Timeline
+**Context Pressure** — Interactive token chart (uPlot) with input/output/cache breakdown, model-specific thresholds, compaction markers, and drag-to-zoom.
 
-Chronological event stream with type-specific cards: thinking blocks (expandable), tool calls with input/output, assistant messages, and compaction markers. Filter by event type and toggle thinking block visibility.
+**Thinking Inspection** — Expandable thinking blocks in the event timeline. See exactly where Claude's reasoning chain took a wrong turn.
 
-### Session Detail — Context
+**Agent Tree** — Parent-child agent relationships with per-agent metrics: duration, token usage, compression ratio, and result classification.
 
-Token utilization chart (uPlot) showing input/output/cache tokens over time. Model-specific threshold lines (warning, danger, auto-compact) with shaded zones. Vertical markers at compaction events. Drag to zoom.
+**Risk Scoring** — Composite 0.0-1.0 score from 5 weighted signals: context utilization (30%), compaction count (25%), post-compaction drift (20%), long tool output (15%), deep nesting (10%).
 
-### Session Detail — Agents
-
-Tree view of sub-agent relationships. Each node shows agent ID, status, duration, token usage, and tool count. Expandable to see full prompt and result data.
-
-### Settings
-
-Database stats (size, session/event counts), and actions (re-import transcripts, export database).
+**Session List** — Filterable, sortable table with model filter chips, search, sparkline previews, and color-coded compaction counts.
 
 ## How It Works
 
-**Transcript import**: The `import` command parses JSONL transcript files from `~/.claude/projects/`, extracting thinking blocks, tool calls, token progression, and compaction points. Everything is stored in a local SQLite database with WAL mode for concurrent reads/writes.
+The `start` command watches `~/.claude/projects/` for JSONL transcript files. Each transcript is parsed into thinking blocks, tool calls, token snapshots, and compaction events, then stored in a local SQLite database (`~/.claude-monitor/data.sqlite`). The dashboard reads from this database — no data leaves your machine.
 
-**Analysis**: Each session gets a risk score (0.0–1.0) computed from 5 weighted signals: context utilization, compaction count, post-compaction drift, long tool outputs, and deep nesting. Context pressure is scored against model-specific thresholds.
+## CLI Reference
 
-## Configuration
+| Command | Description |
+|---------|-------------|
+| `claude-monitor start` | Start dashboard + auto-import (default port: 4173) |
+| `claude-monitor import <path>` | One-time import of transcripts |
+| `claude-monitor status` | Show database stats and server status |
 
-All data is stored locally in `~/.claude-monitor/`:
+Options for `start`: `--port, -p <number>`, `--no-open`, `--db <path>`, `--verbose`
 
-| File | Purpose |
-|------|---------|
-| `data.sqlite` | Session and event database |
+Options for `import`: `--force` (re-import existing sessions)
 
-## Architecture
+## Built With
 
-- **Runtime**: Node.js, TypeScript (strict)
-- **Server**: Hono (~14KB)
-- **Database**: better-sqlite3 with WAL mode
-- **Frontend**: Preact + HTM + uPlot
-- **Build**: tsup (CLI/server) + Vite (frontend)
-
-See [`claude-monitor-architecture.md`](./claude-monitor-architecture.md) for full architecture details.
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Preact](https://img.shields.io/badge/Preact-HTM-673AB8?logo=preact&logoColor=white)](https://preactjs.com/)
+[![Hono](https://img.shields.io/badge/Hono-server-E36002?logo=hono&logoColor=white)](https://hono.dev/)
+[![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![uPlot](https://img.shields.io/badge/uPlot-charts-4C566A)](https://github.com/leeoniya/uPlot)
 
 ## Development
 
@@ -117,6 +79,10 @@ npm run dev:frontend   # Start Vite dev server
 npm test               # Run tests
 npm run typecheck      # TypeScript type checking
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and conventions.
 
 ## License
 
