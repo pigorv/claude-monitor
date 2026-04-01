@@ -15,6 +15,7 @@ function run(...args: string[]): { stdout: string; stderr: string; exitCode: num
     const stdout = execFileSync('node', [CLI, ...args], {
       encoding: 'utf-8',
       env: { ...process.env, HOME: testHome },
+      timeout: 10_000,
     });
     return { stdout, stderr: '', exitCode: 0 };
   } catch (err: unknown) {
