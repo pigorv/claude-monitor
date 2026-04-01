@@ -31,7 +31,7 @@ fi
 git pull --ff-only origin main
 
 # Check that CHANGELOG.md has an [Unreleased] section with content
-unreleased_content="$(sed -n '/^## \[Unreleased\]/,/^## \[/{/^## \[/!p}' CHANGELOG.md | grep -v '^$' || true)"
+unreleased_content="$(awk '/^## \[Unreleased\]/{found=1;next} /^## \[/{found=0} found && NF' CHANGELOG.md || true)"
 if [ -z "$unreleased_content" ]; then
   echo "Error: CHANGELOG.md has no entries under [Unreleased]." >&2
   echo "Add your changes to the [Unreleased] section before releasing." >&2
@@ -45,7 +45,9 @@ git checkout -- package.json package-lock.json 2>/dev/null || git checkout -- pa
 
 # Update CHANGELOG.md: rename [Unreleased] section to the new version
 today="$(date +%Y-%m-%d)"
-sed -i "s/^## \[Unreleased\]/## [Unreleased]\n\n## [$new_version] - $today/" CHANGELOG.md
+sed -i '' "s/^## \[Unreleased\]/## [Unreleased]\\
+\\
+## [$new_version] - $today/" CHANGELOG.md
 
 # Stage the changelog update
 git add CHANGELOG.md
