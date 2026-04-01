@@ -7,17 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- Release workflow uses npm Trusted Publishing (OIDC) instead of stored NPM_TOKEN secret
-- Overhauled README with badges, "Why?" section, simplified quickstart, and landing-page structure
-- Removed broken `claude-monitor-architecture.md` references from CLAUDE.md, CONTRIBUTING.md, and skill files
-
 ## [0.2.1] - 2026-04-02
 
 ### Changed
 
 - Scoped npm package as `@pigorv/claude-monitor` and updated all repository URLs to `pigorv/claude-monitor`
+- Release workflow uses npm Trusted Publishing (OIDC) instead of stored NPM_TOKEN secret
+- Overhauled README with badges, "Why?" section, simplified quickstart, and landing-page structure
+- Removed broken `claude-monitor-architecture.md` references from CLAUDE.md, CONTRIBUTING.md, and skill files
 
 ## [0.2.0] - 2026-04-01
 
