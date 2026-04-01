@@ -16,8 +16,8 @@
 
   /* Text */
   --text: #1c1917;
-  --text2: #78716c;
-  --text3: #a8a29e;
+  --text2: #6b6560;
+  --text3: #7d7872;
   --text-inv: #fffffe;
 
   /* Semantic colors */
@@ -52,6 +52,15 @@
   --purple: #6d28d9;
   --purple-bg: #f5f3ff;
   --purple-border: #ddd6fe;
+
+  /* Tints (12% opacity for pill/badge backgrounds) */
+  --accent-tint: color-mix(in srgb, var(--accent) 12%, transparent);
+  --green-tint: color-mix(in srgb, var(--green) 12%, transparent);
+  --yellow-tint: color-mix(in srgb, var(--yellow) 12%, transparent);
+  --orange-tint: color-mix(in srgb, var(--orange) 12%, transparent);
+  --red-tint: color-mix(in srgb, var(--red) 12%, transparent);
+  --blue-tint: color-mix(in srgb, var(--blue) 12%, transparent);
+  --teal-tint: color-mix(in srgb, var(--teal) 12%, transparent);
 
   /* Effects */
   --shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.04);
@@ -380,15 +389,10 @@ nav a.active {
 }
 
 .risk-pill.critical {
-  background: var(--red-bg);
+  background: color-mix(in srgb, var(--red) 15%, var(--red-bg));
   color: var(--red);
-  border: 1px solid var(--red-border);
-}
-
-.risk-pill.med {
-  background: var(--yellow-bg);
-  color: var(--yellow);
-  border: 1px solid var(--yellow-border);
+  border: 1px solid var(--red);
+  font-weight: 800;
 }
 
 /* Tool badges */
@@ -401,13 +405,13 @@ nav a.active {
   display: inline-block;
 }
 
-.tool-badge.read { background: rgba(59, 130, 246, 0.08); color: #2563eb; }
-.tool-badge.write { background: rgba(21, 128, 61, 0.08); color: var(--green); }
-.tool-badge.bash { background: rgba(161, 98, 7, 0.08); color: var(--yellow); }
-.tool-badge.agent { background: rgba(14, 116, 144, 0.08); color: var(--teal); }
-.tool-badge.edit { background: rgba(21, 128, 61, 0.08); color: var(--green); }
-.tool-badge.grep { background: rgba(59, 130, 246, 0.08); color: #2563eb; }
-.tool-badge.glob { background: rgba(59, 130, 246, 0.08); color: #2563eb; }
+.tool-badge.read, .tool-badge.tool-read { background: rgba(37, 99, 235, 0.08); color: #2563eb; }
+.tool-badge.write, .tool-badge.tool-write { background: rgba(21, 128, 61, 0.08); color: #15803d; }
+.tool-badge.bash, .tool-badge.tool-bash { background: rgba(161, 98, 7, 0.08); color: #a16207; }
+.tool-badge.agent, .tool-badge.tool-agent { background: var(--accent-tint); color: var(--accent); }
+.tool-badge.edit, .tool-badge.tool-edit { background: rgba(5, 150, 105, 0.08); color: #059669; }
+.tool-badge.grep, .tool-badge.tool-grep { background: rgba(79, 70, 229, 0.08); color: #4f46e5; }
+.tool-badge.glob, .tool-badge.tool-glob { background: rgba(14, 116, 144, 0.08); color: #0e7490; }
 
 /* Signal badges */
 .signal-badge {
@@ -713,6 +717,22 @@ tbody tr:hover td {
   background: var(--red-bg);
 }
 
+/* ═══════════════════════════════════════════
+   FOCUS STATES (keyboard navigation)
+   ═══════════════════════════════════════════ */
+.btn:focus-visible,
+.chip:focus-visible,
+.tab:focus-visible,
+.pg-btn:focus-visible,
+.action-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.15);
+}
+
+.btn-danger:focus-visible {
+  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.15);
+}
+
 /* Action buttons (stacked) */
 .action-btn {
   padding: 8px 20px;
@@ -783,5 +803,33 @@ tbody tr:hover td {
 
   nav {
     padding: 12px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page h1 {
+    font-size: 18px;
+  }
+
+  .stats-4,
+  .stats-5 { grid-template-columns: 1fr; }
+  .stats-8 { grid-template-columns: repeat(2, 1fr); }
+
+  .stat-card .value {
+    font-size: 18px;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tab {
+    padding: 10px 14px;
+    font-size: 12px;
   }
 }
