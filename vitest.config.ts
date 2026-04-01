@@ -2,7 +2,8 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    pool: 'threads',
+    pool: 'forks',
+    fileParallelism: false,
     include: ['test/**/*.test.ts'],
     testTimeout: 30_000,
     hookTimeout: 15_000,
