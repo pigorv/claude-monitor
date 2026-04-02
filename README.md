@@ -7,6 +7,12 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
+<p align="center">
+  <video src="docs/images/demo.mp4" width="720" autoplay loop muted playsinline>
+    Your browser does not support the video tag. <a href="docs/images/demo.mp4">Watch the demo</a>.
+  </video>
+</p>
+
 ## Why?
 
 Claude Code sessions generate rich transcript data, but you can't see what's happening under the hood:
@@ -33,15 +39,23 @@ npx @pigorv/claude-monitor import ~/.claude/projects/
 
 ## Features
 
+**Session List** — Filterable, sortable table with model filter chips, search, sparkline previews, and color-coded compaction counts.
+
+<img src="docs/images/session-list.png" alt="Session list showing 10 sessions across 4 projects with sparkline charts, model badges, compaction counts, and agent counts" width="700" />
+
 **Context Pressure** — Interactive token chart (uPlot) with input/output/cache breakdown, model-specific thresholds, compaction markers, and drag-to-zoom.
+
+<img src="docs/images/session-detail-context.png" alt="Context utilization chart showing token pressure climbing over time with two compaction drops and warning/danger threshold zones" width="700" />
 
 **Thinking Inspection** — Expandable thinking blocks in the event timeline. See exactly where Claude's reasoning chain took a wrong turn.
 
+<img src="docs/images/session-detail-timeline.png" alt="Timeline view showing chronological event cards with tool calls, thinking blocks, and a token budget bar at 94% context utilization" width="700" />
+
 **Agent Tree** — Parent-child agent relationships with per-agent metrics: duration, token usage, compression ratio, and result classification.
 
-**Risk Scoring** — Composite 0.0-1.0 score from 5 weighted signals: context utilization (30%), compaction count (25%), post-compaction drift (20%), long tool output (15%), deep nesting (10%).
+<img src="docs/images/session-detail-agents.png" alt="Agent tree with Gantt chart showing 5 sub-agents with timeline bars, token counts, tool call counts, and status badges" width="700" />
 
-**Session List** — Filterable, sortable table with model filter chips, search, sparkline previews, and color-coded compaction counts.
+**Risk Scoring** — Composite 0.0-1.0 score from 5 weighted signals: context utilization (30%), compaction count (25%), post-compaction drift (20%), long tool output (15%), deep nesting (10%).
 
 ## How It Works
 
