@@ -8,9 +8,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
 <p align="center">
-  <video src="docs/images/demo.mp4" width="720" autoplay loop muted playsinline>
-    Your browser does not support the video tag. <a href="docs/images/demo.mp4">Watch the demo</a>.
-  </video>
+  <video src="https://github.com/user-attachments/assets/478ee4ca-035f-4322-8bb5-97756071e8f0" controls="controls" muted="muted" style="max-width: 100%;"></video>
 </p>
 
 ## Why?
