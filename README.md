@@ -16,8 +16,9 @@
 Claude Code sessions generate rich transcript data, but you can't see what's happening under the hood:
 
 - **Context fills up silently** — you don't know you're at 90% until output quality drops. claude-monitor shows token utilization over time with warning and danger zones.
-- **Compactions degrade quality** — when Claude compresses its context, reasoning can drift. claude-monitor scores each session's risk (0.0-1.0) based on compaction count, post-compaction drift, and 3 other signals.
-- **Sub-agent calls are opaque** — spawned agents consume tokens and return results you never see. claude-monitor maps the full agent tree with prompts, results, and per-agent token costs.
+- **Files bloat your context** — every file read burns tokens, and re-reads of the same file waste context you can't afford. claude-monitor tracks which files were loaded, how many times, and how much context each one consumed.
+- **Sub-agent calls are opaque** — spawned agents consume tokens and return results you never see. claude-monitor maps the full agent tree with per-agent token costs, Gantt timelines, tool breakdowns, and result classification.
+- **Compactions are invisible** — when Claude compresses its context, you lose information silently. claude-monitor marks every compaction on the timeline so you can see exactly when and how much was lost.
 
 ## Quick Start
 
@@ -49,11 +50,11 @@ npx @pigorv/claude-monitor import ~/.claude/projects/
 
 <img src="docs/images/session-detail-timeline.png" alt="Timeline view showing chronological event cards with tool calls, thinking blocks, and a token budget bar at 94% context utilization" width="700" />
 
-**Agent Tree** — Parent-child agent relationships with per-agent metrics: duration, token usage, compression ratio, and result classification.
+**Agent Tree** — Full sub-agent visibility with Gantt timeline, per-agent token costs, tool call breakdowns, compression ratios, and result classification. See which agents ran in parallel, which ones failed, and how much context each one consumed.
 
 <img src="docs/images/session-detail-agents.png" alt="Agent tree with Gantt chart showing 5 sub-agents with timeline bars, token counts, tool call counts, and status badges" width="700" />
 
-**Risk Scoring** — Composite 0.0-1.0 score from 5 weighted signals: context utilization (30%), compaction count (25%), post-compaction drift (20%), long tool output (15%), deep nesting (10%).
+**File Tracking** — See every file loaded into context, how many times it was re-read, and how many tokens each file consumed. Spot wasteful re-reads and files that bloat your context window.
 
 ## How It Works
 
