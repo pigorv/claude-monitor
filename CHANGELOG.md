@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Hero GIF and feature screenshots in README showing session list, timeline, context chart, and agent tree
+- Demo data seeding script (`npm run demo:seed`) and Playwright screenshot capture (`npm run demo:screenshots`)
+
 ## [0.2.1] - 2026-04-02
 
 ### Changed

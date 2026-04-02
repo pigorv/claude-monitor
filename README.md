@@ -7,13 +7,18 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/478ee4ca-035f-4322-8bb5-97756071e8f0" controls="controls" muted="muted" style="max-width: 100%;"></video>
+</p>
+
 ## Why?
 
 Claude Code sessions generate rich transcript data, but you can't see what's happening under the hood:
 
 - **Context fills up silently** — you don't know you're at 90% until output quality drops. claude-monitor shows token utilization over time with warning and danger zones.
-- **Compactions degrade quality** — when Claude compresses its context, reasoning can drift. claude-monitor scores each session's risk (0.0-1.0) based on compaction count, post-compaction drift, and 3 other signals.
-- **Sub-agent calls are opaque** — spawned agents consume tokens and return results you never see. claude-monitor maps the full agent tree with prompts, results, and per-agent token costs.
+- **Files bloat your context** — every file read burns tokens, and re-reads of the same file waste context you can't afford. claude-monitor tracks which files were loaded, how many times, and how much context each one consumed.
+- **Sub-agent calls are opaque** — spawned agents consume tokens and return results you never see. claude-monitor maps the full agent tree with per-agent token costs, Gantt timelines, tool breakdowns, and result classification.
+- **Compactions are invisible** — when Claude compresses its context, you lose information silently. claude-monitor marks every compaction on the timeline so you can see exactly when and how much was lost.
 
 ## Quick Start
 
@@ -33,15 +38,23 @@ npx @pigorv/claude-monitor import ~/.claude/projects/
 
 ## Features
 
+**Session List** — Filterable, sortable table with model filter chips, search, sparkline previews, and color-coded compaction counts.
+
+<img src="docs/images/session-list.png" alt="Session list showing 10 sessions across 4 projects with sparkline charts, model badges, compaction counts, and agent counts" width="700" />
+
 **Context Pressure** — Interactive token chart (uPlot) with input/output/cache breakdown, model-specific thresholds, compaction markers, and drag-to-zoom.
+
+<img src="docs/images/session-detail-context.png" alt="Context utilization chart showing token pressure climbing over time with two compaction drops and warning/danger threshold zones" width="700" />
 
 **Thinking Inspection** — Expandable thinking blocks in the event timeline. See exactly where Claude's reasoning chain took a wrong turn.
 
-**Agent Tree** — Parent-child agent relationships with per-agent metrics: duration, token usage, compression ratio, and result classification.
+<img src="docs/images/session-detail-timeline.png" alt="Timeline view showing chronological event cards with tool calls, thinking blocks, and a token budget bar at 94% context utilization" width="700" />
 
-**Risk Scoring** — Composite 0.0-1.0 score from 5 weighted signals: context utilization (30%), compaction count (25%), post-compaction drift (20%), long tool output (15%), deep nesting (10%).
+**Agent Tree** — Full sub-agent visibility with Gantt timeline, per-agent token costs, tool call breakdowns, compression ratios, and result classification. See which agents ran in parallel, which ones failed, and how much context each one consumed.
 
-**Session List** — Filterable, sortable table with model filter chips, search, sparkline previews, and color-coded compaction counts.
+<img src="docs/images/session-detail-agents.png" alt="Agent tree with Gantt chart showing 5 sub-agents with timeline bars, token counts, tool call counts, and status badges" width="700" />
+
+**File Tracking** — See every file loaded into context, how many times it was re-read, and how many tokens each file consumed. Spot wasteful re-reads and files that bloat your context window.
 
 ## How It Works
 
