@@ -136,7 +136,8 @@ export async function importTranscript(
   });
 
   // Build session record
-  const session = buildSessionRecord(sessionId, filePath, messages, model, aggregates, toolCallCount, subagentCount, riskAssessment, summary);
+  const modelsUsed = deriveModelsUsed(messages);
+  const session = buildSessionRecord(sessionId, filePath, messages, model, modelsUsed, aggregates, toolCallCount, subagentCount, riskAssessment, summary);
 
   // Build event records with token info from snapshots
   const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model);
@@ -560,6 +561,18 @@ function deriveModel(messages: TranscriptMessage[]): string | null {
   return null;
 }
 
+function deriveModelsUsed(messages: TranscriptMessage[]): string[] {
+  const seen = new Set<string>();
+  const models: string[] = [];
+  for (const msg of messages) {
+    if (msg.model && !seen.has(msg.model)) {
+      seen.add(msg.model);
+      models.push(msg.model);
+    }
+  }
+  return models;
+}
+
 function deriveProjectPath(messages: TranscriptMessage[]): string {
   for (const msg of messages) {
     if (msg.cwd) return msg.cwd;
@@ -572,6 +585,7 @@ function buildSessionRecord(
   filePath: string,
   messages: TranscriptMessage[],
   model: string | null,
+  modelsUsed: string[],
   aggregates: ReturnType<typeof computeAggregates>,
   toolCallCount: number,
   subagentCount: number,
@@ -591,6 +605,7 @@ function buildSessionRecord(
     project_path: projectPath,
     project_name: projectName,
     model,
+    models_used: modelsUsed.length > 0 ? JSON.stringify(modelsUsed) : null,
     source: null,
     status: 'imported',
     started_at: startedAt,

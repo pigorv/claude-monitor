@@ -436,6 +436,7 @@ describe('Sessions route: corrupt metadata handling', () => {
       project_path: '/tmp/proj',
       project_name: 'proj',
       model: 'sonnet',
+      models_used: null,
       source: null,
       status: 'imported',
       started_at: '2026-03-12T10:00:00.000Z',

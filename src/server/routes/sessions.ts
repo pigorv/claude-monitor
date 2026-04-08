@@ -42,6 +42,7 @@ function sessionToSummary(session: Session, miniTimeline?: import('../../shared/
     project_name: session.project_name ?? 'unknown',
     project_path: session.project_path ?? undefined,
     model: session.model ?? 'unknown',
+    models_used: session.models_used ? JSON.parse(session.models_used) : undefined,
     status: session.status,
     started_at: session.started_at,
     duration_ms: session.duration_ms ?? 0,

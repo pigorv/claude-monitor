@@ -28,6 +28,7 @@ export interface Session {
   project_path: string;
   project_name: string | null;
   model: string | null;
+  models_used: string | null;
   source: string | null;
   status: SessionStatus;
   started_at: string;
@@ -206,6 +207,7 @@ export interface SessionSummary {
   project_name: string;
   project_path?: string;
   model: string;
+  models_used?: string[];
   status: string;
   started_at: string;
   duration_ms: number;
