@@ -32,50 +32,68 @@ export function generateSessionSummary(input: SummaryInput): string {
 
 /**
  * Extract a clean, concise title from the first user message.
- * Handles command tags, skill invocations, and truncates to ~120 chars.
+ * Handles slash commands, skill invocations, and truncates to ~120 chars.
  */
 function extractTitle(message: string): string {
-  let text = message.trim();
+  const text = message.trim();
+
+  // ── 1. Extract structured command metadata before stripping ──
+  const commandNameMatch = text.match(/<command-name>\s*(\/[\w-]+)\s*<\/command-name>/);
+  const commandArgsMatch = text.match(/<command-args>([\s\S]*?)<\/command-args>/);
+  const skillPathMatch = text.match(/Base directory for this skill:\s*\S+\/skills\/([^\s/]+)/);
+
+  const commandName = commandNameMatch?.[1]?.trim() || null;
+  const commandArgs = commandArgsMatch?.[1]?.trim() || null;
+  const skillName = skillPathMatch?.[1] || null;
+
+  // ── 2. Slash commands: use command name as label ──
+  if (commandName) {
+    if (commandArgs) {
+      const argsPreview = truncateAtWordBoundary(commandArgs.split('\n')[0].trim(), 100);
+      return `${commandName} — ${argsPreview}`;
+    }
+    if (skillName && skillName !== commandName.slice(1)) {
+      return `${commandName} (${skillName})`;
+    }
+    return commandName;
+  }
+
+  // ── 3. Skill expansion without command-name tag ──
+  if (skillName) {
+    let cleaned = text.replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, '').trim();
+    cleaned = cleaned.replace(/^Base directory for this skill:.*?\n+/s, '').trim();
+    cleaned = cleaned.replace(/^ARGUMENTS:\s*/i, '').trim();
+    if (cleaned && cleaned.toLowerCase() !== 'none') {
+      return truncateAtWordBoundary(cleaned.split('\n')[0].trim(), 120);
+    }
+    return skillName;
+  }
+
+  // ── 4. Regular text messages ──
+  let cleaned = text;
 
   // If message has <command-args>, use that as the primary source
-  const argsMatch = text.match(/<command-args>([\s\S]*?)<\/command-args>/);
-  if (argsMatch) {
-    text = argsMatch[1].trim();
+  if (commandArgsMatch) {
+    cleaned = commandArgs || '';
   } else {
-    // Strip all XML-like tags (command-message, command-name, system-reminder, etc.)
-    text = text.replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, '').trim();
+    // Strip all XML-like tags
+    cleaned = cleaned.replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, '').trim();
   }
 
-  // Strip slash command prefixes like "/claude-monitor-pm"
-  text = text.replace(/^\/[\w-]+\s*/, '');
+  // Strip slash command prefixes
+  cleaned = cleaned.replace(/^\/[\w-]+\s*/, '');
 
-  // Strip "Base directory for this skill:" preamble
-  text = text.replace(/^Base directory for this skill:.*?\n+/s, '');
+  // Strip skill preamble and ARGUMENTS: prefix
+  cleaned = cleaned.replace(/^Base directory for this skill:.*?\n+/s, '');
+  cleaned = cleaned.replace(/^ARGUMENTS:\s*/i, '');
 
-  // Strip ARGUMENTS: prefix from skill expansions
-  text = text.replace(/^ARGUMENTS:\s*/i, '');
+  // Strip @file references and collapse whitespace
+  cleaned = cleaned.replace(/@[\w./-]+/g, '');
+  cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
 
-  // Strip @file references and collapse multiple spaces
-  text = text.replace(/@[\w./-]+/g, '');
-  text = text.replace(/\s{2,}/g, ' ').trim();
+  if (!cleaned) return 'Session';
 
-  // Strip leading whitespace again
-  text = text.trim();
-
-  // If still empty after stripping, return generic
-  if (!text) return 'Session';
-
-  // Take first line only (or first sentence)
-  const firstLine = text.split('\n')[0].trim();
-
-  // Truncate to ~120 chars at word boundary
-  if (firstLine.length > 120) {
-    const truncated = firstLine.slice(0, 117);
-    const lastSpace = truncated.lastIndexOf(' ');
-    return (lastSpace > 80 ? truncated.slice(0, lastSpace) : truncated) + '…';
-  }
-
-  return firstLine;
+  return truncateAtWordBoundary(cleaned.split('\n')[0].trim(), 120);
 }
 
 function generateStatsSummary(input: SummaryInput): string {
@@ -150,4 +168,11 @@ function formatDuration(ms: number): string {
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function truncateAtWordBoundary(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  const truncated = text.slice(0, maxLen - 1);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return (lastSpace > maxLen * 0.65 ? truncated.slice(0, lastSpace) : truncated) + '…';
 }

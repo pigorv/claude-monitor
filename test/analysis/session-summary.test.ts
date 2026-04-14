@@ -122,4 +122,92 @@ describe('generateSessionSummary', () => {
 
     assert.ok(summary.length <= 150, `Expected <= 150 chars, got ${summary.length}: ${summary}`);
   });
+
+  // ── Slash command title extraction ─────────────────────────────────
+
+  const baseInput = {
+    model: null,
+    durationMs: null,
+    toolCallCount: 0,
+    topTools: [] as string[],
+    compactionCount: 0,
+    subagentCount: 0,
+    peakContextPct: null,
+    riskLevel: 'low' as const,
+  };
+
+  it('uses command name when slash command has empty args', () => {
+    const summary = generateSessionSummary({
+      ...baseInput,
+      firstUserMessage: '<command-name>/commit</command-name><command-message>Skill prompt...</command-message><command-args></command-args>',
+    });
+    assert.equal(summary, '/commit');
+  });
+
+  it('shows command name with args when slash command has arguments', () => {
+    const summary = generateSessionSummary({
+      ...baseInput,
+      firstUserMessage: '<command-name>/commit</command-name><command-message>Skill prompt...</command-message><command-args>-m "fix bug"</command-args>',
+    });
+    assert.equal(summary, '/commit — -m "fix bug"');
+  });
+
+  it('shows command name with numeric args', () => {
+    const summary = generateSessionSummary({
+      ...baseInput,
+      firstUserMessage: '<command-name>/review-pr</command-name><command-message>Review prompt...</command-message><command-args>123</command-args>',
+    });
+    assert.equal(summary, '/review-pr — 123');
+  });
+
+  it('truncates long command args', () => {
+    const longArgs = 'a very long argument string that '.repeat(5);
+    const summary = generateSessionSummary({
+      ...baseInput,
+      firstUserMessage: `<command-name>/commit</command-name><command-args>${longArgs}</command-args>`,
+    });
+    assert.ok(summary.startsWith('/commit — '), `Expected to start with "/commit — ", got: ${summary}`);
+    assert.ok(summary.length <= 115, `Expected <= 115 chars, got ${summary.length}: ${summary}`);
+    assert.ok(summary.endsWith('…'), `Expected truncation ellipsis, got: ${summary}`);
+  });
+
+  it('uses command name alone when no args and matching skill name', () => {
+    const summary = generateSessionSummary({
+      ...baseInput,
+      firstUserMessage: '<command-name>/commit</command-name><command-message>Base directory for this skill: /home/user/.claude/skills/commit\nSkill prompt...</command-message>',
+    });
+    assert.equal(summary, '/commit');
+  });
+
+  it('shows skill name when it differs from command name', () => {
+    const summary = generateSessionSummary({
+      ...baseInput,
+      firstUserMessage: '<command-name>/my-cmd</command-name><command-message>Base directory for this skill: /home/user/.claude/skills/review-helper\nSkill prompt...</command-message>',
+    });
+    assert.equal(summary, '/my-cmd (review-helper)');
+  });
+
+  it('extracts skill name for skill expansion without command-name', () => {
+    const summary = generateSessionSummary({
+      ...baseInput,
+      firstUserMessage: 'Base directory for this skill: /home/user/.claude/skills/simplify\nARGUMENTS: none',
+    });
+    assert.equal(summary, 'simplify');
+  });
+
+  it('preserves regular text messages unchanged', () => {
+    const summary = generateSessionSummary({
+      ...baseInput,
+      firstUserMessage: 'Fix the authentication bug in login.ts',
+    });
+    assert.equal(summary, 'Fix the authentication bug in login.ts');
+  });
+
+  it('returns Session for empty message after stripping', () => {
+    const summary = generateSessionSummary({
+      ...baseInput,
+      firstUserMessage: '<system-reminder>some reminder</system-reminder>',
+    });
+    assert.equal(summary, 'Session');
+  });
 });
