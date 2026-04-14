@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hero GIF and feature screenshots in README showing session list, timeline, context chart, and agent tree
 - Demo data seeding script (`npm run demo:seed`) and Playwright screenshot capture (`npm run demo:screenshots`)
 
+### Fixed
+
+- Agent tab: token impact bars now correctly scale to each tool call's share of context, with hover tooltips showing exact percentage (bars enlarged to 100×8px)
+
 ## [0.2.1] - 2026-04-02
 
 ### Changed
