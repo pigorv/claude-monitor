@@ -195,6 +195,14 @@ export interface TokenDataPoint {
   is_compaction: boolean;
 }
 
+// ── Project types ──────────────────────────────────────────────────
+
+export interface ProjectInfo {
+  project_path: string;
+  project_name: string;
+  session_count: number;
+}
+
 // ── API response types ──────────────────────────────────────────────
 
 export interface MiniTimelinePoint {

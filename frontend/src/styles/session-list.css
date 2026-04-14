@@ -23,6 +23,51 @@
   gap: 4px;
 }
 
+/* Project filter chips row */
+.project-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 100%;
+}
+
+.project-chip {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.chip-count {
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.08);
+  padding: 1px 5px;
+  border-radius: var(--r-pill);
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.chip.active .chip-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.overflow-chip {
+  font-style: italic;
+  opacity: 0.7;
+}
+
 /* Project name + summary two-line cell */
 .proj-name {
   font-weight: 600;

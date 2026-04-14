@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { Session, AgentRelationship, TokenDataPoint, LinkedSession } from '../../shared/types.js';
+import type { Session, AgentRelationship, TokenDataPoint, LinkedSession, ProjectInfo } from '../../shared/types.js';
 import { getDb, onDbClose } from '../connection.js';
 
 // ── Cached prepared statements ──────────────────────────────────────
@@ -16,12 +16,14 @@ let _getLinkedSourceStmt: Database.Statement | null = null;
 let _getLinkedTargetStmt: Database.Statement | null = null;
 let _agentToolCallsStmt: Database.Statement | null = null;
 let _allAgentToolCallsStmt: Database.Statement | null = null;
+let _listProjectsStmt: Database.Statement | null = null;
 
 onDbClose(() => {
   _insertSessionStmt = _upsertSessionStmt = _getSessionStmt = _deleteSessionStmt =
     _sessionExistsStmt = _getAgentRelStmt = _agentTokenTimelineStmt =
     _allAgentTokenTimelinesStmt = _insertSessionLinkStmt = _getLinkedSourceStmt =
-    _getLinkedTargetStmt = _agentToolCallsStmt = _allAgentToolCallsStmt = null;
+    _getLinkedTargetStmt = _agentToolCallsStmt = _allAgentToolCallsStmt =
+    _listProjectsStmt = null;
 });
 
 export function insertSession(session: Session): void {
@@ -91,6 +93,7 @@ export function getSession(id: string): Session | undefined {
 
 export interface SessionFilters {
   project?: string;
+  projectExact?: string;
   status?: string;
   model?: string;
   since?: string;
@@ -122,7 +125,10 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
   const conditions: string[] = [];
   const params: Record<string, unknown> = {};
 
-  if (filters.project) {
+  if (filters.projectExact) {
+    conditions.push('project_path = @projectExact');
+    params.projectExact = filters.projectExact;
+  } else if (filters.project) {
     conditions.push('project_path LIKE @project');
     params.project = `%${filters.project}%`;
   }
@@ -131,7 +137,7 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
     params.status = filters.status;
   }
   if (filters.model) {
-    conditions.push('model LIKE @model');
+    conditions.push('(model LIKE @model OR models_used LIKE @model)');
     params.model = `%${filters.model}%`;
   }
   if (filters.since) {
@@ -197,13 +203,24 @@ export function sessionExists(id: string): boolean {
   return row !== undefined;
 }
 
+export function listProjects(): ProjectInfo[] {
+  const db = getDb();
+  _listProjectsStmt ??= db.prepare(`
+    SELECT project_path, project_name, COUNT(*) as session_count
+    FROM sessions
+    GROUP BY project_path
+    ORDER BY session_count DESC
+  `);
+  return _listProjectsStmt.all() as ProjectInfo[];
+}
+
 export function getAgentRelationships(sessionId: string): AgentRelationship[] {
   const db = getDb();
-  // Exclude prompt_data and result_data — large JSON blobs not needed by the route
   _getAgentRelStmt ??= db.prepare(`
     SELECT
       id, parent_session_id, child_agent_id, child_transcript_path,
-      prompt_preview, result_preview, started_at, ended_at,
+      prompt_preview, result_preview, prompt_data, result_data,
+      started_at, ended_at,
       duration_ms, input_tokens_total, output_tokens_total,
       tool_call_count, status, prompt_tokens, result_tokens,
       peak_context_tokens, compression_ratio, agent_compaction_count,
