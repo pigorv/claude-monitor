@@ -52,17 +52,6 @@
   color: var(--border-hover);
 }
 
-.session-subtitle .model-tag {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: var(--r-xs);
-  background: var(--purple-bg);
-  color: var(--purple);
-  border: 1px solid var(--purple-border);
-  font-family: var(--mono);
-}
-
 /* Resume command — compact */
 .resume-row {
   display: flex;

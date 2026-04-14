@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Multi-model pills on session detail page — model transitions (e.g., "Sonnet → Opus") now appear in the detail header, matching the session list
 - Multi-model indicator in session list — sessions where the model was switched mid-session (e.g., via `/model`) now show a transition pill like "Sonnet → Opus"
 - Hero GIF and feature screenshots in README showing session list, timeline, context chart, and agent tree
 - Demo data seeding script (`npm run demo:seed`) and Playwright screenshot capture (`npm run demo:screenshots`)

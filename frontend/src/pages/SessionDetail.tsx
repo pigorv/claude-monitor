@@ -34,6 +34,20 @@ function modelLabel(model: string | null): string {
   return model;
 }
 
+function modelClass(model: string | null): string {
+  if (!model) return "";
+  const m = model.toLowerCase();
+  if (m.includes("opus")) return "opus";
+  if (m.includes("sonnet")) return "sonnet";
+  if (m.includes("haiku")) return "haiku";
+  return "";
+}
+
+function isLargeContext(model: string | null): boolean {
+  if (!model) return false;
+  return model.toLowerCase().includes("opus");
+}
+
 function formatEndTime(endedAt: string | null): string {
   if (!endedAt) return "in progress";
   const d = new Date(endedAt);
@@ -122,6 +136,7 @@ export function SessionDetail({ id }: { id: string }) {
 
   const s = data.session;
   const totalTokens = s.total_input_tokens + s.total_output_tokens;
+  const modelsUsed: string[] = s.models_used ? JSON.parse(s.models_used) : [];
 
   // Context tab stat card data
   const headerThresholds = resolveThresholds(s.model);
@@ -140,7 +155,22 @@ export function SessionDetail({ id }: { id: string }) {
         </div>
         <h1 class="session-title">${s.summary || s.project_name || 'Session'}</h1>
         <div class="session-subtitle">
-          <span class="model-tag">${modelLabel(s.model)}</span>
+          ${(modelsUsed.length > 1)
+            ? html`
+              <span class="model-pill ${modelClass(modelsUsed[modelsUsed.length - 1])}">
+                ${modelsUsed.map((m: string, i: number) => html`
+                  ${i > 0 ? html`<span class="model-switch">→</span>` : null}${modelLabel(m)}
+                `)}
+                ${isLargeContext(modelsUsed[modelsUsed.length - 1]) ? html` <span class="ctx-label">1M</span>` : null}
+              </span>
+            `
+            : html`
+              <span class="model-pill ${modelClass(s.model)}">
+                ${modelLabel(s.model)}
+                ${isLargeContext(s.model) ? html` <span class="ctx-label">1M</span>` : null}
+              </span>
+            `
+          }
           <span class="sep">·</span>
           <span class="meta-item">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="color:var(--text3)"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3.5V6L7.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
