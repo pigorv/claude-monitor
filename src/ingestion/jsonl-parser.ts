@@ -109,8 +109,9 @@ function extractUsage(rawUsage: Record<string, unknown> | undefined): UsageInfo 
 
 /**
  * Extract the AI-generated session title from a JSONL transcript file.
- * Scans for lines with type "ai-title" and returns the last aiTitle value
- * found (last wins, so renames override the original). Returns null if none found.
+ * Scans for lines with type "custom-title" (Claude Code's native format) and
+ * returns the last customTitle value found (last wins, so renames override the
+ * original). Returns null if none found.
  */
 export async function extractAiTitle(filePath: string): Promise<string | null> {
   const rl = createInterface({
@@ -125,8 +126,8 @@ export async function extractAiTitle(filePath: string): Promise<string | null> {
     if (trimmed === '') continue;
     try {
       const raw = JSON.parse(trimmed) as Record<string, unknown>;
-      if (raw['type'] === 'ai-title' && typeof raw['aiTitle'] === 'string' && raw['aiTitle'].trim()) {
-        title = raw['aiTitle'].trim();
+      if (raw['type'] === 'custom-title' && typeof raw['customTitle'] === 'string' && raw['customTitle'].trim()) {
+        title = raw['customTitle'].trim();
       }
     } catch {
       // skip malformed lines

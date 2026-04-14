@@ -181,7 +181,7 @@ describe('importTranscript', () => {
     assert.equal(result.skipped, false);
   });
 
-  it('uses AI title as summary when ai-title line is present', async () => {
+  it('uses AI title as summary when custom-title line is present', async () => {
     const jsonl = [
       JSON.stringify({
         parentUuid: null, cwd: '/tmp/project', sessionId: 'title-session', version: '2.1.0',
@@ -199,7 +199,7 @@ describe('importTranscript', () => {
         },
         timestamp: '2026-01-01T00:01:05.000Z', uuid: 'uuid-asst-1',
       }),
-      JSON.stringify({ type: 'ai-title', aiTitle: 'Read project files', sessionId: 'title-session' }),
+      JSON.stringify({ type: 'custom-title', customTitle: 'Read project files', sessionId: 'title-session' }),
     ].join('\n');
 
     const filePath = join(TEST_DIR, 'title-session.jsonl');
