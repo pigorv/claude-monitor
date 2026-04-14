@@ -137,7 +137,7 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
     params.status = filters.status;
   }
   if (filters.model) {
-    conditions.push('model LIKE @model');
+    conditions.push('(model LIKE @model OR models_used LIKE @model)');
     params.model = `%${filters.model}%`;
   }
   if (filters.since) {
