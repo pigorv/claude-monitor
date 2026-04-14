@@ -4,7 +4,7 @@ import { getDb } from '../db/connection.js';
 import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
 import { sessionExists, upsertSession } from '../db/queries/sessions.js';
 import * as logger from '../shared/logger.js';
-import type { Event, Session, TranscriptMessage } from '../shared/types.js';
+import type { Event, Session, TextBlock, TranscriptMessage } from '../shared/types.js';
 import { parseTranscript, extractAiTitle } from './jsonl-parser.js';
 import { extractAllEvents, mergeToolCallEvents, assignAgentIds, type ParsedEvent } from './thinking-extractor.js';
 import { buildTokenSnapshots, computeAggregates, estimateContextPct } from './token-tracker.js';
@@ -118,12 +118,30 @@ export async function importTranscript(
 
   let firstUserMessage: string | undefined;
   if (!aiTitle) {
-    const titleUserMsg = messages.find((m) => m.type === 'user');
-    if (titleUserMsg) {
-      const textBlocks = titleUserMsg.content.filter((b) => b.type === 'text');
-      if (textBlocks.length > 0) {
-        firstUserMessage = textBlocks.map((b) => (b as { type: 'text'; text: string }).text).join('\n');
+    // Skip synthetic CLI messages (local-command-caveat/stdout/stderr) that aren't real user intent.
+    // Prefer slash-command messages (<command-name> tag) over plain text.
+    const getMessageText = (m: TranscriptMessage): string =>
+      m.content.filter((b): b is TextBlock => b.type === 'text').map((b) => b.text).join('\n');
+
+    let slashMsg: TranscriptMessage | undefined;
+    let fallbackMsg: TranscriptMessage | undefined;
+    for (const m of messages) {
+      if (m.type !== 'user') continue;
+      const text = getMessageText(m);
+      if (!slashMsg && text.includes('<command-name>')) {
+        slashMsg = m;
+        break;
       }
+      if (!fallbackMsg) {
+        const trimmed = text.trim();
+        if (trimmed && !/^<local-command-(?:caveat|stdout|stderr)>/.test(trimmed)) {
+          fallbackMsg = m;
+        }
+      }
+    }
+    const titleUserMsg = slashMsg ?? fallbackMsg;
+    if (titleUserMsg) {
+      firstUserMessage = getMessageText(titleUserMsg) || undefined;
     }
   }
 
