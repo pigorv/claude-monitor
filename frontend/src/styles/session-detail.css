@@ -2128,8 +2128,8 @@
 .tool-path { font-family: var(--mono); font-size: 11px; color: var(--text2); background: var(--bg-muted); padding: 1px 6px; border-radius: 4px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: none; }
 .tool-tokens { font-family: var(--mono); font-size: 10px; color: var(--text3); white-space: nowrap; min-width: 56px; text-align: right; }
 .tool-tokens.heavy-tokens { color: #c2410c; font-weight: 600; }
-.tool-weight-bar { width: 60px; height: 4px; border-radius: 2px; background: var(--bg-muted); overflow: hidden; flex-shrink: 0; }
-.tool-weight-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.tool-weight-bar { width: 100px; height: 8px; border-radius: 4px; background: var(--bg-muted); overflow: hidden; flex-shrink: 0; }
+.tool-weight-fill { height: 100%; border-radius: 4px; transition: width 0.3s; min-width: 2px; }
 .tool-expand-caret { font-size: 10px; color: var(--text3); transition: transform 0.2s; flex-shrink: 0; width: 12px; text-align: center; }
 .tool-row-detail { display: none; padding: 4px 10px 10px; }
 .tool-row-exp.open .tool-row-detail { display: block; }

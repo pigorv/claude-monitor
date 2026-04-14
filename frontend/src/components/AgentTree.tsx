@@ -316,7 +316,7 @@ function AgentDetailPanel({
                   <span class=${"tool-tokens" + (isHeavy ? " heavy-tokens" : "")}>
                     ${tc.estimated_tokens ? formatTokens(tc.estimated_tokens) + " tok" : "\u2014"}
                   </span>
-                  <span class="tool-weight-bar">
+                  <span class="tool-weight-bar" title=${weightPct > 0 ? Math.round(weightPct) + "% of agent context" : ""}>
                     <span class="tool-weight-fill" style=${"width:" + weightPct + "%;background:" + weightColor} />
                   </span>
                   ${tc.duration_ms != null && html`<span class="duration">${(tc.duration_ms / 1000).toFixed(1)}s</span>`}
