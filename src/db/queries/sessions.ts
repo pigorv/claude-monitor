@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { Session, AgentRelationship, TokenDataPoint, LinkedSession } from '../../shared/types.js';
+import type { Session, AgentRelationship, TokenDataPoint, LinkedSession, ProjectInfo } from '../../shared/types.js';
 import { getDb, onDbClose } from '../connection.js';
 
 // ── Cached prepared statements ──────────────────────────────────────
@@ -16,12 +16,14 @@ let _getLinkedSourceStmt: Database.Statement | null = null;
 let _getLinkedTargetStmt: Database.Statement | null = null;
 let _agentToolCallsStmt: Database.Statement | null = null;
 let _allAgentToolCallsStmt: Database.Statement | null = null;
+let _listProjectsStmt: Database.Statement | null = null;
 
 onDbClose(() => {
   _insertSessionStmt = _upsertSessionStmt = _getSessionStmt = _deleteSessionStmt =
     _sessionExistsStmt = _getAgentRelStmt = _agentTokenTimelineStmt =
     _allAgentTokenTimelinesStmt = _insertSessionLinkStmt = _getLinkedSourceStmt =
-    _getLinkedTargetStmt = _agentToolCallsStmt = _allAgentToolCallsStmt = null;
+    _getLinkedTargetStmt = _agentToolCallsStmt = _allAgentToolCallsStmt =
+    _listProjectsStmt = null;
 });
 
 export function insertSession(session: Session): void {
@@ -91,6 +93,7 @@ export function getSession(id: string): Session | undefined {
 
 export interface SessionFilters {
   project?: string;
+  projectExact?: string;
   status?: string;
   model?: string;
   since?: string;
@@ -122,7 +125,10 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
   const conditions: string[] = [];
   const params: Record<string, unknown> = {};
 
-  if (filters.project) {
+  if (filters.projectExact) {
+    conditions.push('project_path = @projectExact');
+    params.projectExact = filters.projectExact;
+  } else if (filters.project) {
     conditions.push('project_path LIKE @project');
     params.project = `%${filters.project}%`;
   }
@@ -195,6 +201,17 @@ export function sessionExists(id: string): boolean {
   _sessionExistsStmt ??= db.prepare('SELECT 1 FROM sessions WHERE id = ?');
   const row = _sessionExistsStmt.get(id);
   return row !== undefined;
+}
+
+export function listProjects(): ProjectInfo[] {
+  const db = getDb();
+  _listProjectsStmt ??= db.prepare(`
+    SELECT project_path, project_name, COUNT(*) as session_count
+    FROM sessions
+    GROUP BY project_path
+    ORDER BY session_count DESC
+  `);
+  return _listProjectsStmt.all() as ProjectInfo[];
 }
 
 export function getAgentRelationships(sessionId: string): AgentRelationship[] {

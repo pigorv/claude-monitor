@@ -8,7 +8,7 @@ import type {
   SessionStats,
   InternalToolCall,
 } from '../../shared/types.js';
-import { getSession, listSessions, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions } from '../../db/queries/sessions.js';
+import { getSession, listSessions, listProjects, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions } from '../../db/queries/sessions.js';
 import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
 import { getSessionStats, getToolFrequency, getFileActivity, getPeakParentTokens } from '../../db/queries/stats.js';
 import type { SessionFilters } from '../../db/queries/sessions.js';
@@ -60,11 +60,17 @@ function sessionToSummary(session: Session, miniTimeline?: import('../../shared/
   };
 }
 
+sessions.get('/api/projects', (c) => {
+  const projects = listProjects();
+  return c.json({ projects });
+});
+
 sessions.get('/api/sessions', (c) => {
   const q = c.req.query.bind(c.req);
 
   const filters: SessionFilters = {};
-  if (q('project')) filters.project = q('project');
+  if (q('project_path')) filters.projectExact = q('project_path');
+  else if (q('project')) filters.project = q('project');
   if (q('status')) filters.status = q('status');
   if (q('model')) filters.model = q('model');
   if (q('since')) filters.since = q('since');

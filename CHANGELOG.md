@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Project folder filter — chip bar above the session table lets you scope sessions to a specific project, with session counts and localStorage persistence
 - Multi-model indicator in session list — sessions where the model was switched mid-session (e.g., via `/model`) now show a transition pill like "Sonnet → Opus"
 - Hero GIF and feature screenshots in README showing session list, timeline, context chart, and agent tree
 - Demo data seeding script (`npm run demo:seed`) and Playwright screenshot capture (`npm run demo:screenshots`)
