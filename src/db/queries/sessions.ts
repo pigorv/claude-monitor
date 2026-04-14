@@ -216,11 +216,11 @@ export function listProjects(): ProjectInfo[] {
 
 export function getAgentRelationships(sessionId: string): AgentRelationship[] {
   const db = getDb();
-  // Exclude prompt_data and result_data — large JSON blobs not needed by the route
   _getAgentRelStmt ??= db.prepare(`
     SELECT
       id, parent_session_id, child_agent_id, child_transcript_path,
-      prompt_preview, result_preview, started_at, ended_at,
+      prompt_preview, result_preview, prompt_data, result_data,
+      started_at, ended_at,
       duration_ms, input_tokens_total, output_tokens_total,
       tool_call_count, status, prompt_tokens, result_tokens,
       peak_context_tokens, compression_ratio, agent_compaction_count,

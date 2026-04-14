@@ -409,7 +409,7 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
         const existing = agents[existingIdx];
         existing.endIdx = endIdx;
         existing.endTimestamp = endIdx > i ? events[endIdx].timestamp : evt.timestamp;
-        if (evt.output_data) existing.result = truncate(evt.output_data, 500);
+        if (evt.output_data) existing.result = evt.output_data;
         continue;
       }
 
@@ -423,7 +423,7 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
         endIdx,
         startTimestamp: evt.timestamp,
         endTimestamp: endIdx > i ? events[endIdx].timestamp : evt.timestamp,
-        result: evt.output_data ? truncate(evt.output_data, 500) : undefined,
+        result: evt.output_data ?? undefined,
       });
     }
   }
