@@ -32,6 +32,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     project_path: '/tmp/test-project',
     project_name: 'test-project',
     model: 'claude-sonnet-4-20250514',
+    models_used: null,
     source: 'startup',
     status: 'completed',
     started_at: '2025-01-01T00:00:00.000Z',

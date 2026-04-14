@@ -360,6 +360,12 @@ nav a.active {
   border: 1px solid var(--border);
 }
 
+.model-switch {
+  opacity: 0.45;
+  margin: 0 2px;
+  font-weight: 400;
+}
+
 /* Risk pills */
 .risk-pill {
   font-size: 11px;

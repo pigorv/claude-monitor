@@ -28,12 +28,12 @@ export function insertSession(session: Session): void {
   const db = getDb();
   _insertSessionStmt ??= db.prepare(`
     INSERT INTO sessions (
-      id, project_path, project_name, model, source, status, started_at, ended_at,
+      id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
       duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
       total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
       subagent_count, risk_score, summary, end_reason, transcript_path, metadata
     ) VALUES (
-      @id, @project_path, @project_name, @model, @source, @status, @started_at, @ended_at,
+      @id, @project_path, @project_name, @model, @models_used, @source, @status, @started_at, @ended_at,
       @duration_ms, @total_input_tokens, @total_output_tokens, @total_cache_read_tokens,
       @total_cache_write_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
       @subagent_count, @risk_score, @summary, @end_reason, @transcript_path, @metadata
@@ -46,12 +46,12 @@ export function upsertSession(session: Session): void {
   const db = getDb();
   _upsertSessionStmt ??= db.prepare(`
     INSERT INTO sessions (
-      id, project_path, project_name, model, source, status, started_at, ended_at,
+      id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
       duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
       total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
       subagent_count, risk_score, summary, end_reason, transcript_path, metadata
     ) VALUES (
-      @id, @project_path, @project_name, @model, @source, @status, @started_at, @ended_at,
+      @id, @project_path, @project_name, @model, @models_used, @source, @status, @started_at, @ended_at,
       @duration_ms, @total_input_tokens, @total_output_tokens, @total_cache_read_tokens,
       @total_cache_write_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
       @subagent_count, @risk_score, @summary, @end_reason, @transcript_path, @metadata
@@ -60,6 +60,7 @@ export function upsertSession(session: Session): void {
       project_path = excluded.project_path,
       project_name = excluded.project_name,
       model = COALESCE(excluded.model, model),
+      models_used = COALESCE(excluded.models_used, models_used),
       source = COALESCE(excluded.source, source),
       status = excluded.status,
       started_at = excluded.started_at,
@@ -110,7 +111,7 @@ const ALLOWED_SORT_COLUMNS = new Set([
 
 /** Columns needed by sessionToSummary() — excludes large TEXT fields like metadata */
 const SESSION_LIST_COLUMNS = `
-  id, project_path, project_name, model, source, status, started_at, ended_at,
+  id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
   duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
   total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
   subagent_count, risk_score, summary, end_reason, transcript_path

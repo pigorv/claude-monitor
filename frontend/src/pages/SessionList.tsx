@@ -314,10 +314,22 @@ export function SessionList() {
                       <div class="proj-summary">${s.summary || "—"}</div>
                     </td>
                     <td>
-                      <span class="model-pill ${modelClass(s.model)}">
-                        ${modelLabel(s.model)}
-                        ${isLargeContext(s.model) ? html` <span class="ctx-label">1M</span>` : null}
-                      </span>
+                      ${(s.models_used && s.models_used.length > 1)
+                        ? html`
+                          <span class="model-pill ${modelClass(s.models_used[s.models_used.length - 1])}">
+                            ${s.models_used.map((m: string, i: number) => html`
+                              ${i > 0 ? html`<span class="model-switch">→</span>` : null}${modelLabel(m)}
+                            `)}
+                            ${isLargeContext(s.models_used[s.models_used.length - 1]) ? html` <span class="ctx-label">1M</span>` : null}
+                          </span>
+                        `
+                        : html`
+                          <span class="model-pill ${modelClass(s.model)}">
+                            ${modelLabel(s.model)}
+                            ${isLargeContext(s.model) ? html` <span class="ctx-label">1M</span>` : null}
+                          </span>
+                        `
+                      }
                     </td>
                     <td class="mono">${formatDuration(s.duration_ms)}</td>
                     <td>

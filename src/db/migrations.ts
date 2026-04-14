@@ -84,6 +84,10 @@ const MIGRATION_008_EVENTS_CACHE_WRITE = `
 ALTER TABLE events ADD COLUMN cache_write_tokens INTEGER;
 `;
 
+const MIGRATION_009_MODELS_USED = `
+ALTER TABLE sessions ADD COLUMN models_used TEXT;
+`;
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -93,6 +97,7 @@ const MIGRATIONS: Migration[] = [
   { id: 6, name: '006-perf-indexes', sql: MIGRATION_006_PERF_INDEXES },
   { id: 7, name: '007-index-cleanup', sql: MIGRATION_007_INDEX_CLEANUP },
   { id: 8, name: '008-events-cache-write', sql: MIGRATION_008_EVENTS_CACHE_WRITE },
+  { id: 9, name: '009-models-used', sql: MIGRATION_009_MODELS_USED },
 ];
 
 export function runMigrations(db: Database.Database): void {
