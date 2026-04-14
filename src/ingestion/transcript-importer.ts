@@ -5,7 +5,7 @@ import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
 import { sessionExists, upsertSession } from '../db/queries/sessions.js';
 import * as logger from '../shared/logger.js';
 import type { Event, Session, TranscriptMessage } from '../shared/types.js';
-import { parseTranscript } from './jsonl-parser.js';
+import { parseTranscript, extractAiTitle } from './jsonl-parser.js';
 import { extractAllEvents, mergeToolCallEvents, assignAgentIds, type ParsedEvent } from './thinking-extractor.js';
 import { buildTokenSnapshots, computeAggregates, estimateContextPct } from './token-tracker.js';
 import { computeRiskAssessment } from '../analysis/risk-scoring.js';
@@ -113,17 +113,21 @@ export async function importTranscript(
 
   const durationMs = new Date(messages[messages.length - 1].timestamp).getTime() - new Date(messages[0].timestamp).getTime();
 
-  // Find first user message text for title
-  const titleUserMsg = messages.find((m) => m.type === 'user');
+  // Use AI-generated session title if available; fall back to first user message
+  const aiTitle = await extractAiTitle(filePath);
+
   let firstUserMessage: string | undefined;
-  if (titleUserMsg) {
-    const textBlocks = titleUserMsg.content.filter((b) => b.type === 'text');
-    if (textBlocks.length > 0) {
-      firstUserMessage = textBlocks.map((b) => (b as { type: 'text'; text: string }).text).join('\n');
+  if (!aiTitle) {
+    const titleUserMsg = messages.find((m) => m.type === 'user');
+    if (titleUserMsg) {
+      const textBlocks = titleUserMsg.content.filter((b) => b.type === 'text');
+      if (textBlocks.length > 0) {
+        firstUserMessage = textBlocks.map((b) => (b as { type: 'text'; text: string }).text).join('\n');
+      }
     }
   }
 
-  const summary = generateSessionSummary({
+  const summary = aiTitle || generateSessionSummary({
     model,
     durationMs: durationMs > 0 ? durationMs : null,
     toolCallCount,

@@ -108,6 +108,34 @@ function extractUsage(rawUsage: Record<string, unknown> | undefined): UsageInfo 
 }
 
 /**
+ * Extract the AI-generated session title from a JSONL transcript file.
+ * Scans for lines with type "ai-title" and returns the last aiTitle value
+ * found (last wins, so renames override the original). Returns null if none found.
+ */
+export async function extractAiTitle(filePath: string): Promise<string | null> {
+  const rl = createInterface({
+    input: createReadStream(filePath, { encoding: 'utf-8' }),
+    crlfDelay: Infinity,
+  });
+
+  let title: string | null = null;
+
+  for await (const line of rl) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    try {
+      const raw = JSON.parse(trimmed) as Record<string, unknown>;
+      if (raw['type'] === 'ai-title' && typeof raw['aiTitle'] === 'string' && raw['aiTitle'].trim()) {
+        title = raw['aiTitle'].trim();
+      }
+    } catch {
+      // skip malformed lines
+    }
+  }
+  return title;
+}
+
+/**
  * Streaming async generator that reads a JSONL transcript file and yields
  * normalized TranscriptMessage objects.
  */
