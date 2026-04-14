@@ -17,8 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+<<<<<<< claude/fix-issue-8-h1suS
+- Session list now displays AI-generated session title instead of raw first user message
+=======
 - Model filter now matches multi-model sessions — filtering by any model used during a session (not just the primary) returns that session
 - Agent tab: "Prompt Sent" and "Result returned" sections now display full content instead of truncated previews
+>>>>>>> main
 - Agent tab: token impact bars now correctly scale to each tool call's share of context, with hover tooltips showing exact percentage (bars enlarged to 100×8px)
 
 ## [0.2.1] - 2026-04-02

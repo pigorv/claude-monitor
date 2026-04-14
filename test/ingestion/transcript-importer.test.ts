@@ -180,6 +180,38 @@ describe('importTranscript', () => {
     assert.equal(result.sessionId, 'custom-session-id');
     assert.equal(result.skipped, false);
   });
+
+  it('uses AI title as summary when custom-title line is present', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'title-session', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Hello, please read my file.' },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'uuid-user-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'uuid-user-1', cwd: '/tmp/project', sessionId: 'title-session', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Done.' }],
+          usage: { input_tokens: 1000, output_tokens: 50 },
+        },
+        timestamp: '2026-01-01T00:01:05.000Z', uuid: 'uuid-asst-1',
+      }),
+      JSON.stringify({ type: 'custom-title', customTitle: 'Read project files', sessionId: 'title-session' }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'title-session.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    const result = await importTranscript(filePath);
+    assert.equal(result.skipped, false);
+
+    const session = getSession('title-session');
+    assert.ok(session);
+    assert.equal(session.summary, 'Read project files');
+  });
 });
 
 describe('importTranscripts (batch)', () => {

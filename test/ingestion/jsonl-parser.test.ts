@@ -1,7 +1,9 @@
-import { describe, it } from 'vitest';
+import { describe, it, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { parseLine, parseTranscript } from '../../src/ingestion/jsonl-parser.js';
+import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { parseLine, parseTranscript, extractAiTitle } from '../../src/ingestion/jsonl-parser.js';
 
 const FIXTURE_PATH = join(import.meta.dirname, '..', 'fixtures', 'sample-session.jsonl');
 
@@ -168,5 +170,66 @@ describe('parseTranscript', () => {
     assert.equal(messages[3].type, 'assistant');
     assert.equal(messages[3].content.length, 1);
     assert.equal(messages[3].content[0].type, 'text');
+  });
+});
+
+describe('extractAiTitle', () => {
+  const TEST_DIR = join(tmpdir(), `claude-monitor-parser-test-${Date.now()}`);
+
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  it('returns customTitle from the fixture file', async () => {
+    const title = await extractAiTitle(FIXTURE_PATH);
+    assert.equal(title, 'Read project index file');
+  });
+
+  it('returns null when no custom-title line exists', async () => {
+    const filePath = join(TEST_DIR, 'no-title.jsonl');
+    writeFileSync(filePath, JSON.stringify({
+      type: 'user', uuid: 'u1', parentUuid: null,
+      timestamp: '2026-01-01T00:00:00.000Z', sessionId: 'sess-1',
+      message: { role: 'user', content: 'Hello' },
+    }));
+    const title = await extractAiTitle(filePath);
+    assert.equal(title, null);
+  });
+
+  it('returns the last title when multiple custom-title lines exist', async () => {
+    const filePath = join(TEST_DIR, 'multi-title.jsonl');
+    const lines = [
+      JSON.stringify({ type: 'custom-title', customTitle: 'First title', sessionId: 'sess-1' }),
+      JSON.stringify({
+        type: 'user', uuid: 'u1', parentUuid: null,
+        timestamp: '2026-01-01T00:00:00.000Z', sessionId: 'sess-1',
+        message: { role: 'user', content: 'Hello' },
+      }),
+      JSON.stringify({ type: 'custom-title', customTitle: 'Renamed title', sessionId: 'sess-1' }),
+    ].join('\n');
+    writeFileSync(filePath, lines);
+    const title = await extractAiTitle(filePath);
+    assert.equal(title, 'Renamed title');
+  });
+
+  it('returns null for empty or whitespace-only customTitle', async () => {
+    const filePath = join(TEST_DIR, 'empty-title.jsonl');
+    const lines = [
+      JSON.stringify({ type: 'custom-title', customTitle: '   ', sessionId: 'sess-1' }),
+    ].join('\n');
+    writeFileSync(filePath, lines);
+    const title = await extractAiTitle(filePath);
+    assert.equal(title, null);
+  });
+
+  it('returns null when customTitle field is missing', async () => {
+    const filePath = join(TEST_DIR, 'missing-field.jsonl');
+    writeFileSync(filePath, JSON.stringify({ type: 'custom-title', sessionId: 'sess-1' }));
+    const title = await extractAiTitle(filePath);
+    assert.equal(title, null);
   });
 });
