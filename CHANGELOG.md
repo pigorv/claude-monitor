@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Agent tab: token impact bars are now clearly visible (increased from 60×4px to 100×8px) with hover tooltips showing exact percentage
+- Agent tab: token impact bars now correctly scale to each tool call's share of context, with hover tooltips showing exact percentage (bars enlarged to 100×8px)
 
 ## [0.2.1] - 2026-04-02
 
