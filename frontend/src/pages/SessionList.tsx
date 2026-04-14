@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import { html } from "htm/preact";
-import { fetchSessions, fetchApi } from "../api/client";
+import { fetchSessions, fetchApi, fetchProjects } from "../api/client";
 import { Sparkline } from "../components/Sparkline";
-import type { SessionSummary, SessionListResponse } from "../../../src/shared/types";
+import type { SessionSummary, SessionListResponse, ProjectInfo } from "../../../src/shared/types";
 import "../styles/session-list.css";
 
 // ── Formatting helpers ──────────────────────────────────────────────
@@ -88,6 +88,8 @@ const SORT_COLUMN_TO_API: Record<SortColumn, string> = {
 };
 
 const PAGE_SIZE = 25;
+const MAX_VISIBLE_PROJECTS = 5;
+const PROJECT_FILTER_KEY = "cm:projectFilter";
 
 type ChipFilter = "all" | "opus" | "sonnet" | "haiku";
 
@@ -117,6 +119,13 @@ export function SessionList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
+  // Project filter state
+  const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string | null>(
+    () => localStorage.getItem(PROJECT_FILTER_KEY)
+  );
+  const [projectsExpanded, setProjectsExpanded] = useState(false);
+
   // Sort state
   const [sortCol, setSortCol] = useState<SortColumn>("started_at");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
@@ -144,10 +153,34 @@ export function SessionList() {
     fetchApi<StatsData>("/api/stats").then(setStats).catch(() => {});
   }, []);
 
+  // Load projects
+  useEffect(() => {
+    fetchProjects()
+      .then(({ projects: list }) => {
+        setProjects(list);
+        // Clear stale localStorage value
+        const stored = localStorage.getItem(PROJECT_FILTER_KEY);
+        if (stored && !list.some((p) => p.project_path === stored)) {
+          localStorage.removeItem(PROJECT_FILTER_KEY);
+          setSelectedProject(null);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  function selectProject(path: string | null) {
+    setSelectedProject(path);
+    if (path) {
+      localStorage.setItem(PROJECT_FILTER_KEY, path);
+    } else {
+      localStorage.removeItem(PROJECT_FILTER_KEY);
+    }
+  }
+
   // Reset offset on filter changes
   useEffect(() => {
     setOffset(0);
-  }, [chipFilter, debouncedQuery]);
+  }, [chipFilter, debouncedQuery, selectedProject]);
 
   // Build filter params from chip
   function buildParams(): Record<string, string | number | undefined> {
@@ -159,6 +192,7 @@ export function SessionList() {
     };
 
     if (debouncedQuery) params.q = debouncedQuery;
+    if (selectedProject) params.project_path = selectedProject;
 
     switch (chipFilter) {
       case "opus":
@@ -196,7 +230,7 @@ export function SessionList() {
       });
 
     return () => { cancelled = true; };
-  }, [chipFilter, debouncedQuery, sortCol, sortOrder, offset]);
+  }, [chipFilter, debouncedQuery, selectedProject, sortCol, sortOrder, offset]);
 
   function toggleSort(col: SortColumn) {
     if (sortCol === col) {
@@ -229,8 +263,12 @@ export function SessionList() {
   // Count active sessions from loaded data
   const activeSessions = data ? data.sessions.filter((s: SessionSummary) => s.status === "running").length : 0;
 
-  // Unique projects count
-  const uniqueProjects = data ? new Set(data.sessions.map((s: SessionSummary) => s.project_name)).size : 0;
+  // Unique projects count — prefer the full list from /api/projects over the current page
+  const uniqueProjects = projects.length > 0 ? projects.length : (data ? new Set(data.sessions.map((s: SessionSummary) => s.project_name)).size : 0);
+
+  // Visible project chips (with overflow)
+  const visibleProjects = projectsExpanded ? projects : projects.slice(0, MAX_VISIBLE_PROJECTS);
+  const hasOverflow = projects.length > MAX_VISIBLE_PROJECTS;
 
   return html`
     <div class="page">
@@ -282,6 +320,38 @@ export function SessionList() {
           )}
         </div>
         <span class="sort-label">Sort: Latest first</span>
+
+        ${projects.length > 1 && html`
+          <div class="project-chips">
+            <div
+              class=${`chip ${!selectedProject ? "active" : ""}`}
+              onClick=${() => selectProject(null)}
+            >
+              All Projects
+            </div>
+            ${visibleProjects.map(
+              (p: ProjectInfo) => html`
+                <div
+                  class=${`chip project-chip ${selectedProject === p.project_path ? "active" : ""}`}
+                  title=${p.project_path}
+                  onClick=${() => selectProject(p.project_path)}
+                >
+                  <span class="chip-dot" style=${`background:${projectColor(p.project_name || "default")}`}></span>
+                  ${(p.project_name || "unknown").length > 20 ? (p.project_name || "unknown").slice(0, 20) + "..." : (p.project_name || "unknown")}
+                  <span class="chip-count">${p.session_count}</span>
+                </div>
+              `
+            )}
+            ${hasOverflow && html`
+              <div
+                class="chip overflow-chip"
+                onClick=${() => setProjectsExpanded(!projectsExpanded)}
+              >
+                ${projectsExpanded ? "Show less" : `+${projects.length - MAX_VISIBLE_PROJECTS} more`}
+              </div>
+            `}
+          </div>
+        `}
       </div>
 
       ${loading && html`<div class="status-text">Loading sessions...</div>`}

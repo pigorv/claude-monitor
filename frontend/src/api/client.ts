@@ -1,4 +1,4 @@
-import type { SessionListResponse, SessionDetailResponse, Event } from "../../../src/shared/types";
+import type { SessionListResponse, SessionDetailResponse, Event, ProjectInfo } from "../../../src/shared/types";
 
 export interface EventsResponse {
   events: Event[];
@@ -50,4 +50,8 @@ export function fetchEvents(
 
 export function fetchStats(): Promise<Record<string, any>> {
   return fetchApi<Record<string, any>>("/api/stats");
+}
+
+export function fetchProjects(): Promise<{ projects: ProjectInfo[] }> {
+  return fetchApi<{ projects: ProjectInfo[] }>("/api/projects");
 }

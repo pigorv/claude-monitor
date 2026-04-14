@@ -9,13 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Multi-model pills on session detail page — model transitions (e.g., "Sonnet → Opus") now appear in the detail header, matching the session list
+- Project folder filter — chip bar above the session table lets you scope sessions to a specific project, with session counts and localStorage persistence
 - Multi-model indicator in session list — sessions where the model was switched mid-session (e.g., via `/model`) now show a transition pill like "Sonnet → Opus"
 - Hero GIF and feature screenshots in README showing session list, timeline, context chart, and agent tree
 - Demo data seeding script (`npm run demo:seed`) and Playwright screenshot capture (`npm run demo:screenshots`)
 
 ### Fixed
 
+<<<<<<< claude/fix-issue-8-h1suS
 - Session list now displays AI-generated session title instead of raw first user message
+=======
+- Model filter now matches multi-model sessions — filtering by any model used during a session (not just the primary) returns that session
+- Agent tab: "Prompt Sent" and "Result returned" sections now display full content instead of truncated previews
+>>>>>>> main
 - Agent tab: token impact bars now correctly scale to each tool call's share of context, with hover tooltips showing exact percentage (bars enlarged to 100×8px)
 
 ## [0.2.1] - 2026-04-02

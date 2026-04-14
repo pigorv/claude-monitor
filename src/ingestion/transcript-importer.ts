@@ -465,6 +465,23 @@ async function importSubagentFile(
       insertEvents(eventRecords);
     }
 
+    // Extract prompt from the first user message
+    const firstUserMsg = messages.find((m) => m.type === 'user');
+    const promptText = firstUserMsg
+      ? firstUserMsg.content
+          .filter((b) => b.type === 'text')
+          .map((b) => (b as { text: string }).text)
+          .join('\n')
+      : null;
+    // Extract result from the last assistant message
+    const lastAssistantMsg = [...messages].reverse().find((m) => m.type === 'assistant');
+    const resultText = lastAssistantMsg
+      ? lastAssistantMsg.content
+          .filter((b) => b.type === 'text')
+          .map((b) => (b as { text: string }).text)
+          .join('\n')
+      : null;
+
     // Upsert agent_relationships — update if exists (from parent transcript's assignAgentIds),
     // or insert if this is a new agent not seen in the parent transcript
     const existingRel = db.prepare(
@@ -477,6 +494,10 @@ async function importSubagentFile(
         tool_call_count = ?,
         input_tokens_total = ?,
         output_tokens_total = ?,
+        prompt_preview = COALESCE(?, prompt_preview),
+        result_preview = COALESCE(?, result_preview),
+        prompt_data = COALESCE(?, prompt_data),
+        result_data = COALESCE(?, result_data),
         started_at = COALESCE(started_at, ?),
         ended_at = COALESCE(ended_at, ?),
         duration_ms = COALESCE(duration_ms, ?),
@@ -486,29 +507,16 @@ async function importSubagentFile(
         toolCallCount,
         totalInput,
         totalOutput,
+        promptText ? promptText.slice(0, 200) : null,
+        resultText ? resultText.slice(0, 200) : null,
+        promptText,
+        resultText,
         startedAt,
         endedAt,
         durationMs && durationMs > 0 ? durationMs : null,
         existingRel.id,
       );
     } else {
-      // Extract prompt from the first user message
-      const firstUserMsg = messages.find((m) => m.type === 'user');
-      const promptText = firstUserMsg
-        ? firstUserMsg.content
-            .filter((b) => b.type === 'text')
-            .map((b) => (b as { text: string }).text)
-            .join('\n')
-        : null;
-      // Extract result from the last assistant message
-      const lastAssistantMsg = [...messages].reverse().find((m) => m.type === 'assistant');
-      const resultText = lastAssistantMsg
-        ? lastAssistantMsg.content
-            .filter((b) => b.type === 'text')
-            .map((b) => (b as { text: string }).text)
-            .join('\n')
-        : null;
-
       db.prepare(`INSERT INTO agent_relationships (
         parent_session_id, child_agent_id, child_transcript_path,
         prompt_preview, result_preview, prompt_data, result_data,
