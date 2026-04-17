@@ -143,6 +143,8 @@ export interface ToolResultBlock {
   tool_use_id: string;
   content: string;
   is_error?: boolean;
+  agentId?: string;
+  agentType?: string;
 }
 
 export type ContentBlock = ThinkingBlock | TextBlock | ToolUseBlock | ToolResultBlock;

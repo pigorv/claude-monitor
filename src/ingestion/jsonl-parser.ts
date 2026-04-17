@@ -47,6 +47,26 @@ export function parseLine(line: string): TranscriptMessage | null {
   // Normalize content to ContentBlock[]
   const content = normalizeContent(rawContent);
 
+  // Claude Code emits Agent/Task results with a top-level `toolUseResult` that
+  // carries `agentId`/`agentType`. Those fields aren't present on the
+  // tool_result content block itself, so copy them onto the block so the
+  // downstream extractor can read them alongside the result text.
+  const toolUseResult = raw['toolUseResult'];
+  if (toolUseResult && typeof toolUseResult === 'object') {
+    const tur = toolUseResult as Record<string, unknown>;
+    const agentId = typeof tur['agentId'] === 'string' ? (tur['agentId'] as string) : undefined;
+    const agentType = typeof tur['agentType'] === 'string' ? (tur['agentType'] as string) : undefined;
+    if (agentId || agentType) {
+      for (const block of content) {
+        if (block.type === 'tool_result') {
+          if (agentId) block.agentId = agentId;
+          if (agentType) block.agentType = agentType;
+          break;
+        }
+      }
+    }
+  }
+
   // Extract usage info
   const usage = extractUsage(messageWrapper['usage'] as Record<string, unknown> | undefined);
 

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Peak Tokens stat on session detail now reflects effective context (input + cache read + cache write) instead of only the non-cached `input_tokens`, which was misleadingly small for cached sessions
+- Agents tab no longer duplicates subagents — each Agent/Task call now produces a single row instead of two (one synthetic, one from the on-disk subagent file). Re-import affected sessions with `claude-monitor import --force` to collapse existing duplicates.
 
 ## [0.3.0] - 2026-04-17
 

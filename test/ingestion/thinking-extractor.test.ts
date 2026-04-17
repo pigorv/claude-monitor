@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
-import { extractThinkingBlocks, extractAllEvents, mergeToolCallEvents } from '../../src/ingestion/thinking-extractor.js';
+import { extractThinkingBlocks, extractAllEvents, mergeToolCallEvents, assignAgentIds } from '../../src/ingestion/thinking-extractor.js';
 import type { TranscriptMessage } from '../../src/shared/types.js';
 
 function makeMsg(overrides: Partial<TranscriptMessage>): TranscriptMessage {
@@ -358,5 +358,36 @@ describe('extractAllEvents', () => {
     const endEvt = events.find((e) => e.event_type === 'tool_call_end');
     assert.ok(endEvt);
     assert.equal(endEvt.metadata, undefined);
+  });
+
+  it('should capture agentId from tool_result on Agent calls so assignAgentIds matches the subagent file', () => {
+    // Reproduces the duplicate-subagent bug: Claude Code stores the real
+    // subagent id as a top-level field on the tool_result block. If we don't
+    // capture it here, assignAgentIds falls back to a synthetic `agent-<i>`
+    // that can't be matched by the subagent file import, producing two rows.
+    const messages: TranscriptMessage[] = [
+      makeMsg({
+        type: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'tool-agent', name: 'Agent', input: { description: 'Explore', subagent_type: 'Explore' } },
+        ],
+      }),
+      makeMsg({
+        type: 'user',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        content: [
+          { type: 'tool_result', tool_use_id: 'tool-agent', content: 'result text', agentId: 'ab92a2555e4bfa5a5', agentType: 'Explore' },
+        ],
+      }),
+    ];
+
+    const events = mergeToolCallEvents(extractAllEvents(messages));
+    const agentStart = events.find((e) => e.tool_name === 'Agent');
+    assert.ok(agentStart);
+    assert.equal(agentStart.metadata?.agentId, 'ab92a2555e4bfa5a5');
+
+    const agents = assignAgentIds(events);
+    assert.equal(agents.length, 1);
+    assert.equal(agents[0].agentId, 'agent-ab92a2555e4bfa5a5');
   });
 });

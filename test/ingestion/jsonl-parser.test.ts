@@ -128,6 +128,36 @@ describe('parseLine', () => {
     assert.equal(msg.content[0].type, 'tool_result');
   });
 
+  it('should copy agentId/agentType from toolUseResult onto the tool_result block', () => {
+    const line = JSON.stringify({
+      type: 'user',
+      uuid: 'uuid-agent-result',
+      parentUuid: 'uuid-agent-call',
+      timestamp: '2026-01-01T00:03:00.000Z',
+      sessionId: 'sess-1',
+      toolUseResult: {
+        status: 'completed',
+        agentId: 'ab92a2555e4bfa5a5',
+        agentType: 'Explore',
+        totalTokens: 1234,
+      },
+      message: {
+        role: 'user',
+        content: [
+          { type: 'tool_result', tool_use_id: 'tool-agent', content: 'summary text' },
+        ],
+      },
+    });
+    const msg = parseLine(line);
+    assert.ok(msg);
+    const block = msg.content[0];
+    assert.equal(block.type, 'tool_result');
+    if (block.type === 'tool_result') {
+      assert.equal(block.agentId, 'ab92a2555e4bfa5a5');
+      assert.equal(block.agentType, 'Explore');
+    }
+  });
+
   it('should return null for lines without a message wrapper', () => {
     const line = JSON.stringify({
       type: 'system',

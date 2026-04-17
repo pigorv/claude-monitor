@@ -166,9 +166,13 @@ function extractUserEvents(
       const isError = 'is_error' in block && block.is_error === true;
       const isRejected = isError && typeof block.content === 'string'
         && block.content.includes('was rejected');
-      const endMetadata: Record<string, unknown> | undefined =
-        isRejected ? { permission_status: 'rejected' } :
-        isError ? { tool_error: true } : undefined;
+      const endMetadata: Record<string, unknown> = {};
+      if (isRejected) endMetadata.permission_status = 'rejected';
+      else if (isError) endMetadata.tool_error = true;
+      // Claude Code puts the real subagent ID on the tool_result block itself
+      // (sibling of `content`) for Agent/Task calls. Capture it so assignAgentIds
+      // can match this entry against the subagent transcript file.
+      if (typeof block.agentId === 'string') endMetadata.agentId = block.agentId;
       events.push({
         event_type: 'tool_call_end',
         timestamp: msg.timestamp,
@@ -176,7 +180,7 @@ function extractUserEvents(
         tool_use_id: block.tool_use_id,
         output_preview: truncate(outputStr, PREVIEW_LIMITS.outputPreview),
         output_data: outputStr,
-        metadata: endMetadata,
+        metadata: Object.keys(endMetadata).length > 0 ? endMetadata : undefined,
       });
       pendingToolUses.delete(block.tool_use_id);
     } else if (block.type === 'text') {
@@ -370,9 +374,14 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
         subagentType = input.subagent_type || '';
       } catch { /* ignore */ }
 
-      // Try to extract the real agent ID from the tool result output
-      // Claude Code puts "agentId: <id>" in the tool_result content
-      const realAgentId = extractRealAgentId(evt.output_data);
+      // Prefer the real subagent ID captured from the tool_result block
+      // (see extractUserEvents — it reads `agentId` off the tool_result itself).
+      // This lets us match the agent to its on-disk subagents/agent-<id>.jsonl
+      // file; without it we'd fall back to a synthetic index and end up
+      // inserting a duplicate row when the subagent file later imports.
+      const realAgentId = typeof evt.metadata?.agentId === 'string'
+        ? (evt.metadata.agentId as string)
+        : null;
       const agentId = realAgentId ? `agent-${realAgentId}` : `agent-${i}`;
 
       // Find the range of events that belong to this agent
@@ -429,16 +438,6 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
   }
 
   return agents;
-}
-
-/**
- * Extract the real agent ID from Agent tool_result output text.
- * Claude Code includes "agentId: <hex>" in the result.
- */
-function extractRealAgentId(outputData: string | undefined): string | null {
-  if (!outputData) return null;
-  const match = outputData.match(/agentId:\s*([a-f0-9]+)/);
-  return match ? match[1] : null;
 }
 
 function truncate(text: string, maxLen: number): string {
