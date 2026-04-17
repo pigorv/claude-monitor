@@ -73,23 +73,6 @@ describe('status command', () => {
   });
 });
 
-describe('watch command', () => {
-  beforeEach(() => {
-    testHome = mkdtempSync(join(tmpdir(), 'claude-monitor-cli-test-'));
-    mkdirSync(join(testHome, '.claude-monitor'), { recursive: true });
-  });
-
-  afterEach(() => {
-    rmSync(testHome, { recursive: true, force: true });
-  });
-
-  it('shows usage with --help', () => {
-    const { stdout } = run('watch', '--help');
-    assert.ok(stdout.includes('Usage: claude-monitor watch'));
-    assert.ok(stdout.includes('Import all transcripts'));
-  });
-});
-
 describe('CLI help shows new commands', () => {
   beforeEach(() => {
     testHome = mkdtempSync(join(tmpdir(), 'claude-monitor-cli-test-'));
@@ -102,7 +85,6 @@ describe('CLI help shows new commands', () => {
   it('help includes all commands', () => {
     const { stdout } = run('--help');
     assert.ok(stdout.includes('import'));
-    assert.ok(stdout.includes('watch'));
     assert.ok(stdout.includes('start'));
     assert.ok(stdout.includes('status'));
   });

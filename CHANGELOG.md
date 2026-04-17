@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Removed `watch` command (use `import` or `start` instead)
+
 ### Added
 
 - Multi-model pills on session detail page — model transitions (e.g., "Sonnet → Opus") now appear in the detail header, matching the session list

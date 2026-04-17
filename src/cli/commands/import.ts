@@ -70,7 +70,7 @@ function collectJsonlFilesRecursive(dir: string): string[] {
 }
 
 /**
- * Run a one-time import and print results. Used by both `import` and `watch` commands.
+ * Run a one-time import and print results. Used by the `import` command.
  */
 export async function runImport(files: string[], force: boolean): Promise<{ imported: number; skipped: number; errors: number }> {
   console.log(`Importing ${files.length} file${files.length === 1 ? '' : 's'}...`);
