@@ -275,7 +275,7 @@ export function getFileActivity(sessionId: string, compactionTimestamps: string[
 export function getPeakParentTokens(sessionId: string): number | null {
   const db = getDb();
   _peakParentTokensStmt ??= db.prepare(`
-    SELECT MAX(input_tokens) as peak_tokens
+    SELECT MAX(COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)) as peak_tokens
     FROM events
     WHERE session_id = ? AND agent_id IS NULL AND input_tokens IS NOT NULL
   `);
