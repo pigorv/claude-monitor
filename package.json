@@ -1,6 +1,6 @@
 {
   "name": "@pigorv/claude-monitor",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Local observability dashboard for Claude Code sessions — context pressure, thinking inspection, sub-agent debugging",
   "type": "module",
   "license": "MIT",
