@@ -3,7 +3,7 @@
 ## Development Setup
 
 ```bash
-git clone https://github.com/anthropics/claude-monitor.git
+git clone https://github.com/pigorv/claude-monitor.git
 cd claude-monitor
 npm install
 npm run build
@@ -43,7 +43,7 @@ test/           # Tests and fixtures
 
 ## Running Tests
 
-Tests use the Node.js built-in test runner:
+Tests use Vitest:
 
 ```bash
 npm test

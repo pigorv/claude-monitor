@@ -6,7 +6,8 @@ import type { EventType } from './types.js';
 // backend imports (`from '../shared/constants.js'`) keep working.
 export { MODEL_THRESHOLDS } from './model-thresholds.js';
 
-export const VERSION = '0.1.0';
+// Injected at build time by tsup (see tsup.config.ts `define`)
+export const VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
 
 export const MODEL_PRICING: Record<string, { input_per_mtok: number; output_per_mtok: number }> = {
   opus:   { input_per_mtok: 15, output_per_mtok: 75 },
