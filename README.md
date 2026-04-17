@@ -22,16 +22,16 @@ Claude Code sessions generate rich transcript data, but you can't see what's hap
 
 ## Quick Start
 
-```bash
-npx @pigorv/claude-monitor start
-```
-
-This imports transcripts from `~/.claude/projects/`, starts the dashboard at `http://localhost:4173`, and opens your browser.
-
-To import transcripts without starting the server:
+First, import every existing Claude Code session from `~/.claude/projects/`:
 
 ```bash
 npx @pigorv/claude-monitor import ~/.claude/projects/
+```
+
+Then start the dashboard — it opens at `http://localhost:4173` and tracks only newly added sessions going forward:
+
+```bash
+npx @pigorv/claude-monitor start
 ```
 
 **Requirements:** Node.js >= 20, Claude Code (for transcript files)
