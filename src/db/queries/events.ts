@@ -126,21 +126,27 @@ export function listEventsBySession(
 
 export function getTokenTimeline(sessionId: string): TokenDataPoint[] {
   const db = getDb();
+  // One point per assistant turn: events from the same turn share a timestamp
+  // (thinking/text/tool_use blocks from one message), all carry identical usage.
+  // Group by timestamp so tool-only turns — which emit tool_call_start but no
+  // assistant_message — still contribute a point.
   _tokenTimelineStmt ??= db.prepare(`
     SELECT
       timestamp,
-      COALESCE(input_tokens, 0) as input_tokens,
-      COALESCE(output_tokens, 0) as output_tokens,
-      COALESCE(cache_read_tokens, 0) as cache_read_tokens,
-      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
-      COALESCE(context_pct, 0) as context_pct,
-      event_type,
-      CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
+      MAX(COALESCE(input_tokens, 0)) as input_tokens,
+      MAX(COALESCE(output_tokens, 0)) as output_tokens,
+      MAX(COALESCE(cache_read_tokens, 0)) as cache_read_tokens,
+      MAX(COALESCE(cache_write_tokens, 0)) as cache_write_tokens,
+      MAX(COALESCE(context_pct, 0)) as context_pct,
+      CASE WHEN MAX(CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END) = 1
+           THEN 'compaction' ELSE 'assistant_message' END as event_type,
+      MAX(CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END) as is_compaction
     FROM events
     WHERE session_id = ? AND input_tokens IS NOT NULL AND agent_id IS NULL
-      AND event_type IN ('assistant_message', 'compaction')
+      AND event_type IN ('assistant_message', 'compaction', 'tool_call_start')
       AND (COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0) + COALESCE(output_tokens, 0)) > 0
-    ORDER BY sequence_num ASC, timestamp ASC
+    GROUP BY timestamp
+    ORDER BY MIN(sequence_num) ASC, timestamp ASC
   `);
   return _tokenTimelineStmt.all(sessionId) as TokenDataPoint[];
 }
@@ -149,13 +155,14 @@ export function getMiniTimeline(sessionId: string, maxPoints: number = 20): Mini
   const db = getDb();
   _miniTimelineStmt ??= db.prepare(`
     SELECT
-      COALESCE(context_pct, 0) as context_pct,
-      CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
+      MAX(COALESCE(context_pct, 0)) as context_pct,
+      MAX(CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END) as is_compaction
     FROM events
     WHERE session_id = ? AND context_pct IS NOT NULL AND agent_id IS NULL
-      AND event_type IN ('assistant_message', 'compaction')
+      AND event_type IN ('assistant_message', 'compaction', 'tool_call_start')
       AND (COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0) + COALESCE(output_tokens, 0)) > 0
-    ORDER BY sequence_num ASC, timestamp ASC
+    GROUP BY timestamp
+    ORDER BY MIN(sequence_num) ASC, timestamp ASC
   `);
   const rows = _miniTimelineStmt.all(sessionId) as { context_pct: number; is_compaction: number }[];
 
