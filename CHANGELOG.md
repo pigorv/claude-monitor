@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Agent tab: "Result returned" section is now collapsed by default (matching "Prompt sent"), so agent details open compactly
+
 ## [0.3.1] - 2026-04-17
 
 ### Fixed
