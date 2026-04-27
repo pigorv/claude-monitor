@@ -99,6 +99,14 @@ function runOsascript(script: string, arg: string): Promise<RunOsascriptResult> 
 const terminal = new Hono();
 
 terminal.post('/api/sessions/:id/open-terminal', async (c) => {
+  // Request-shape checks first (apply regardless of platform) so callers
+  // get accurate errors instead of having a bad id masked by a platform
+  // error on non-darwin systems.
+  const id = c.req.param('id');
+  if (!SESSION_ID_RE.test(id)) {
+    return c.json({ error: 'invalid_session_id', message: 'Invalid session id.' }, 400);
+  }
+
   if (process.platform !== 'darwin') {
     return c.json(
       {
@@ -107,11 +115,6 @@ terminal.post('/api/sessions/:id/open-terminal', async (c) => {
       },
       400,
     );
-  }
-
-  const id = c.req.param('id');
-  if (!SESSION_ID_RE.test(id)) {
-    return c.json({ error: 'invalid_session_id', message: 'Invalid session id.' }, 400);
   }
 
   const body = await c.req.json().catch(() => ({}));
