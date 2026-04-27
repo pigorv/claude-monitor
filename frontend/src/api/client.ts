@@ -55,3 +55,24 @@ export function fetchStats(): Promise<Record<string, any>> {
 export function fetchProjects(): Promise<{ projects: ProjectInfo[] }> {
   return fetchApi<{ projects: ProjectInfo[] }>("/api/projects");
 }
+
+export type TerminalPreference = "auto" | "terminal" | "iterm2";
+
+export async function openTerminal(
+  sessionId: string,
+  terminal: TerminalPreference,
+): Promise<{ success: true; terminal: "terminal" | "iterm2" }> {
+  const res = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/open-terminal`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ terminal }),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { message?: string }).message || `API ${res.status}`);
+  }
+  return res.json();
+}

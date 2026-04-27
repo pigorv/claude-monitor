@@ -9,6 +9,7 @@ import { events } from './routes/events.js';
 import { stats } from './routes/stats.js';
 import { reimport } from './routes/reimport.js';
 import { exportRoute } from './routes/export.js';
+import { terminal } from './routes/terminal.js';
 import { staticRoutes } from './static.js';
 
 export interface AppOptions {
@@ -32,6 +33,7 @@ export function createApp(options?: AppOptions): Hono {
   app.route('/', stats);
   app.route('/', reimport);
   app.route('/', exportRoute);
+  app.route('/', terminal);
 
   // Static file serving must be last (SPA fallback catches all non-API routes)
   if (options?.frontendDir) {
