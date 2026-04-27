@@ -137,3 +137,22 @@
   color: var(--red);
   font-size: 13px;
 }
+
+/* ═══════════════════════════════════════════
+   TERMINAL SELECT
+   ═══════════════════════════════════════════ */
+.terminal-select {
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.terminal-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
