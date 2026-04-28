@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- One-click "Open in Terminal" button on session detail pages (macOS). Opens Terminal.app or iTerm2, `cd`s into the session's project directory, and runs `claude --resume <id>` automatically. Preferred app is selectable in Settings (auto-detect / Terminal.app / iTerm2).
+
 ### Changed
 
 - Session list trailing column now renders a "Health" strip (context %, peak tokens vs. 1M, and up to three compaction dots) instead of the generic sparkline, surfacing context pressure and compaction activity at a glance.
@@ -14,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Context chart and session-list sparklines now include tool-only assistant turns. Previously turns that contained only `thinking` + `tool_use` (no text reply) were dropped, leaving agentic sessions with near-empty charts. The fix deduplicates token snapshots per turn by timestamp, so each assistant message contributes exactly one point regardless of content shape.
+- Agent tab: "Result returned" section is now collapsed by default (matching "Prompt sent"), so agent details open compactly
 
 ## [0.3.1] - 2026-04-17
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "preact/hooks";
 import { html } from "htm/preact";
-import { fetchSession } from "../api/client";
+import { fetchSession, openTerminal, type TerminalPreference } from "../api/client";
 import { Timeline } from "../components/Timeline";
 import { TokenChart } from "../components/TokenChart";
 import { AgentTree } from "../components/AgentTree";
@@ -87,6 +87,48 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
       ${copied ? "Copied!" : html`
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.1"/><path d="M8 4V2.5A1.5 1.5 0 006.5 1H2.5A1.5 1.5 0 001 2.5v4A1.5 1.5 0 002.5 8H4" stroke="currentColor" stroke-width="1.1"/></svg>
         ${label || "Copy"}
+      `}
+    </button>
+  `;
+}
+
+function OpenInTerminalButton({ sessionId, projectPath }: { sessionId: string; projectPath?: string }) {
+  const [state, setState] = useState<"idle" | "launching" | "opened">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  const disabled = !projectPath || state === "launching";
+
+  const handleClick = async () => {
+    if (disabled) return;
+    setError(null);
+    setState("launching");
+    const pref = (localStorage.getItem("claude-monitor-terminal") as TerminalPreference | null) || "auto";
+    try {
+      await openTerminal(sessionId, pref);
+      setState("opened");
+      setTimeout(() => setState("idle"), 1500);
+    } catch (e: any) {
+      setError(e?.message || "Failed to open terminal");
+      setState("idle");
+    }
+  };
+
+  const title = !projectPath
+    ? "No project directory recorded for this session"
+    : error
+    ? error
+    : "Open in Terminal";
+
+  return html`
+    <button
+      class="copy-btn"
+      onClick=${handleClick}
+      disabled=${disabled}
+      title=${title}
+    >
+      ${state === "launching" ? "Launching…" : state === "opened" ? "Opened ✓" : html`
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><rect x="1" y="2" width="10" height="8" rx="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M3 5L5 6.5L3 8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 8H8.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+        Open in Terminal
       `}
     </button>
   `;
@@ -203,6 +245,7 @@ export function SessionDetail({ id }: { id: string }) {
           <span class="resume-cmd-dollar">$</span>
           <code class="resume-cmd-text">claude --resume ${s.id}</code>
           <${CopyButton} text=${"claude --resume " + s.id} label="Copy" />
+          <${OpenInTerminalButton} sessionId=${s.id} projectPath=${s.project_path} />
         </div>
       </div>
 

@@ -22,6 +22,13 @@ function formatDate(iso: string | null | undefined): string {
   });
 }
 
+type TerminalPref = "auto" | "terminal" | "iterm2";
+
+function readTerminalPref(): TerminalPref {
+  const v = localStorage.getItem("claude-monitor-terminal");
+  return v === "terminal" || v === "iterm2" || v === "auto" ? v : "auto";
+}
+
 export function Settings() {
   const [data, setData] = useState<HealthResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +36,7 @@ export function Settings() {
   const [importResult, setImportResult] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [terminalPref, setTerminalPref] = useState<TerminalPref>(readTerminalPref());
 
   const load = () => {
     fetchApi<HealthResponse>("/api/health")
@@ -56,6 +64,12 @@ export function Settings() {
 
   const handleExport = () => {
     window.open("/api/export", "_blank");
+  };
+
+  const handleTerminalChange = (e: Event) => {
+    const value = (e.target as HTMLSelectElement).value as TerminalPref;
+    setTerminalPref(value);
+    localStorage.setItem("claude-monitor-terminal", value);
   };
 
   const handleClear = async () => {
@@ -183,6 +197,30 @@ export function Settings() {
               <span class="settings-value mono">${data.server_port || "\u2014"}</span>
             </div>
           </div>
+        </section>
+
+        <!-- Terminal card -->
+        <section class="settings-card">
+          <h3>Terminal</h3>
+          <div class="settings-rows">
+            <div class="settings-row">
+              <span class="settings-label">Preferred app</span>
+              <select
+                class="terminal-select"
+                value=${terminalPref}
+                onChange=${handleTerminalChange}
+              >
+                <option value="auto">Auto-detect</option>
+                <option value="terminal">Terminal.app</option>
+                <option value="iterm2">iTerm2</option>
+              </select>
+            </div>
+          </div>
+          <p class="settings-hint">
+            Used by the "Open in Terminal" button on session pages. Auto-detect checks
+            <code>$TERM_PROGRAM</code>, falls back to iTerm2 if installed, otherwise Terminal.app.
+            macOS only.
+          </p>
         </section>
 
         <!-- Quick Actions card -->

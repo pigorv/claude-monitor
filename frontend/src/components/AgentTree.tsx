@@ -200,7 +200,7 @@ function AgentDetailPanel({
   sessionStart?: string;
 }) {
   const [promptOpen, setPromptOpen] = useState(false);
-  const [resultOpen, setResultOpen] = useState(true);
+  const [resultOpen, setResultOpen] = useState(false);
   const [openTools, setOpenTools] = useState<Set<number>>(new Set());
 
   const hasPrompt = agent.prompt_data || agent.prompt_preview;
