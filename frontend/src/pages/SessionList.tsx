@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import { html } from "htm/preact";
 import { fetchSessions, fetchApi, fetchProjects } from "../api/client";
-import { Sparkline } from "../components/Sparkline";
+import { SessionHealthStrip } from "../components/SessionHealthStrip";
 import type { SessionSummary, SessionListResponse, ProjectInfo } from "../../../src/shared/types";
 import "../styles/session-list.css";
 
@@ -67,15 +67,9 @@ function projectColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-function compactionClass(count: number): string {
-  if (count === 0) return "ok";
-  if (count <= 2) return "warn";
-  return "danger";
-}
-
 // ── Sort / filter types ─────────────────────────────────────────────
 
-type SortColumn = "started_at" | "project_name" | "model" | "duration_ms" | "compaction_count" | "subagent_count";
+type SortColumn = "started_at" | "project_name" | "model" | "duration_ms" | "subagent_count";
 type SortOrder = "asc" | "desc";
 
 const SORT_COLUMN_TO_API: Record<SortColumn, string> = {
@@ -83,7 +77,6 @@ const SORT_COLUMN_TO_API: Record<SortColumn, string> = {
   project_name: "project_name",
   model: "model",
   duration_ms: "duration_ms",
-  compaction_count: "compaction_count",
   subagent_count: "subagent_count",
 };
 
@@ -366,9 +359,14 @@ export function SessionList() {
                 <th class=${sortClass("project_name")} onClick=${() => toggleSort("project_name")}>Session</th>
                 <th class=${sortClass("model")} onClick=${() => toggleSort("model")}>Model</th>
                 <th class=${sortClass("duration_ms")} onClick=${() => toggleSort("duration_ms")}>Duration</th>
-                <th class=${sortClass("compaction_count")} onClick=${() => toggleSort("compaction_count")}>Compactions</th>
                 <th class=${sortClass("subagent_count")} onClick=${() => toggleSort("subagent_count")}>Agents</th>
-                <th></th>
+                <th
+                  title="Main session only (excludes subagents). Context % of the model window, peak tokens scaled to a 1M reference, and compaction count (one filled dot per compaction, capped at three)."
+                  style="cursor: help;"
+                >
+                  Health
+                  <span class="th-hint" aria-hidden="true">ⓘ</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -403,16 +401,17 @@ export function SessionList() {
                     </td>
                     <td class="mono">${formatDuration(s.duration_ms)}</td>
                     <td>
-                      <span class="cc ${compactionClass(s.compaction_count)}">${s.compaction_count}</span>
-                    </td>
-                    <td>
                       ${s.subagent_count > 0
                         ? html`<span class="ag">${s.subagent_count}</span>`
                         : html`<span class="ag none">0</span>`
                       }
                     </td>
-                    <td class="spark">
-                      <${Sparkline} data=${(s as any).mini_timeline || []} />
+                    <td class="health">
+                      <${SessionHealthStrip}
+                        contextPct=${s.peak_context_pct ?? 0}
+                        peakTokens=${s.peak_tokens ?? 0}
+                        compactionCount=${s.compaction_count ?? 0}
+                      />
                     </td>
                   </tr>
                 `

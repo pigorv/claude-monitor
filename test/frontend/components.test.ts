@@ -2,69 +2,52 @@ import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import render from 'preact-render-to-string';
 import { html } from 'htm/preact';
-import { Sparkline } from '../../frontend/src/components/Sparkline.js';
+import { SessionHealthStrip } from '../../frontend/src/components/SessionHealthStrip.js';
 import { Heatmap } from '../../frontend/src/components/Heatmap.js';
 import { EventCard } from '../../frontend/src/components/EventCard.js';
 import { AgentTree } from '../../frontend/src/components/AgentTree.js';
 import { groupTimelineItems } from '../../frontend/src/components/Timeline.js';
 import type { Event as SessionEvent, AgentRelationship, TokenDataPoint } from '../../src/shared/types.js';
 
-// ─── Sparkline ──────────────────────────────────────────
+// ─── SessionHealthStrip ─────────────────────────────────
 
-describe('Sparkline', () => {
-  it('renders placeholder for empty data', () => {
-    const out = render(html`<${Sparkline} data=${[]} />`);
+describe('SessionHealthStrip', () => {
+  it('renders placeholder when all signals are zero', () => {
+    const out = render(html`<${SessionHealthStrip} contextPct=${0} peakTokens=${0} compactionCount=${0} />`);
     assert.ok(out.includes('—'), 'should render dash placeholder');
   });
 
-  it('renders placeholder for undefined data', () => {
-    const out = render(html`<${Sparkline} data=${undefined as any} />`);
-    assert.ok(out.includes('—'));
+  it('renders three bars/dots groups for active sessions', () => {
+    const out = render(html`<${SessionHealthStrip} contextPct=${42} peakTokens=${250_000} compactionCount=${1} />`);
+    assert.ok(out.includes('hs-ctx'), 'has context bar');
+    assert.ok(out.includes('hs-peak'), 'has peak bar');
+    assert.ok(out.includes('hs-comp'), 'has compaction squares');
   });
 
-  it('renders SVG polyline for valid data', () => {
-    const data = [
-      { context_pct: 10, is_compaction: false },
-      { context_pct: 25, is_compaction: false },
-      { context_pct: 15, is_compaction: false },
-    ];
-    const out = render(html`<${Sparkline} data=${data} />`);
-    assert.ok(out.includes('<svg'), 'should render SVG element');
-    assert.ok(out.includes('<polyline'), 'should render polyline');
-    assert.ok(out.includes('points='), 'should have points attribute');
+  it('uses green tone below 60%', () => {
+    const out = render(html`<${SessionHealthStrip} contextPct=${50} peakTokens=${100_000} compactionCount=${0} />`);
+    assert.ok(out.includes('hs-green'), 'context <60 → green tone');
   });
 
-  it('uses green stroke for low context', () => {
-    const data = [{ context_pct: 10, is_compaction: false }];
-    const out = render(html`<${Sparkline} data=${data} />`);
-    assert.ok(out.includes('var(--green)'), 'peak < 30% → green');
+  it('uses amber tone in 60-69 range', () => {
+    const out = render(html`<${SessionHealthStrip} contextPct=${65} peakTokens=${100_000} compactionCount=${0} />`);
+    assert.ok(out.includes('hs-amber'), 'context 60-69 → amber tone');
   });
 
-  it('uses yellow stroke for medium context', () => {
-    const data = [
-      { context_pct: 10, is_compaction: false },
-      { context_pct: 45, is_compaction: false },
-    ];
-    const out = render(html`<${Sparkline} data=${data} />`);
-    assert.ok(out.includes('var(--yellow)'), 'peak 30-60% → yellow');
+  it('uses rose tone at 70% and above', () => {
+    const out = render(html`<${SessionHealthStrip} contextPct=${72} peakTokens=${100_000} compactionCount=${0} />`);
+    assert.ok(out.includes('hs-rose'), 'context >=70 → rose tone');
   });
 
-  it('uses red stroke for high context', () => {
-    const data = [{ context_pct: 80, is_compaction: false }];
-    const out = render(html`<${Sparkline} data=${data} />`);
-    assert.ok(out.includes('var(--red)'), 'peak >= 60% → red');
+  it('clamps compaction squares to three even when count exceeds', () => {
+    const out = render(html`<${SessionHealthStrip} contextPct=${10} peakTokens=${100_000} compactionCount=${7} />`);
+    const onMatches = out.match(/hs-sq-on/g) ?? [];
+    assert.equal(onMatches.length, 3, 'never more than three filled squares');
   });
 
-  it('respects custom width and height', () => {
-    const data = [{ context_pct: 10, is_compaction: false }];
-    const out = render(html`<${Sparkline} data=${data} width=${100} height=${40} />`);
-    assert.ok(out.includes('0 0 100 40'), 'viewBox should use custom dimensions');
-  });
-
-  it('handles single data point', () => {
-    const data = [{ context_pct: 50, is_compaction: false }];
-    const out = render(html`<${Sparkline} data=${data} />`);
-    assert.ok(out.includes('<polyline'), 'single point should still render');
+  it('formats peak tokens label using K/M suffix', () => {
+    const out = render(html`<${SessionHealthStrip} contextPct=${10} peakTokens=${612_000} compactionCount=${0} />`);
+    assert.ok(out.includes('612K'), 'should render 612K label');
   });
 });
 

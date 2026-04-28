@@ -224,6 +224,7 @@ export interface SessionSummary {
   total_input_tokens: number;
   total_output_tokens: number;
   peak_context_pct: number;
+  peak_tokens: number;
   compaction_count: number;
   tool_call_count: number;
   subagent_count: number;

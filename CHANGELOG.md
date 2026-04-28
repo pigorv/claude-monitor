@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Session list trailing column now renders a "Health" strip (context %, peak tokens vs. 1M, and up to three compaction dots) instead of the generic sparkline, surfacing context pressure and compaction activity at a glance.
+
 ### Fixed
 
 - Context chart and session-list sparklines now include tool-only assistant turns. Previously turns that contained only `thinking` + `tool_use` (no text reply) were dropped, leaving agentic sessions with near-empty charts. The fix deduplicates token snapshots per turn by timestamp, so each assistant message contributes exactly one point regardless of content shape.
