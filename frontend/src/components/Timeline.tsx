@@ -5,6 +5,7 @@ import { EventCard } from "./EventCard";
 import { AgentGroup } from "./AgentGroup";
 import { CompactionBanner } from "./CompactionBanner";
 import { TokenBudgetBar } from "./TokenBudgetBar";
+import { updateParams } from "../lib/url-state";
 import type { Event, EventType, AgentRelationship } from "../../../src/shared/types";
 
 interface TimelineProps {
@@ -13,7 +14,10 @@ interface TimelineProps {
   agents?: AgentRelationship[];
   parentInputTokens?: number;
   parentOutputTokens?: number;
+  params?: URLSearchParams;
 }
+
+const VALID_TIMELINE_FILTERS = new Set(["", "user_message", "assistant_message", "tool_call_start"]);
 
 const PAGE_SIZE = 50;
 
@@ -241,14 +245,20 @@ export function groupTimelineItems(events: Event[], agents?: AgentRelationship[]
   return items;
 }
 
-export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, parentOutputTokens }: TimelineProps) {
+export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, parentOutputTokens, params }: TimelineProps) {
   const [events, setEvents] = useState<Event[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [typeFilter, setTypeFilter] = useState("");
   const [expandedToolGroups, setExpandedToolGroups] = useState<Record<string, boolean>>({});
+
+  const urlFilter = params?.get("filter") ?? "";
+  const typeFilter = VALID_TIMELINE_FILTERS.has(urlFilter) ? urlFilter : "";
+
+  function setTypeFilter(next: string) {
+    updateParams({ filter: next || null }, "replace");
+  }
 
   useEffect(() => {
     setOffset(0);

@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Filters, search, sort, project selection, the active session-detail tab, and the selected agent on the Agents tab are now reflected in the URL hash. Reload preserves the view, the URL is shareable, and back/forward cycles between tabs (filter/sort/search/agent edits replace the history entry instead of pushing).
 - Expanded GitHub issue and PR templates with pre-submit checklists, affected-area selectors, severity/regression questions, and an explicit data-discrepancy section in the bug template. Added CHANGELOG and Quick Start contact links to the issue chooser.
+
+### Added
+
+- Cross-session preferences (default sort, default chip filter, default project, project sidebar expanded?) persist in localStorage under `cm.sessionList.*` keys. Existing `cm:projectFilter` is migrated automatically on first load. Session detail always opens on the Timeline tab — switching tabs still updates the URL for sharing/back-forward, but no preference is saved across sessions.
+- "Clear filters" button on the session list resets URL params and saved localStorage defaults back to the factory state. Appears whenever any filter is active, regardless of whether it came from the URL or your saved preferences.
 
 ## [0.3.2] - 2026-05-01
 
