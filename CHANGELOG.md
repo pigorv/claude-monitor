@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Cross-session preferences (default sort, default chip filter, default project, default tab, project sidebar expanded?) persist in localStorage under `cm.sessionList.*` / `cm.sessionDetail.*` keys. Existing `cm:projectFilter` is migrated automatically on first load.
+- Cross-session preferences (default sort, default chip filter, default project, project sidebar expanded?) persist in localStorage under `cm.sessionList.*` keys. Existing `cm:projectFilter` is migrated automatically on first load. Session detail always opens on the Timeline tab — switching tabs still updates the URL for sharing/back-forward, but no preference is saved across sessions.
 - "Clear filters" button on the session list resets URL params and saved localStorage defaults back to the factory state. Appears whenever any filter is active, regardless of whether it came from the URL or your saved preferences.
 
 ## [0.3.2] - 2026-05-01

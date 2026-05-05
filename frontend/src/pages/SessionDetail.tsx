@@ -4,13 +4,13 @@ import { fetchSession, openTerminal, type TerminalPreference } from "../api/clie
 import { Timeline } from "../components/Timeline";
 import { TokenChart } from "../components/TokenChart";
 import { AgentTree } from "../components/AgentTree";
-import { usePersistentState } from "../hooks/usePersistentState";
 import { updateParams } from "../lib/url-state";
 import type { SessionDetailResponse } from "../../../src/shared/types";
 import { resolveThresholds } from "../lib/chart-config";
 import "../styles/session-detail.css";
 
-const TAB_KEY = "cm.sessionDetail.tab";
+// Drop the now-unused tab preference left over from the previous behavior.
+try { localStorage.removeItem("cm.sessionDetail.tab"); } catch {}
 
 function formatDuration(ms: number | null | undefined): string {
   if (ms == null || ms <= 0) return "—";
@@ -147,12 +147,12 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
   const [data, setData] = useState<SessionDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tabPref, setTabPref] = usePersistentState<Tab>(TAB_KEY, "timeline");
+  // Tab is URL-only — opening a session always lands on Timeline unless the
+  // URL explicitly carries ?tab= (shareable links and back/forward).
   const urlTab = params.get("tab");
-  const tab: Tab = isTab(urlTab) ? urlTab : tabPref;
+  const tab: Tab = isTab(urlTab) ? urlTab : "timeline";
 
   function selectTab(next: Tab) {
-    setTabPref(next);
     updateParams({ tab: next }, "push");
   }
 

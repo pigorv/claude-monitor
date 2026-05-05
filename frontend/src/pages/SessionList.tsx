@@ -395,12 +395,13 @@ export function SessionList({ params }: { params: URLSearchParams }) {
             `
           )}
         </div>
-        <span class="sort-label">Sort: Latest first</span>
         ${hasActiveFilters && html`
           <button class="reset-filters" onClick=${resetFilters} title="Clear filters and saved defaults">
+            <span class="reset-x" aria-hidden="true">×</span>
             Clear filters
           </button>
         `}
+        <span class="sort-label">Sort: Latest first</span>
 
         ${projects.length > 1 && html`
           <div class="project-chips">
