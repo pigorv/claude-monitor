@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- `/code-review` skill for pre-merge code review of the current branch against `main`. Spawns parallel specialist subagents (DB, ingestion, API, frontend, tests), runs an adversarial pass to demote false positives, and prints a severity × confidence report with `file:line` citations. Read-only — proposes findings, never mutates files or GitHub.
-
 ## [0.3.2] - 2026-05-01
 
 ### Added
