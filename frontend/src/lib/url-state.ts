@@ -14,12 +14,7 @@ export function parseHash(hash: string): ParsedHash {
   const qIndex = raw.indexOf("?");
   if (qIndex < 0) return { path: raw, params: new URLSearchParams() };
   const path = raw.slice(0, qIndex) || "/";
-  let params: URLSearchParams;
-  try {
-    params = new URLSearchParams(raw.slice(qIndex + 1));
-  } catch {
-    params = new URLSearchParams();
-  }
+  const params = new URLSearchParams(raw.slice(qIndex + 1));
   return { path, params };
 }
 

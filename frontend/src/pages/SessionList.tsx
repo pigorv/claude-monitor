@@ -4,6 +4,7 @@ import { fetchSessions, fetchApi, fetchProjects } from "../api/client";
 import { Sparkline } from "../components/Sparkline";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { updateParams } from "../lib/url-state";
+import { migrateProjectFilterKey } from "../lib/migrate-project-filter";
 import type { SessionSummary, SessionListResponse, ProjectInfo } from "../../../src/shared/types";
 import "../styles/session-list.css";
 
@@ -105,15 +106,7 @@ const LS_PROJECTS_EXPANDED = "cm.sessionList.projectsExpanded";
 
 // One-shot migration from the previous `cm:projectFilter` key. Runs once at
 // module load so usePersistentState sees the new value on first mount.
-(function migrateProjectFilterKey() {
-  try {
-    const old = localStorage.getItem("cm:projectFilter");
-    if (old != null && localStorage.getItem(LS_PROJECT) == null) {
-      localStorage.setItem(LS_PROJECT, JSON.stringify(old));
-    }
-    if (old != null) localStorage.removeItem("cm:projectFilter");
-  } catch {}
-})();
+migrateProjectFilterKey();
 
 type ChipFilter = "all" | "opus" | "sonnet" | "haiku";
 

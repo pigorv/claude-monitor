@@ -34,6 +34,12 @@ describe('parseHash', () => {
     assert.equal(r.params.toString(), '');
   });
 
+  it('handles trailing ? with no params', () => {
+    const r = parseHash('#/?');
+    assert.equal(r.path, '/');
+    assert.equal(r.params.toString(), '');
+  });
+
   it('preserves session id with multiple ? defensively', () => {
     // Only the first ? is treated as the param delimiter; any subsequent ?s
     // belong to the value.
@@ -64,10 +70,14 @@ describe('updateParams', () => {
   let originalHashChangeEvent: typeof HashChangeEvent;
   let dispatchedEvents: string[];
   let currentHash: string;
+  let pushStateCalls: number;
+  let replaceStateCalls: number;
 
   beforeEach(() => {
     dispatchedEvents = [];
     currentHash = '#/';
+    pushStateCalls = 0;
+    replaceStateCalls = 0;
     originalLocation = (globalThis as any).location;
     originalHistory = (globalThis as any).history;
     originalWindow = (globalThis as any).window;
@@ -81,10 +91,12 @@ describe('updateParams', () => {
     };
     (globalThis as any).history = {
       pushState: (_s: unknown, _t: string, url: string) => {
+        pushStateCalls++;
         const i = url.indexOf('#');
         currentHash = i >= 0 ? url.slice(i) : '';
       },
       replaceState: (_s: unknown, _t: string, url: string) => {
+        replaceStateCalls++;
         const i = url.indexOf('#');
         currentHash = i >= 0 ? url.slice(i) : '';
       },
@@ -124,6 +136,8 @@ describe('updateParams', () => {
     currentHash = '#/?model=opus';
     updateParams({ model: 'opus' });
     assert.deepEqual(dispatchedEvents, [], 'no hashchange fired when result is identical');
+    assert.equal(pushStateCalls, 0, 'pushState not called');
+    assert.equal(replaceStateCalls, 0, 'replaceState not called');
   });
 
   it('preserves the path', () => {

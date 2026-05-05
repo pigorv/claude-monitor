@@ -9,8 +9,15 @@ import type { SessionDetailResponse } from "../../../src/shared/types";
 import { resolveThresholds } from "../lib/chart-config";
 import "../styles/session-detail.css";
 
-// Drop the now-unused tab preference left over from the previous behavior.
-try { localStorage.removeItem("cm.sessionDetail.tab"); } catch {}
+// One-shot cleanup of a now-unused preference. Sentinel ensures we don't
+// hit localStorage on every page load forever.
+(function clearLegacySessionDetailTab() {
+  try {
+    if (localStorage.getItem("cm.sessionDetail.tabCleared") === "1") return;
+    localStorage.removeItem("cm.sessionDetail.tab");
+    localStorage.setItem("cm.sessionDetail.tabCleared", "1");
+  } catch {}
+})();
 
 function formatDuration(ms: number | null | undefined): string {
   if (ms == null || ms <= 0) return "—";
