@@ -2,9 +2,35 @@
 
 What does this PR do and why?
 
-## Test Plan
+## Linked issue
 
-How did you verify this works?
+<!-- Use `Closes #123` to auto-close on merge, or `Refs #123` to link without closing. -->
+
+## Type of change
+
+- [ ] Bug fix
+- [ ] Feature
+- [ ] Refactor / cleanup
+- [ ] Docs
+- [ ] Build / CI / tooling
+- [ ] Tests only
+
+## Affected area
+
+- [ ] Ingestion (JSONL parsing, transcript import, watcher)
+- [ ] Dashboard UI (session list, timeline, context chart, agent tree)
+- [ ] CLI (`start`, `import`, `status` commands)
+- [ ] Analysis (risk scoring, compaction detection, token tracking)
+- [ ] Database (SQLite schema, migrations, queries)
+- [ ] Build & CI
+
+## Test plan
+
+How did you verify this works? Include the commands you ran, fixtures or transcripts you tested against, and any UI flows you exercised in the browser.
+
+## Risk / rollout notes
+
+Anything reviewers should know before merging — schema migrations, breaking CLI flag changes, new runtime dependencies, performance implications. "None" is a fine answer.
 
 ## Checklist
 
