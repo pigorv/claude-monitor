@@ -35,10 +35,11 @@ describe('parseHash', () => {
   });
 
   it('preserves session id with multiple ? defensively', () => {
-    // Only the first ? is treated as the param delimiter.
-    const r = parseHash('#/session/abc?tab=context');
+    // Only the first ? is treated as the param delimiter; any subsequent ?s
+    // belong to the value.
+    const r = parseHash('#/session/abc?tab=context?weird=1');
     assert.equal(r.path, '/session/abc');
-    assert.equal(r.params.get('tab'), 'context');
+    assert.equal(r.params.get('tab'), 'context?weird=1');
   });
 });
 
@@ -59,6 +60,8 @@ describe('buildHash', () => {
 describe('updateParams', () => {
   let originalLocation: Location;
   let originalHistory: History;
+  let originalWindow: typeof window;
+  let originalHashChangeEvent: typeof HashChangeEvent;
   let dispatchedEvents: string[];
   let currentHash: string;
 
@@ -67,6 +70,8 @@ describe('updateParams', () => {
     currentHash = '#/';
     originalLocation = (globalThis as any).location;
     originalHistory = (globalThis as any).history;
+    originalWindow = (globalThis as any).window;
+    originalHashChangeEvent = (globalThis as any).HashChangeEvent;
 
     (globalThis as any).location = {
       get hash() { return currentHash; },
@@ -93,6 +98,8 @@ describe('updateParams', () => {
   afterEach(() => {
     (globalThis as any).location = originalLocation;
     (globalThis as any).history = originalHistory;
+    (globalThis as any).window = originalWindow;
+    (globalThis as any).HashChangeEvent = originalHashChangeEvent;
   });
 
   it('sets a new param', () => {
@@ -123,5 +130,15 @@ describe('updateParams', () => {
     currentHash = '#/session/abc?tab=timeline';
     updateParams({ tab: 'context' }, 'push');
     assert.equal(currentHash, '#/session/abc?tab=context');
+  });
+
+  it('falls back to location.hash assignment when history.*State throws', () => {
+    // Simulate environments where history mutation is blocked (e.g. file://
+    // pages). The fallback path writes location.hash directly and skips the
+    // synthetic hashchange — the browser fires its own.
+    (globalThis as any).history.pushState = () => { throw new Error('blocked'); };
+    updateParams({ model: 'opus' }, 'push');
+    assert.equal(currentHash, '#/?model=opus');
+    assert.deepEqual(dispatchedEvents, [], 'no synthetic hashchange when falling back to location.hash');
   });
 });
