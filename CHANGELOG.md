@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Filters, search, sort, project selection, and the active session-detail tab are now reflected in the URL hash. Reload preserves the view, the URL is shareable, and back/forward cycles between tabs (filter/sort/search edits replace the history entry instead of pushing).
+- Expanded GitHub issue and PR templates with pre-submit checklists, affected-area selectors, severity/regression questions, and an explicit data-discrepancy section in the bug template. Added CHANGELOG and Quick Start contact links to the issue chooser.
 
 ### Added
 
