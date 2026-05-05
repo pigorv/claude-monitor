@@ -4,9 +4,13 @@ import { fetchSession, openTerminal, type TerminalPreference } from "../api/clie
 import { Timeline } from "../components/Timeline";
 import { TokenChart } from "../components/TokenChart";
 import { AgentTree } from "../components/AgentTree";
+import { usePersistentState } from "../hooks/usePersistentState";
+import { updateParams } from "../lib/url-state";
 import type { SessionDetailResponse } from "../../../src/shared/types";
 import { resolveThresholds } from "../lib/chart-config";
 import "../styles/session-detail.css";
+
+const TAB_KEY = "cm.sessionDetail.tab";
 
 function formatDuration(ms: number | null | undefined): string {
   if (ms == null || ms <= 0) return "—";
@@ -71,6 +75,11 @@ function peakAccentColor(pct: number): string {
 }
 
 type Tab = "timeline" | "context" | "agents";
+const VALID_TABS: readonly Tab[] = ["timeline", "context", "agents"];
+
+function isTab(v: string | null | undefined): v is Tab {
+  return v != null && (VALID_TABS as readonly string[]).includes(v);
+}
 
 function CopyButton({ text, label }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
@@ -134,11 +143,18 @@ function OpenInTerminalButton({ sessionId, projectPath }: { sessionId: string; p
   `;
 }
 
-export function SessionDetail({ id }: { id: string }) {
+export function SessionDetail({ id, params }: { id: string; params: URLSearchParams }) {
   const [data, setData] = useState<SessionDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("timeline");
+  const [tabPref, setTabPref] = usePersistentState<Tab>(TAB_KEY, "timeline");
+  const urlTab = params.get("tab");
+  const tab: Tab = isTab(urlTab) ? urlTab : tabPref;
+
+  function selectTab(next: Tab) {
+    setTabPref(next);
+    updateParams({ tab: next }, "push");
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -288,19 +304,19 @@ export function SessionDetail({ id }: { id: string }) {
       <div class="tab-bar">
         <button
           class=${tab === "timeline" ? "tab active" : "tab"}
-          onClick=${() => setTab("timeline")}
+          onClick=${() => selectTab("timeline")}
         >
           Timeline${data.event_count != null ? html`<span class="count">${data.event_count}</span>` : ''}
         </button>
         <button
           class=${tab === "context" ? "tab active" : "tab"}
-          onClick=${() => setTab("context")}
+          onClick=${() => selectTab("context")}
         >
           Context
         </button>
         <button
           class=${tab === "agents" ? "tab active" : "tab"}
-          onClick=${() => setTab("agents")}
+          onClick=${() => selectTab("agents")}
         >
           Agents${s.subagent_count > 0 ? html`<span class="count">${s.subagent_count}</span>` : ''}
         </button>
@@ -308,7 +324,7 @@ export function SessionDetail({ id }: { id: string }) {
 
       <div class="tab-content">
         ${tab === "timeline" && html`
-          <${Timeline} sessionId=${id} sessionStart=${s.started_at} agents=${data.agents} parentInputTokens=${s.total_input_tokens} parentOutputTokens=${s.total_output_tokens} />
+          <${Timeline} sessionId=${id} sessionStart=${s.started_at} agents=${data.agents} parentInputTokens=${s.total_input_tokens} parentOutputTokens=${s.total_output_tokens} params=${params} />
         `}
         ${tab === "context" && html`
           <${TokenChart}

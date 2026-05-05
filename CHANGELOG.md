@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Filters, search, sort, project selection, and the active session-detail tab are now reflected in the URL hash. Reload preserves the view, the URL is shareable, and back/forward cycles between tabs (filter/sort/search edits replace the history entry instead of pushing).
+
+### Added
+
+- Cross-session preferences (default sort, default chip filter, default project, default tab, project sidebar expanded?) persist in localStorage under `cm.sessionList.*` / `cm.sessionDetail.*` keys. Existing `cm:projectFilter` is migrated automatically on first load.
+- "Reset" button on the session list clears URL filters and falls back to the saved defaults. Appears only when at least one URL filter is active.
+
 ## [0.3.2] - 2026-05-01
 
 ### Added

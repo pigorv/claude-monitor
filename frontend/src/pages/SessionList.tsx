@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import { html } from "htm/preact";
 import { fetchSessions, fetchApi, fetchProjects } from "../api/client";
 import { Sparkline } from "../components/Sparkline";
+import { usePersistentState } from "../hooks/usePersistentState";
+import { updateParams } from "../lib/url-state";
 import type { SessionSummary, SessionListResponse, ProjectInfo } from "../../../src/shared/types";
 import "../styles/session-list.css";
 
@@ -87,11 +89,39 @@ const SORT_COLUMN_TO_API: Record<SortColumn, string> = {
   subagent_count: "subagent_count",
 };
 
+const VALID_SORT_COLS: SortColumn[] = [
+  "started_at", "project_name", "model", "duration_ms", "compaction_count", "subagent_count",
+];
+const VALID_CHIPS: ChipFilter[] = ["all", "opus", "sonnet", "haiku"];
+
 const PAGE_SIZE = 25;
 const MAX_VISIBLE_PROJECTS = 5;
-const PROJECT_FILTER_KEY = "cm:projectFilter";
+
+// localStorage keys (Tier 2 cross-session preferences)
+const LS_CHIP = "cm.sessionList.chipFilter";
+const LS_PROJECT = "cm.sessionList.project";
+const LS_SORT = "cm.sessionList.sort";
+const LS_PROJECTS_EXPANDED = "cm.sessionList.projectsExpanded";
+
+// One-shot migration from the previous `cm:projectFilter` key. Runs once at
+// module load so usePersistentState sees the new value on first mount.
+(function migrateProjectFilterKey() {
+  try {
+    const old = localStorage.getItem("cm:projectFilter");
+    if (old != null && localStorage.getItem(LS_PROJECT) == null) {
+      localStorage.setItem(LS_PROJECT, JSON.stringify(old));
+    }
+    if (old != null) localStorage.removeItem("cm:projectFilter");
+  } catch {}
+})();
 
 type ChipFilter = "all" | "opus" | "sonnet" | "haiku";
+
+interface SortPref {
+  col: SortColumn;
+  order: SortOrder;
+}
+const DEFAULT_SORT: SortPref = { col: "started_at", order: "desc" };
 
 // ── Stats interface ─────────────────────────────────────────────────
 
@@ -113,24 +143,42 @@ interface StatsData {
 
 // ── Component ───────────────────────────────────────────────────────
 
-export function SessionList() {
-  // Filter state
-  const [chipFilter, setChipFilter] = useState<ChipFilter>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+export function SessionList({ params }: { params: URLSearchParams }) {
+  // Tier 2 preferences (localStorage)
+  const [chipPref, setChipPref] = usePersistentState<ChipFilter>(LS_CHIP, "all");
+  const [projectPref, setProjectPref] = usePersistentState<string | null>(LS_PROJECT, null);
+  const [sortPref, setSortPref] = usePersistentState<SortPref>(LS_SORT, DEFAULT_SORT);
+  const [projectsExpanded, setProjectsExpanded] = usePersistentState<boolean>(LS_PROJECTS_EXPANDED, false);
 
-  // Project filter state
+  // Effective values: URL (Tier 1) overrides localStorage; otherwise pref wins.
+  const urlModel = params.get("model");
+  const urlProject = params.get("project");
+  const urlSort = params.get("sort");
+  const urlOrder = params.get("order");
+  const urlQ = params.get("q") ?? "";
+
+  const chipFilter: ChipFilter = (urlModel && VALID_CHIPS.includes(urlModel as ChipFilter))
+    ? (urlModel as ChipFilter)
+    : chipPref;
+  const selectedProject: string | null = urlProject ?? projectPref;
+  const sortCol: SortColumn = (urlSort && VALID_SORT_COLS.includes(urlSort as SortColumn))
+    ? (urlSort as SortColumn)
+    : sortPref.col;
+  const sortOrder: SortOrder = (urlOrder === "asc" || urlOrder === "desc")
+    ? urlOrder
+    : sortPref.order;
+  const debouncedQuery = urlQ;
+
+  // Local mirror for the search input — keeps typing smooth while URL writes
+  // are debounced. Re-syncs when the URL is changed from elsewhere (Reset).
+  const [searchQuery, setSearchQuery] = useState(urlQ);
+  useEffect(() => { setSearchQuery(urlQ); }, [urlQ]);
+
+  // Project list (server data)
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string | null>(
-    () => localStorage.getItem(PROJECT_FILTER_KEY)
-  );
-  const [projectsExpanded, setProjectsExpanded] = useState(false);
 
-  // Sort state
-  const [sortCol, setSortCol] = useState<SortColumn>("started_at");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
-
-  // Pagination
+  // Pagination — local state; URL persistence deferred to issue #29 (which
+  // removes user-facing pagination on the views that have it).
   const [offset, setOffset] = useState(0);
 
   // Data
@@ -139,74 +187,92 @@ export function SessionList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Debounce search
+  // Debounced URL write for search
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleSearch = useCallback((e: Event) => {
     const val = (e.target as HTMLInputElement).value;
     setSearchQuery(val);
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setDebouncedQuery(val), 300);
+    timerRef.current = setTimeout(() => {
+      updateParams({ q: val || null }, "replace");
+    }, 300);
   }, []);
+
+  function setChipFilter(next: ChipFilter) {
+    setChipPref(next);
+    updateParams({ model: next === "all" ? null : next }, "replace");
+  }
+
+  function selectProject(path: string | null) {
+    setProjectPref(path);
+    updateParams({ project: path }, "replace");
+  }
+
+  function applySort(col: SortColumn, order: SortOrder) {
+    setSortPref({ col, order });
+    updateParams({ sort: col, order }, "replace");
+  }
+
+  function resetFilters() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setSearchQuery("");
+    updateParams(
+      { model: null, q: null, project: null, sort: null, order: null },
+      "replace",
+    );
+  }
 
   // Load stats
   useEffect(() => {
     fetchApi<StatsData>("/api/stats").then(setStats).catch(() => {});
   }, []);
 
-  // Load projects
+  // Load projects, then prune a stale project preference if it points at
+  // something that no longer exists.
   useEffect(() => {
     fetchProjects()
       .then(({ projects: list }) => {
         setProjects(list);
-        // Clear stale localStorage value
-        const stored = localStorage.getItem(PROJECT_FILTER_KEY);
-        if (stored && !list.some((p) => p.project_path === stored)) {
-          localStorage.removeItem(PROJECT_FILTER_KEY);
-          setSelectedProject(null);
+        if (selectedProject && !list.some((p) => p.project_path === selectedProject)) {
+          // Clear both URL and localStorage so the empty state takes over.
+          setProjectPref(null);
+          if (urlProject) updateParams({ project: null }, "replace");
         }
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function selectProject(path: string | null) {
-    setSelectedProject(path);
-    if (path) {
-      localStorage.setItem(PROJECT_FILTER_KEY, path);
-    } else {
-      localStorage.removeItem(PROJECT_FILTER_KEY);
-    }
-  }
-
-  // Reset offset on filter changes
+  // Reset offset on filter/sort changes
   useEffect(() => {
     setOffset(0);
-  }, [chipFilter, debouncedQuery, selectedProject]);
+  }, [chipFilter, debouncedQuery, selectedProject, sortCol, sortOrder]);
 
   // Build filter params from chip
   function buildParams(): Record<string, string | number | undefined> {
-    const params: Record<string, string | number | undefined> = {
+    const queryParams: Record<string, string | number | undefined> = {
       sort: SORT_COLUMN_TO_API[sortCol],
       order: sortOrder,
       limit: PAGE_SIZE,
       offset,
     };
 
-    if (debouncedQuery) params.q = debouncedQuery;
-    if (selectedProject) params.project_path = selectedProject;
+    if (debouncedQuery) queryParams.q = debouncedQuery;
+    if (selectedProject) queryParams.project_path = selectedProject;
 
     switch (chipFilter) {
       case "opus":
-        params.model = "opus";
+        queryParams.model = "opus";
         break;
       case "sonnet":
-        params.model = "sonnet";
+        queryParams.model = "sonnet";
         break;
       case "haiku":
-        params.model = "haiku";
+        queryParams.model = "haiku";
         break;
     }
 
-    return params;
+    return queryParams;
   }
 
   // Fetch sessions
@@ -234,10 +300,9 @@ export function SessionList() {
 
   function toggleSort(col: SortColumn) {
     if (sortCol === col) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+      applySort(col, sortOrder === "asc" ? "desc" : "asc");
     } else {
-      setSortCol(col);
-      setSortOrder(col === "started_at" ? "desc" : "asc");
+      applySort(col, col === "started_at" ? "desc" : "asc");
     }
   }
 
@@ -269,6 +334,10 @@ export function SessionList() {
   // Visible project chips (with overflow)
   const visibleProjects = projectsExpanded ? projects : projects.slice(0, MAX_VISIBLE_PROJECTS);
   const hasOverflow = projects.length > MAX_VISIBLE_PROJECTS;
+
+  // Show Reset button only when at least one Tier 1 param is set.
+  const hasUrlOverrides = urlModel != null || urlProject != null || urlSort != null
+    || urlOrder != null || (urlQ?.length ?? 0) > 0;
 
   return html`
     <div class="page">
@@ -320,6 +389,11 @@ export function SessionList() {
           )}
         </div>
         <span class="sort-label">Sort: Latest first</span>
+        ${hasUrlOverrides && html`
+          <button class="reset-filters" onClick=${resetFilters} title="Clear URL filters and fall back to your saved defaults">
+            Reset
+          </button>
+        `}
 
         ${projects.length > 1 && html`
           <div class="project-chips">

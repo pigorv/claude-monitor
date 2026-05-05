@@ -1,0 +1,127 @@
+import { describe, it, beforeEach, afterEach } from 'vitest';
+import assert from 'node:assert/strict';
+import { parseHash, buildHash, updateParams } from '../../frontend/src/lib/url-state.js';
+
+describe('parseHash', () => {
+  it('parses bare root', () => {
+    const r = parseHash('#/');
+    assert.equal(r.path, '/');
+    assert.equal(r.params.toString(), '');
+  });
+
+  it('parses path with no params', () => {
+    const r = parseHash('#/session/abc');
+    assert.equal(r.path, '/session/abc');
+    assert.equal(r.params.toString(), '');
+  });
+
+  it('splits path and query on first ?', () => {
+    const r = parseHash('#/?model=opus&q=migration');
+    assert.equal(r.path, '/');
+    assert.equal(r.params.get('model'), 'opus');
+    assert.equal(r.params.get('q'), 'migration');
+  });
+
+  it('handles missing leading #', () => {
+    const r = parseHash('/session/x?tab=context');
+    assert.equal(r.path, '/session/x');
+    assert.equal(r.params.get('tab'), 'context');
+  });
+
+  it('handles empty input', () => {
+    const r = parseHash('');
+    assert.equal(r.path, '/');
+    assert.equal(r.params.toString(), '');
+  });
+
+  it('preserves session id with multiple ? defensively', () => {
+    // Only the first ? is treated as the param delimiter.
+    const r = parseHash('#/session/abc?tab=context');
+    assert.equal(r.path, '/session/abc');
+    assert.equal(r.params.get('tab'), 'context');
+  });
+});
+
+describe('buildHash', () => {
+  it('omits ? when params are empty', () => {
+    assert.equal(buildHash('/', new URLSearchParams()), '#/');
+  });
+
+  it('round-trips through parseHash', () => {
+    const original = '#/session/x?tab=context&filter=tool_call_start';
+    const { path, params } = parseHash(original);
+    const rebuilt = buildHash(path, params);
+    // Order of keys in URLSearchParams is insertion-stable.
+    assert.equal(rebuilt, original);
+  });
+});
+
+describe('updateParams', () => {
+  let originalLocation: Location;
+  let originalHistory: History;
+  let dispatchedEvents: string[];
+  let currentHash: string;
+
+  beforeEach(() => {
+    dispatchedEvents = [];
+    currentHash = '#/';
+    originalLocation = (globalThis as any).location;
+    originalHistory = (globalThis as any).history;
+
+    (globalThis as any).location = {
+      get hash() { return currentHash; },
+      set hash(v: string) { currentHash = v; },
+      pathname: '/',
+      search: '',
+    };
+    (globalThis as any).history = {
+      pushState: (_s: unknown, _t: string, url: string) => {
+        const i = url.indexOf('#');
+        currentHash = i >= 0 ? url.slice(i) : '';
+      },
+      replaceState: (_s: unknown, _t: string, url: string) => {
+        const i = url.indexOf('#');
+        currentHash = i >= 0 ? url.slice(i) : '';
+      },
+    };
+    (globalThis as any).window = {
+      dispatchEvent: (e: Event) => { dispatchedEvents.push(e.type); return true; },
+    };
+    (globalThis as any).HashChangeEvent = class extends Event {};
+  });
+
+  afterEach(() => {
+    (globalThis as any).location = originalLocation;
+    (globalThis as any).history = originalHistory;
+  });
+
+  it('sets a new param', () => {
+    updateParams({ model: 'opus' });
+    assert.equal(currentHash, '#/?model=opus');
+    assert.deepEqual(dispatchedEvents, ['hashchange']);
+  });
+
+  it('null deletes a param', () => {
+    currentHash = '#/?model=opus&q=migration';
+    updateParams({ model: null });
+    assert.equal(currentHash, '#/?q=migration');
+  });
+
+  it('empty string deletes a param', () => {
+    currentHash = '#/?q=migration';
+    updateParams({ q: '' });
+    assert.equal(currentHash, '#/');
+  });
+
+  it('skips dispatch when value is unchanged', () => {
+    currentHash = '#/?model=opus';
+    updateParams({ model: 'opus' });
+    assert.deepEqual(dispatchedEvents, [], 'no hashchange fired when result is identical');
+  });
+
+  it('preserves the path', () => {
+    currentHash = '#/session/abc?tab=timeline';
+    updateParams({ tab: 'context' }, 'push');
+    assert.equal(currentHash, '#/session/abc?tab=context');
+  });
+});

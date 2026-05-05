@@ -18,6 +18,21 @@
   font-weight: 500;
 }
 
+.reset-filters {
+  font-size: 12px;
+  color: var(--text2);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 3px 10px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.reset-filters:hover {
+  color: var(--text);
+  border-color: var(--text3);
+}
+
 .filter-chips {
   display: flex;
   gap: 4px;
