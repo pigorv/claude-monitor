@@ -337,7 +337,7 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
           />
         `}
         ${tab === "agents" && html`
-          <${AgentTree} agents=${data.agents} sessionStart=${s.started_at} agentEfficiency=${data.agent_efficiency} />
+          <${AgentTree} agents=${data.agents} sessionStart=${s.started_at} agentEfficiency=${data.agent_efficiency} params=${params} />
         `}
       </div>
     </div>

@@ -216,6 +216,9 @@ export function SessionList({ params }: { params: URLSearchParams }) {
   function resetFilters() {
     if (timerRef.current) clearTimeout(timerRef.current);
     setSearchQuery("");
+    setChipPref("all");
+    setProjectPref(null);
+    setSortPref(DEFAULT_SORT);
     updateParams(
       { model: null, q: null, project: null, sort: null, order: null },
       "replace",
@@ -335,9 +338,13 @@ export function SessionList({ params }: { params: URLSearchParams }) {
   const visibleProjects = projectsExpanded ? projects : projects.slice(0, MAX_VISIBLE_PROJECTS);
   const hasOverflow = projects.length > MAX_VISIBLE_PROJECTS;
 
-  // Show Reset button only when at least one Tier 1 param is set.
-  const hasUrlOverrides = urlModel != null || urlProject != null || urlSort != null
-    || urlOrder != null || (urlQ?.length ?? 0) > 0;
+  // Show Clear filters whenever the effective view differs from factory
+  // defaults — URL params and localStorage prefs both count as "active".
+  const hasActiveFilters = chipFilter !== "all"
+    || searchQuery !== ""
+    || selectedProject != null
+    || sortCol !== DEFAULT_SORT.col
+    || sortOrder !== DEFAULT_SORT.order;
 
   return html`
     <div class="page">
@@ -389,9 +396,9 @@ export function SessionList({ params }: { params: URLSearchParams }) {
           )}
         </div>
         <span class="sort-label">Sort: Latest first</span>
-        ${hasUrlOverrides && html`
-          <button class="reset-filters" onClick=${resetFilters} title="Clear URL filters and fall back to your saved defaults">
-            Reset
+        ${hasActiveFilters && html`
+          <button class="reset-filters" onClick=${resetFilters} title="Clear filters and saved defaults">
+            Clear filters
           </button>
         `}
 
