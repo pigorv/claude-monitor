@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "preact/hooks";
+import { useState, useEffect, useMemo, useRef, useCallback } from "preact/hooks";
 import { html } from "htm/preact";
 import { fetchEvents } from "../api/client";
 import { EventCard } from "./EventCard";
 import { AgentGroup } from "./AgentGroup";
 import { CompactionBanner } from "./CompactionBanner";
 import { TokenBudgetBar } from "./TokenBudgetBar";
+import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { updateParams } from "../lib/url-state";
 import type { Event, EventType, AgentRelationship } from "../../../src/shared/types";
 
@@ -252,6 +253,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedToolGroups, setExpandedToolGroups] = useState<Record<string, boolean>>({});
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const urlFilter = params?.get("filter") ?? "";
   const typeFilter = VALID_TIMELINE_FILTERS.has(urlFilter) ? urlFilter : "";
@@ -260,9 +262,12 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
     updateParams({ filter: next || null }, "replace");
   }
 
+  // Reset accumulated events when the filter or session changes
   useEffect(() => {
     setOffset(0);
-  }, [typeFilter]);
+    setEvents([]);
+    setTotal(0);
+  }, [typeFilter, sessionId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -278,11 +283,18 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
       offset,
     })
       .then((res) => {
-        if (!cancelled) {
+        if (cancelled) return;
+        setTotal(res.total);
+        if (offset === 0) {
           setEvents(res.events);
-          setTotal(res.total);
-          setLoading(false);
+        } else {
+          setEvents((prev) => {
+            const seen = new Set(prev.map((e) => e.id));
+            const fresh = res.events.filter((e) => !seen.has(e.id));
+            return prev.concat(fresh);
+          });
         }
+        setLoading(false);
       })
       .catch((err) => {
         if (!cancelled) {
@@ -295,6 +307,14 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
       cancelled = true;
     };
   }, [sessionId, typeFilter, offset]);
+
+  const hasMore = events.length < total;
+  const loadMore = useCallback(() => {
+    if (loading || error || !hasMore) return;
+    setOffset(events.length);
+  }, [loading, error, hasMore, events.length]);
+
+  useInfiniteScroll(sentinelRef, { hasMore, loading, onLoadMore: loadMore });
 
   const toggleToolGroup = (key: string) => {
     setExpandedToolGroups((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -351,11 +371,11 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
         />
       `}
 
-      ${loading && html`<div class="status-text">Loading events…</div>`}
-      ${error && html`<div class="error-text">${error}</div>`}
-      ${!loading && !error && events.length === 0 && html`<div class="status-text">No events found.</div>`}
+      ${loading && events.length === 0 && html`<div class="status-text">Loading events…</div>`}
+      ${error && events.length === 0 && html`<div class="error-text">${error}</div>`}
+      ${!loading && !error && events.length === 0 && total === 0 && html`<div class="status-text">No events found.</div>`}
 
-      ${!loading && !error && events.length > 0 && html`
+      ${events.length > 0 && html`
         <div class="timeline-events">
           ${groupedItems.map((item) =>
             item.type === "agent-group"
@@ -454,25 +474,19 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
           )}
         </div>
 
-        ${total > PAGE_SIZE && html`
-          <div class="pagination">
-            <button
-              class="pg-btn"
-              disabled=${offset === 0}
-              onClick=${() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-            >
-              ← Prev
-            </button>
-            <span class="pg-info">${offset + 1}–${Math.min(offset + PAGE_SIZE, total)} of ${total}</span>
-            <button
-              class="pg-btn"
-              disabled=${offset + PAGE_SIZE >= total}
-              onClick=${() => setOffset(offset + PAGE_SIZE)}
-            >
-              Next →
-            </button>
-          </div>
-        `}
+        <div class="infinite-sentinel" ref=${sentinelRef}>
+          ${loading && html`<span class="status-text">Loading more…</span>`}
+          ${error && !loading && html`
+            <span class="error-text">${error}</span>
+            <button class="retry-btn" onClick=${loadMore}>Retry</button>
+          `}
+          ${!loading && !error && !hasMore && total > PAGE_SIZE && html`
+            <span class="status-text">All ${total} events loaded</span>
+          `}
+          ${!loading && !error && hasMore && html`
+            <span class="status-text">${events.length} / ${total} loaded</span>
+          `}
+        </div>
       `}
     </div>
   `;
