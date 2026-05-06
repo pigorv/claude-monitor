@@ -7,9 +7,12 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
+<!-- hero:start -->
+<!-- hero captured-on: v0.3.1 -->
 <p align="center">
   <video src="https://github.com/user-attachments/assets/478ee4ca-035f-4322-8bb5-97756071e8f0" controls="controls" muted="muted" style="max-width: 100%;"></video>
 </p>
+<!-- hero:end -->
 
 ## Why?
 
@@ -20,6 +23,7 @@ Claude Code sessions generate rich transcript data, but you can't see what's hap
 - **Sub-agent calls are opaque** — spawned agents consume tokens and return results you never see. claude-monitor maps the full agent tree with per-agent token costs, Gantt timelines, tool breakdowns, and result classification.
 - **Compactions are invisible** — when Claude compresses its context, you lose information silently. claude-monitor marks every compaction on the timeline so you can see exactly when and how much was lost.
 
+<!-- quickstart:start -->
 ## Quick Start
 
 First, import every existing Claude Code session from `~/.claude/projects/`:
@@ -35,7 +39,9 @@ npx @pigorv/claude-monitor start
 ```
 
 **Requirements:** Node.js >= 20, Claude Code (for transcript files)
+<!-- quickstart:end -->
 
+<!-- features:start -->
 ## Features
 
 **Session List** — Filterable, sortable table with model filter chips, search, sparkline previews, and color-coded compaction counts.
@@ -55,11 +61,13 @@ npx @pigorv/claude-monitor start
 <img src="docs/images/session-detail-agents.png" alt="Agent tree with Gantt chart showing 5 sub-agents with timeline bars, token counts, tool call counts, and status badges" width="700" />
 
 **File Tracking** — See every file loaded into context, how many times it was re-read, and how many tokens each file consumed. Spot wasteful re-reads and files that bloat your context window.
+<!-- features:end -->
 
 ## How It Works
 
 The `start` command watches `~/.claude/projects/` for JSONL transcript files. Each transcript is parsed into thinking blocks, tool calls, token snapshots, and compaction events, then stored in a local SQLite database (`~/.claude-monitor/data.sqlite`). The dashboard reads from this database — no data leaves your machine.
 
+<!-- cli:start -->
 ## CLI Reference
 
 | Command | Description |
@@ -71,6 +79,7 @@ The `start` command watches `~/.claude/projects/` for JSONL transcript files. Ea
 Options for `start`: `--port, -p <number>`, `--no-open`, `--db <path>`, `--verbose`
 
 Options for `import`: `--force` (re-import existing sessions)
+<!-- cli:end -->
 
 ## Built With
 
