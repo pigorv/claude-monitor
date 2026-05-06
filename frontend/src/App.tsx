@@ -3,25 +3,26 @@ import { html } from "htm/preact";
 import { SessionList } from "./pages/SessionList";
 import { SessionDetail } from "./pages/SessionDetail";
 import { Settings } from "./pages/Settings";
+import { parseHash, type ParsedHash } from "./lib/url-state";
 
-function useRoute(): string {
-  const [hash, setHash] = useState(location.hash || "#/");
+function useRoute(): ParsedHash {
+  const [parsed, setParsed] = useState<ParsedHash>(() => parseHash(location.hash || "#/"));
   useEffect(() => {
-    const onHashChange = () => setHash(location.hash || "#/");
+    const onHashChange = () => setParsed(parseHash(location.hash || "#/"));
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
-  return hash.slice(1); // strip leading '#'
+  return parsed;
 }
 
 function Nav() {
-  const route = useRoute();
+  const { path } = useRoute();
   return html`
     <nav>
       <div class="brand">claude<span class="brand-accent">monitor</span></div>
       <div class="nav-links">
-        <a href="#/" class=${route === "/" ? "active" : ""}>Sessions</a>
-        <a href="#/settings" class=${route === "/settings" ? "active" : ""}>Settings</a>
+        <a href="#/" class=${path === "/" ? "active" : ""}>Sessions</a>
+        <a href="#/settings" class=${path === "/settings" ? "active" : ""}>Settings</a>
       </div>
     </nav>
   `;
@@ -37,16 +38,16 @@ function NotFound() {
 }
 
 export function App() {
-  const route = useRoute();
+  const { path, params } = useRoute();
 
   let page;
-  if (route === "/") {
-    page = html`<${SessionList} />`;
-  } else if (route === "/settings") {
+  if (path === "/") {
+    page = html`<${SessionList} params=${params} />`;
+  } else if (path === "/settings") {
     page = html`<${Settings} />`;
-  } else if (route.startsWith("/session/")) {
-    const id = route.slice("/session/".length);
-    page = html`<${SessionDetail} id=${id} />`;
+  } else if (path.startsWith("/session/")) {
+    const id = path.slice("/session/".length);
+    page = html`<${SessionDetail} id=${id} params=${params} />`;
   } else {
     page = html`<${NotFound} />`;
   }

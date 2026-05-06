@@ -18,6 +18,32 @@
   font-weight: 500;
 }
 
+.reset-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--orange);
+  background: color-mix(in srgb, var(--orange) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--orange) 45%, transparent);
+  border-radius: var(--r-pill);
+  padding: 4px 10px 4px 8px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s;
+}
+.reset-filters:hover {
+  background: color-mix(in srgb, var(--orange) 22%, transparent);
+  border-color: var(--orange);
+}
+.reset-filters .reset-x {
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 700;
+  display: inline-block;
+}
+
 .filter-chips {
   display: flex;
   gap: 4px;

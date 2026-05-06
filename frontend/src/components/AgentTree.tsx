@@ -1,11 +1,13 @@
 import { useState } from "preact/hooks";
 import { html } from "htm/preact";
+import { updateParams } from "../lib/url-state";
 import type { AgentRelationship, InternalToolCall, AgentEfficiencyAggregates, TokenDataPoint } from "../../../src/shared/types";
 
 interface AgentTreeProps {
   agents: (AgentRelationship & { token_timeline?: TokenDataPoint[] })[];
   sessionStart?: string;
   agentEfficiency?: AgentEfficiencyAggregates;
+  params?: URLSearchParams;
 }
 
 /* ── Format helpers ──────────────────────────────────────── */
@@ -355,9 +357,7 @@ function AgentDetailPanel({
 
 /* ── Main AgentTree ──────────────────────────────────────── */
 
-export function AgentTree({ agents, sessionStart, agentEfficiency }: AgentTreeProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
+export function AgentTree({ agents, sessionStart, agentEfficiency, params }: AgentTreeProps) {
   if (agents.length === 0) {
     return html`<div class="status-text">No sub-agents spawned in this session.</div>`;
   }
@@ -378,11 +378,17 @@ export function AgentTree({ agents, sessionStart, agentEfficiency }: AgentTreePr
 
   const gantt = computeGantt(sorted, sessionStart);
   const ticks = computeTimeAxis(gantt.duration);
-  const selectedAgent = selectedId ? sorted.find((a) => a.child_agent_id === selectedId) : null;
 
-  // Auto-select first agent if none selected
-  const effectiveSelectedId = selectedId ?? (sorted.length > 0 ? sorted[0].child_agent_id : null);
-  const effectiveSelectedAgent = effectiveSelectedId ? sorted.find((a) => a.child_agent_id === effectiveSelectedId) : null;
+  // URL-backed selection. Empty/unknown ?agent= silently falls back to the
+  // first agent (silent default) — the URL only fills when the user clicks.
+  const urlAgent = params?.get("agent") ?? null;
+  const urlAgentExists = urlAgent != null && sorted.some((a) => a.child_agent_id === urlAgent);
+  const effectiveSelectedId = urlAgentExists ? urlAgent : sorted[0].child_agent_id;
+  const effectiveSelectedAgent = sorted.find((a) => a.child_agent_id === effectiveSelectedId) ?? null;
+
+  function selectAgent(id: string) {
+    updateParams({ agent: id }, "replace");
+  }
 
   return html`
     <div class="agent-tree">
@@ -443,7 +449,7 @@ export function AgentTree({ agents, sessionStart, agentEfficiency }: AgentTreePr
           return html`
             <div
               class=${"gantt-row" + (isSelected ? " selected" : "")}
-              onClick=${() => setSelectedId(agent.child_agent_id)}
+              onClick=${() => selectAgent(agent.child_agent_id)}
             >
               <div class="gantt-label">
                 <span class=${"gantt-label-id" + (isFailed ? " failed" : "")}>${agent.child_agent_id}</span>
