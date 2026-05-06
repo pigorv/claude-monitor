@@ -367,11 +367,12 @@ th.sort-desc::after {
   cursor: pointer;
 }
 
-/* Floating "Back to top" button */
+/* Floating "Back to top" button — fixed to bottom-center */
 .back-to-top {
   position: fixed;
-  right: 24px;
+  left: 50%;
   bottom: 24px;
+  transform: translateX(-50%);
   font-family: var(--sans);
   font-size: 12px;
   font-weight: 600;
