@@ -17,6 +17,11 @@ describe('SessionHealthStrip', () => {
     assert.ok(out.includes('—'), 'should render dash placeholder');
   });
 
+  it('does not show placeholder when only one signal is non-zero', () => {
+    const out = render(html`<${SessionHealthStrip} contextPct=${0} peakTokens=${0} compactionCount=${1} />`);
+    assert.ok(out.includes('hs-comp'), 'compaction squares render even when other signals are zero');
+  });
+
   it('renders three bars/dots groups for active sessions', () => {
     const out = render(html`<${SessionHealthStrip} contextPct=${42} peakTokens=${250_000} compactionCount=${1} />`);
     assert.ok(out.includes('hs-ctx'), 'has context bar');
@@ -25,17 +30,17 @@ describe('SessionHealthStrip', () => {
   });
 
   it('uses green tone below 60%', () => {
-    const out = render(html`<${SessionHealthStrip} contextPct=${50} peakTokens=${100_000} compactionCount=${0} />`);
+    const out = render(html`<${SessionHealthStrip} contextPct=${59} peakTokens=${100_000} compactionCount=${0} />`);
     assert.ok(out.includes('hs-green'), 'context <60 → green tone');
   });
 
   it('uses amber tone in 60-69 range', () => {
-    const out = render(html`<${SessionHealthStrip} contextPct=${65} peakTokens=${100_000} compactionCount=${0} />`);
+    const out = render(html`<${SessionHealthStrip} contextPct=${60} peakTokens=${100_000} compactionCount=${0} />`);
     assert.ok(out.includes('hs-amber'), 'context 60-69 → amber tone');
   });
 
   it('uses rose tone at 70% and above', () => {
-    const out = render(html`<${SessionHealthStrip} contextPct=${72} peakTokens=${100_000} compactionCount=${0} />`);
+    const out = render(html`<${SessionHealthStrip} contextPct=${70} peakTokens=${100_000} compactionCount=${0} />`);
     assert.ok(out.includes('hs-rose'), 'context >=70 → rose tone');
   });
 
