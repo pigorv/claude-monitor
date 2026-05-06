@@ -10,7 +10,7 @@ import type {
 } from '../../shared/types.js';
 import { getSession, listSessions, listProjects, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions } from '../../db/queries/sessions.js';
 import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
-import { getSessionStats, getToolFrequency, getFileActivity, getPeakParentTokens } from '../../db/queries/stats.js';
+import { getSessionStats, getToolFrequency, getFileActivity, getPeakParentTokens, getPeakParentTokensForSessions } from '../../db/queries/stats.js';
 import type { SessionFilters } from '../../db/queries/sessions.js';
 import { riskLevel } from '../../analysis/risk-scoring.js';
 import { MODEL_PRICING } from '../../shared/constants.js';
@@ -35,7 +35,11 @@ function estimateCost(model: string | null, inputTokens: number, outputTokens: n
   return Math.round(cost * 1_000_000) / 1_000_000;
 }
 
-function sessionToSummary(session: Session, miniTimeline?: import('../../shared/types.js').MiniTimelinePoint[]): SessionSummary {
+function sessionToSummary(
+  session: Session,
+  miniTimeline?: import('../../shared/types.js').MiniTimelinePoint[],
+  peakTokens?: number,
+): SessionSummary {
   const score = session.risk_score ?? 0;
   return {
     id: session.id,
@@ -49,6 +53,7 @@ function sessionToSummary(session: Session, miniTimeline?: import('../../shared/
     total_input_tokens: session.total_input_tokens,
     total_output_tokens: session.total_output_tokens,
     peak_context_pct: session.peak_context_pct ?? 0,
+    peak_tokens: peakTokens ?? 0,
     compaction_count: session.compaction_count,
     tool_call_count: session.tool_call_count,
     subagent_count: session.subagent_count,
@@ -93,11 +98,13 @@ sessions.get('/api/sessions', (c) => {
 
   const { sessions: rows, total } = listSessions(filters);
 
-  // Batch-fetch mini timelines for all sessions in a single query
-  const miniTimelines = getMiniTimelinesForSessions(rows.map((s) => s.id));
+  // Batch-fetch mini timelines and peak parent tokens for all sessions
+  const sessionIds = rows.map((s) => s.id);
+  const miniTimelines = getMiniTimelinesForSessions(sessionIds);
+  const peakTokensBySession = getPeakParentTokensForSessions(sessionIds);
 
   const response: SessionListResponse = {
-    sessions: rows.map((s) => sessionToSummary(s, miniTimelines.get(s.id))),
+    sessions: rows.map((s) => sessionToSummary(s, miniTimelines.get(s.id), peakTokensBySession.get(s.id))),
     total,
     limit: filters.limit ?? 50,
     offset: filters.offset ?? 0,

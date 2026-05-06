@@ -134,6 +134,8 @@ describe('Sessions routes', () => {
     assert.equal(s.risk_score, 0.35);
     assert.equal(s.risk_level, 'medium');
     assert.equal(s.summary, 'Implemented feature X');
+    assert.equal(typeof s.peak_tokens, 'number');
+    assert.ok(s.peak_tokens >= 550);
   });
 
   it('filters by status', async () => {

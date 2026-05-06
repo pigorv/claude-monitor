@@ -282,3 +282,24 @@ export function getPeakParentTokens(sessionId: string): number | null {
   const row = _peakParentTokensStmt.get(sessionId) as { peak_tokens: number | null } | undefined;
   return row?.peak_tokens ?? null;
 }
+
+export function getPeakParentTokensForSessions(sessionIds: string[]): Map<string, number> {
+  if (sessionIds.length === 0) return new Map();
+
+  const db = getDb();
+  const placeholders = sessionIds.map(() => '?').join(',');
+  const rows = db.prepare(`
+    SELECT
+      session_id,
+      MAX(COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)) as peak_tokens
+    FROM events
+    WHERE session_id IN (${placeholders}) AND agent_id IS NULL AND input_tokens IS NOT NULL
+    GROUP BY session_id
+  `).all(...sessionIds) as { session_id: string; peak_tokens: number | null }[];
+
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    out.set(r.session_id, r.peak_tokens ?? 0);
+  }
+  return out;
+}

@@ -199,23 +199,100 @@
   border: 1px solid var(--border);
 }
 
-/* Center-align compactions & agents columns */
+/* Center-align agents column */
 td:nth-child(4),
-td:nth-child(5),
-th:nth-child(4),
-th:nth-child(5) {
+th:nth-child(4) {
   text-align: center;
 }
 
-/* Sparkline cell */
-td.spark {
-  padding: 13px 10px;
+/* Session-health strip cell */
+td.health {
+  padding: 13px 14px;
   vertical-align: middle;
-  text-align: center;
+  white-space: nowrap;
 }
 
-td.spark svg {
-  vertical-align: middle;
+.health-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hs-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hs-track {
+  width: 60px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-muted);
+  overflow: hidden;
+}
+
+.hs-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--text3);
+}
+
+.hs-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  min-width: 30px;
+  color: var(--text2);
+}
+
+.hs-ctx.hs-green .hs-fill { background: var(--health-green); }
+.hs-ctx.hs-amber .hs-fill { background: var(--health-amber); }
+.hs-ctx.hs-rose  .hs-fill { background: var(--health-rose); }
+
+.hs-ctx.hs-green .hs-label { color: var(--health-green); }
+.hs-ctx.hs-amber .hs-label { color: var(--health-amber); }
+.hs-ctx.hs-rose  .hs-label { color: var(--health-rose); }
+
+.hs-peak .hs-fill {
+  background: var(--health-violet);
+  opacity: 0.85;
+}
+
+.hs-peak .hs-label {
+  color: var(--text3);
+}
+
+.hs-comp {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.hs-sq {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+}
+
+.hs-sq.hs-sq-on {
+  background: var(--health-rose);
+  border-color: var(--health-rose);
+}
+
+th .th-hint {
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--text3);
+  font-size: 11px;
+  cursor: help;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+th .th-hint:hover {
+  color: var(--text2);
 }
 
 /* Sortable column headers */
