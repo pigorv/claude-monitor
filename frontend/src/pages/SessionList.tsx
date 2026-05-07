@@ -2,10 +2,12 @@ import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import { html } from "htm/preact";
 import { fetchSessions, fetchApi, fetchProjects } from "../api/client";
 import { SessionHealthStrip } from "../components/SessionHealthStrip";
+import { BackToTop } from "../components/BackToTop";
 import { usePersistentState } from "../hooks/usePersistentState";
+import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { updateParams } from "../lib/url-state";
 import { migrateProjectFilterKey } from "../lib/migrate-project-filter";
-import type { SessionSummary, SessionListResponse, ProjectInfo } from "../../../src/shared/types";
+import type { SessionSummary, ProjectInfo } from "../../../src/shared/types";
 import "../styles/session-list.css";
 
 // ── Formatting helpers ──────────────────────────────────────────────
@@ -163,15 +165,18 @@ export function SessionList({ params }: { params: URLSearchParams }) {
   // Project list (server data)
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
 
-  // Pagination — local state; URL persistence deferred to issue #29 (which
-  // removes user-facing pagination on the views that have it).
+  // Infinite scroll — `offset` is internal; the user only sees a sentinel
+  // that loads the next page when scrolled into view.
   const [offset, setOffset] = useState(0);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [total, setTotal] = useState(0);
 
-  // Data
-  const [data, setData] = useState<SessionListResponse | null>(null);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [endOfList, setEndOfList] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Debounced URL write for search
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -232,9 +237,13 @@ export function SessionList({ params }: { params: URLSearchParams }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reset offset on filter/sort changes
+  // Reset offset and accumulated sessions on filter/sort changes
   useEffect(() => {
     setOffset(0);
+    setSessions([]);
+    setTotal(0);
+    setEndOfList(false);
+    setLoadError(null);
   }, [chipFilter, debouncedQuery, selectedProject, sortCol, sortOrder]);
 
   // Build filter params from chip
@@ -264,28 +273,51 @@ export function SessionList({ params }: { params: URLSearchParams }) {
     return queryParams;
   }
 
-  // Fetch sessions
+  // Fetch sessions — appends when offset > 0 (next page), replaces on offset 0.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
+    setLoadError(null);
 
     fetchSessions(buildParams())
       .then((res) => {
-        if (!cancelled) {
-          setData(res);
-          setLoading(false);
+        if (cancelled) return;
+        setTotal(res.total);
+        if (offset === 0) {
+          setSessions(res.sessions);
+        } else {
+          setSessions((prev) => {
+            const seen = new Set(prev.map((s) => s.id));
+            const fresh = res.sessions.filter((s) => !seen.has(s.id));
+            return prev.concat(fresh);
+          });
         }
+        if (res.sessions.length === 0) setEndOfList(true);
+        setLoading(false);
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(err.message);
+          setLoadError(err.message);
           setLoading(false);
         }
       });
 
     return () => { cancelled = true; };
-  }, [chipFilter, debouncedQuery, selectedProject, sortCol, sortOrder, offset]);
+  }, [chipFilter, debouncedQuery, selectedProject, sortCol, sortOrder, offset, retryNonce]);
+
+  const hasMore = !endOfList && sessions.length < total;
+  const loadMore = useCallback(() => {
+    if (loading || loadError || !hasMore) return;
+    setOffset((prev) => prev + PAGE_SIZE);
+  }, [loading, loadError, hasMore]);
+
+  const retry = useCallback(() => {
+    if (loading || !hasMore) return;
+    setLoadError(null);
+    setRetryNonce((n) => n + 1);
+  }, [loading, hasMore]);
+
+  useInfiniteScroll(sentinelRef, { hasMore, loading, onLoadMore: loadMore });
 
   function toggleSort(col: SortColumn) {
     if (sortCol === col) {
@@ -304,21 +336,16 @@ export function SessionList({ params }: { params: URLSearchParams }) {
     location.hash = `#/session/${id}`;
   }
 
-  // Pagination info
-  const total = data?.total ?? 0;
-  const rangeStart = total > 0 ? offset + 1 : 0;
-  const rangeEnd = Math.min(offset + PAGE_SIZE, total);
-  const hasPrev = offset > 0;
-  const hasNext = offset + PAGE_SIZE < total;
-
   // Stats calculations
   const totalTokens = stats ? stats.total_input_tokens + stats.total_output_tokens : 0;
 
   // Count active sessions from loaded data
-  const activeSessions = data ? data.sessions.filter((s: SessionSummary) => s.status === "running").length : 0;
+  const activeSessions = sessions.filter((s: SessionSummary) => s.status === "running").length;
 
   // Unique projects count — prefer the full list from /api/projects over the current page
-  const uniqueProjects = projects.length > 0 ? projects.length : (data ? new Set(data.sessions.map((s: SessionSummary) => s.project_name)).size : 0);
+  const uniqueProjects = projects.length > 0
+    ? projects.length
+    : new Set(sessions.map((s: SessionSummary) => s.project_name)).size;
 
   // Visible project chips (with overflow)
   const visibleProjects = projectsExpanded ? projects : projects.slice(0, MAX_VISIBLE_PROJECTS);
@@ -422,12 +449,12 @@ export function SessionList({ params }: { params: URLSearchParams }) {
         `}
       </div>
 
-      ${loading && html`<div class="status-text">Loading sessions...</div>`}
-      ${error && html`<div class="error-text">${error}</div>`}
-      ${!loading && !error && total === 0 && html`<div class="status-text">No sessions found.</div>`}
+      ${loading && sessions.length === 0 && html`<div class="status-text">Loading sessions...</div>`}
+      ${loadError && sessions.length === 0 && html`<div class="error-text">${loadError}</div>`}
+      ${!loading && !loadError && total === 0 && html`<div class="status-text">No sessions found.</div>`}
 
-      ${!loading && !error && total > 0 && html`
-        <div class="table-wrap">
+      ${sessions.length > 0 && html`
+        <div class="table-wrap sticky-head">
           <table>
             <thead>
               <tr>
@@ -445,7 +472,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
               </tr>
             </thead>
             <tbody>
-              ${data!.sessions.map(
+              ${sessions.map(
                 (s: SessionSummary) => html`
                   <tr onClick=${() => navigateToSession(s.id)}>
                     <td>
@@ -493,15 +520,22 @@ export function SessionList({ params }: { params: URLSearchParams }) {
               )}
             </tbody>
           </table>
-          <div class="pagination">
-            <span>Showing ${rangeStart}–${rangeEnd} of ${total} sessions</span>
-            <div class="page-btns">
-              <button disabled=${!hasPrev} onClick=${() => setOffset(Math.max(0, offset - PAGE_SIZE))}>← Previous</button>
-              <button disabled=${!hasNext} onClick=${() => setOffset(offset + PAGE_SIZE)}>Next →</button>
-            </div>
+          <div class="infinite-sentinel" ref=${sentinelRef}>
+            ${loading && html`<span class="status-text">Loading more…</span>`}
+            ${loadError && !loading && html`
+              <span class="error-text">${loadError}</span>
+              <button class="retry-btn" onClick=${retry}>Retry</button>
+            `}
+            ${!loading && !loadError && !hasMore && html`
+              <span class="status-text">All ${total} sessions loaded</span>
+            `}
+            ${!loading && !loadError && hasMore && html`
+              <span class="status-text">${sessions.length} / ${total} loaded</span>
+            `}
           </div>
         </div>
       `}
+      <${BackToTop} />
     </div>
   `;
 }

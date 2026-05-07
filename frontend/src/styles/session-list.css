@@ -322,28 +322,44 @@ th.sort-desc::after {
   font-size: 8px;
 }
 
-/* Pagination */
-.pagination {
+/* Sticky table header for the SessionList — scoped via .sticky-head so the
+   shared .table-wrap is not affected elsewhere. `overflow: clip` keeps the
+   rounded corners while still allowing sticky positioning. */
+.table-wrap.sticky-head {
+  overflow: clip;
+}
+
+.table-wrap.sticky-head thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+/* Infinite-scroll sentinel: last row of the list, observed for visibility. */
+.infinite-sentinel {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
   border-top: 1px solid var(--border);
   background: var(--bg-muted);
   font-size: 12px;
   color: var(--text3);
+  min-height: 44px;
 }
 
-.page-btns {
-  display: flex;
-  gap: 4px;
+.infinite-sentinel .status-text,
+.infinite-sentinel .error-text {
+  margin: 0;
+  padding: 0;
 }
 
-.page-btns button {
+.infinite-sentinel .retry-btn {
   font-family: var(--sans);
   font-size: 12px;
   font-weight: 500;
-  padding: 5px 12px;
+  padding: 4px 10px;
   border: 1px solid var(--border);
   border-radius: var(--r-xs);
   background: var(--bg-card);
@@ -351,9 +367,29 @@ th.sort-desc::after {
   cursor: pointer;
 }
 
-.page-btns button:disabled {
-  opacity: 0.4;
-  cursor: default;
+/* Floating "Back to top" button — fixed to bottom-center */
+.back-to-top {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--bg-card);
+  color: var(--text2);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  z-index: 50;
+  transition: background 0.15s, color 0.15s;
+}
+
+.back-to-top:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 /* Orange text utility */

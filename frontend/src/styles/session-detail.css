@@ -2178,20 +2178,29 @@
   font-weight: 600;
 }
 
-/* Change 5: Centered, styled pagination */
-.pagination {
+/* Timeline infinite-scroll sentinel */
+.timeline .infinite-sentinel {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   padding: 16px 0;
   margin-top: 8px;
-}
-.pg-info {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text3);
-  padding: 0 8px;
-  font-family: var(--mono);
+  min-height: 44px;
+}
+
+.timeline .infinite-sentinel .retry-btn {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--bg-card);
+  color: var(--text2);
+  cursor: pointer;
 }
 
 /* Change 6: Bash group exit status dots */

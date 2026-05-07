@@ -4,6 +4,7 @@ import { fetchSession, openTerminal, type TerminalPreference } from "../api/clie
 import { Timeline } from "../components/Timeline";
 import { TokenChart } from "../components/TokenChart";
 import { AgentTree } from "../components/AgentTree";
+import { BackToTop } from "../components/BackToTop";
 import { updateParams } from "../lib/url-state";
 import type { SessionDetailResponse } from "../../../src/shared/types";
 import { resolveThresholds } from "../lib/chart-config";
@@ -347,6 +348,7 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
           <${AgentTree} agents=${data.agents} sessionStart=${s.started_at} agentEfficiency=${data.agent_efficiency} params=${params} />
         `}
       </div>
+      <${BackToTop} />
     </div>
   `;
 }
