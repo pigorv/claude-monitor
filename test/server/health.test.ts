@@ -177,6 +177,81 @@ describe('Static file serving: path traversal', () => {
   });
 });
 
+// ── Static file serving: root-level public assets ─────────────────────
+
+describe('Static file serving: root-level public assets', () => {
+  let tmpDir: string;
+  let app: ReturnType<typeof createApp>;
+
+  beforeAll(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'static-root-'));
+    getDb(join(tmpDir, 'test.sqlite'));
+    const frontendDir = join(tmpDir, 'frontend');
+    mkdirSync(frontendDir, { recursive: true });
+    writeFileSync(join(frontendDir, 'index.html'), '<html>spa</html>');
+    writeFileSync(join(frontendDir, 'favicon.svg'), '<svg>icon</svg>');
+    writeFileSync(join(frontendDir, 'favicon-16.png'), 'PNG16');
+    writeFileSync(join(frontendDir, 'favicon-32.png'), 'PNG32');
+    writeFileSync(join(frontendDir, 'apple-touch-icon.png'), 'PNG180');
+    writeFileSync(join(frontendDir, 'safari-pinned-tab.svg'), '<svg>mask</svg>');
+    writeFileSync(join(frontendDir, 'site.webmanifest'), '{"name":"test"}');
+    app = createApp({ frontendDir });
+  });
+
+  afterAll(() => {
+    closeDb();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('serves favicon.svg with image/svg+xml', async () => {
+    const res = await app.request('/favicon.svg');
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'image/svg+xml');
+    assert.equal(await res.text(), '<svg>icon</svg>');
+  });
+
+  it('serves favicon-16.png and favicon-32.png with image/png', async () => {
+    for (const path of ['/favicon-16.png', '/favicon-32.png']) {
+      const res = await app.request(path);
+      assert.equal(res.status, 200, `${path} status`);
+      assert.equal(res.headers.get('content-type'), 'image/png', `${path} content-type`);
+    }
+  });
+
+  it('serves apple-touch-icon.png and safari-pinned-tab.svg', async () => {
+    const apple = await app.request('/apple-touch-icon.png');
+    assert.equal(apple.status, 200);
+    assert.equal(apple.headers.get('content-type'), 'image/png');
+    const safari = await app.request('/safari-pinned-tab.svg');
+    assert.equal(safari.status, 200);
+    assert.equal(safari.headers.get('content-type'), 'image/svg+xml');
+  });
+
+  it('serves site.webmanifest with application/manifest+json', async () => {
+    const res = await app.request('/site.webmanifest');
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'application/manifest+json');
+    assert.equal(await res.text(), '{"name":"test"}');
+  });
+
+  it('unknown root paths still fall through to SPA fallback', async () => {
+    const res = await app.request('/some-random-route');
+    assert.equal(res.status, 200);
+    const text = await res.text();
+    assert.ok(text.includes('<html>spa</html>'));
+  });
+
+  it('non-allowlisted root files are NOT served as raw files', async () => {
+    // /index.html itself is not in the allowlist; root paths that aren't
+    // allowlisted hit the SPA fallback (which happens to also return index.html).
+    // This test guards against accidentally widening the allowlist to e.g. ".env".
+    writeFileSync(join(tmpDir, 'frontend', 'secret.txt'), 'DO NOT SERVE');
+    const res = await app.request('/secret.txt');
+    const text = await res.text();
+    assert.ok(!text.includes('DO NOT SERVE'));
+  });
+});
+
 // ── Server startup: port conflict ─────────────────────────────────────
 
 describe('Server startup: port conflict', () => {
