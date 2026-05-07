@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Favicon and web app manifest so the dashboard is identifiable in pinned tabs, bookmarks, and OS-level previews (stacked token-pressure bars in the brand purple).
 - Cross-session preferences (default sort, default chip filter, default project, project sidebar expanded?) persist in localStorage under `cm.sessionList.*` keys. Existing `cm:projectFilter` is migrated automatically on first load. Session detail always opens on the Timeline tab — switching tabs still updates the URL for sharing/back-forward, but no preference is saved across sessions.
 - "Clear filters" button on the session list resets URL params and saved localStorage defaults back to the factory state. Appears whenever any filter is active, regardless of whether it came from the URL or your saved preferences.
+- Demo data seeder (`npm run demo:seed`) emits 8 synthetic JSONL transcripts under `/tmp/cm-demo-data/` covering 4 projects, single + multi-model sessions, sub-agents, and varied context utilization for screenshot/walkthrough capture without touching real `~/.claude/projects/` history.
+- Playwright-driven walkthrough recorder (`npm run demo:walkthrough`) seeds demo data, spins up an isolated dashboard, drives a scripted tour with a fake cursor and click ripples, and produces `docs/images/hero.mp4` + `docs/images/hero.gif` for the README hero block.
 
 ## [0.3.2] - 2026-05-01
 

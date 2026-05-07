@@ -39,7 +39,9 @@
     "dev": "tsup --watch",
     "dev:frontend": "vite dev",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "demo:seed": "node scripts/demo-seed.mjs",
+    "demo:walkthrough": "node scripts/demo-walkthrough.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.11",
