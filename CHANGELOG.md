@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-05-08
+
 ### Changed
 
 - Session List and Timeline now load more rows/events automatically as you scroll, replacing the Prev/Next pagination. The Session List header row stays sticky while scrolling, and a "↑ Top" button appears after scrolling past two viewports.
