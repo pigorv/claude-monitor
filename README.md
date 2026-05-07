@@ -10,7 +10,7 @@
 <!-- hero:start -->
 <!-- hero captured-on: v0.3.2 -->
 <p align="center">
-  <img src="docs/images/hero.gif" alt="claude-monitor walkthrough — session list with project filter and Health strip, then session detail showing the Open in Terminal button, context chart with compaction markers, and a 5-agent Gantt timeline" style="max-width: 100%;" />
+  <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/hero.gif" alt="claude-monitor walkthrough — session list with project filter and Health strip, then session detail showing the Open in Terminal button, context chart with compaction markers, and a 5-agent Gantt timeline" style="max-width: 100%;" />
 </p>
 <!-- hero:end -->
 
@@ -46,19 +46,19 @@ npx @pigorv/claude-monitor start
 
 **Session List** — Filterable, sortable table with model filter chips, a project folder filter with session counts, Sonnet→Opus multi-model pills, search, infinite scroll with a sticky header, and a Health strip on every row showing context %, peak tokens against a 1M reference, and compaction dots.
 
-<img src="docs/images/session-list.png" alt="Session list across 4 projects with project filter chips, multi-model pills (Sonnet→Opus, Opus→Sonnet), and Health strips showing context %, peak tokens, and compaction dots" width="700" />
+<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-list.png" alt="Session list across 4 projects with project filter chips, multi-model pills (Sonnet→Opus, Opus→Sonnet), and Health strips showing context %, peak tokens, and compaction dots" width="700" />
 
 **Context Pressure** — Interactive token chart (uPlot) with input/output/cache breakdown, model-specific thresholds, compaction markers, and drag-to-zoom.
 
-<img src="docs/images/session-detail-context.png" alt="Session detail page with header stats and a one-click Open in Terminal button, plus a context utilization chart showing two compaction drops and warning/danger threshold zones" width="700" />
+<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-context.png" alt="Session detail page with header stats and a one-click Open in Terminal button, plus a context utilization chart showing two compaction drops and warning/danger threshold zones" width="700" />
 
 **Thinking Inspection** — Expandable thinking blocks in the event timeline, with infinite scroll across long sessions. See exactly where Claude's reasoning chain took a wrong turn.
 
-<img src="docs/images/session-detail-timeline.png" alt="Timeline tab showing chronological event cards with tool calls, a compaction marker, and a token budget bar at 67% — plus the always-visible Open in Terminal button on the session header" width="700" />
+<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-timeline.png" alt="Timeline tab showing chronological event cards with tool calls, a compaction marker, and a token budget bar at 67% — plus the always-visible Open in Terminal button on the session header" width="700" />
 
 **Agent Tree** — Full sub-agent visibility with Gantt timeline, per-agent token costs, tool call breakdowns, compression ratios, and result classification. See which agents ran in parallel, which ones failed, and how much context each one consumed.
 
-<img src="docs/images/session-detail-agents.png" alt="Agent concurrency Gantt with 5 sub-agents, per-agent token counts, tool call counts, and completed status badges, plus a one-click Open in Terminal button" width="700" />
+<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-agents.png" alt="Agent concurrency Gantt with 5 sub-agents, per-agent token counts, tool call counts, and completed status badges, plus a one-click Open in Terminal button" width="700" />
 
 **File Tracking** — See every file loaded into context, how many times it was re-read, and how many tokens each file consumed. Spot wasteful re-reads and files that bloat your context window.
 

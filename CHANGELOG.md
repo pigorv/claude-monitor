@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-05-08
+
+### Fixed
+
+- README on npmjs.com no longer renders blank. Image references now use absolute `raw.githubusercontent.com` URLs instead of relative `docs/images/` paths, so npm's renderer no longer chokes on the hero GIF.
+
 ## [0.3.3] - 2026-05-08
 
 ### Changed
