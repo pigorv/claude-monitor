@@ -174,6 +174,8 @@ export function SessionList({ params }: { params: URLSearchParams }) {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [endOfList, setEndOfList] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Debounced URL write for search
@@ -240,6 +242,8 @@ export function SessionList({ params }: { params: URLSearchParams }) {
     setOffset(0);
     setSessions([]);
     setTotal(0);
+    setEndOfList(false);
+    setLoadError(null);
   }, [chipFilter, debouncedQuery, selectedProject, sortCol, sortOrder]);
 
   // Build filter params from chip
@@ -288,6 +292,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
             return prev.concat(fresh);
           });
         }
+        if (res.sessions.length === 0) setEndOfList(true);
         setLoading(false);
       })
       .catch((err) => {
@@ -298,13 +303,19 @@ export function SessionList({ params }: { params: URLSearchParams }) {
       });
 
     return () => { cancelled = true; };
-  }, [chipFilter, debouncedQuery, selectedProject, sortCol, sortOrder, offset]);
+  }, [chipFilter, debouncedQuery, selectedProject, sortCol, sortOrder, offset, retryNonce]);
 
-  const hasMore = sessions.length < total;
+  const hasMore = !endOfList && sessions.length < total;
   const loadMore = useCallback(() => {
     if (loading || loadError || !hasMore) return;
-    setOffset(sessions.length);
-  }, [loading, loadError, hasMore, sessions.length]);
+    setOffset((prev) => prev + PAGE_SIZE);
+  }, [loading, loadError, hasMore]);
+
+  const retry = useCallback(() => {
+    if (loading || !hasMore) return;
+    setLoadError(null);
+    setRetryNonce((n) => n + 1);
+  }, [loading, hasMore]);
 
   useInfiniteScroll(sentinelRef, { hasMore, loading, onLoadMore: loadMore });
 
@@ -513,7 +524,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
             ${loading && html`<span class="status-text">Loading more…</span>`}
             ${loadError && !loading && html`
               <span class="error-text">${loadError}</span>
-              <button class="retry-btn" onClick=${loadMore}>Retry</button>
+              <button class="retry-btn" onClick=${retry}>Retry</button>
             `}
             ${!loading && !loadError && !hasMore && html`
               <span class="status-text">All ${total} sessions loaded</span>

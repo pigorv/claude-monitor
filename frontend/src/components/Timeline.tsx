@@ -252,6 +252,8 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [endOfList, setEndOfList] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [expandedToolGroups, setExpandedToolGroups] = useState<Record<string, boolean>>({});
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -267,6 +269,8 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
     setOffset(0);
     setEvents([]);
     setTotal(0);
+    setEndOfList(false);
+    setError(null);
   }, [typeFilter, sessionId]);
 
   useEffect(() => {
@@ -294,6 +298,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
             return prev.concat(fresh);
           });
         }
+        if (res.events.length === 0) setEndOfList(true);
         setLoading(false);
       })
       .catch((err) => {
@@ -306,13 +311,19 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
     return () => {
       cancelled = true;
     };
-  }, [sessionId, typeFilter, offset]);
+  }, [sessionId, typeFilter, offset, retryNonce]);
 
-  const hasMore = events.length < total;
+  const hasMore = !endOfList && events.length < total;
   const loadMore = useCallback(() => {
     if (loading || error || !hasMore) return;
-    setOffset(events.length);
-  }, [loading, error, hasMore, events.length]);
+    setOffset((prev) => prev + PAGE_SIZE);
+  }, [loading, error, hasMore]);
+
+  const retry = useCallback(() => {
+    if (loading || !hasMore) return;
+    setError(null);
+    setRetryNonce((n) => n + 1);
+  }, [loading, hasMore]);
 
   useInfiniteScroll(sentinelRef, { hasMore, loading, onLoadMore: loadMore });
 
@@ -478,7 +489,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
           ${loading && html`<span class="status-text">Loading more…</span>`}
           ${error && !loading && html`
             <span class="error-text">${error}</span>
-            <button class="retry-btn" onClick=${loadMore}>Retry</button>
+            <button class="retry-btn" onClick=${retry}>Retry</button>
           `}
           ${!loading && !error && !hasMore && total > PAGE_SIZE && html`
             <span class="status-text">All ${total} events loaded</span>
