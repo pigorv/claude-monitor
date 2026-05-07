@@ -19,11 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-session preferences (default sort, default chip filter, default project, project sidebar expanded?) persist in localStorage under `cm.sessionList.*` keys. Existing `cm:projectFilter` is migrated automatically on first load. Session detail always opens on the Timeline tab — switching tabs still updates the URL for sharing/back-forward, but no preference is saved across sessions.
 - "Clear filters" button on the session list resets URL params and saved localStorage defaults back to the factory state. Appears whenever any filter is active, regardless of whether it came from the URL or your saved preferences.
 
-### Fixed
-
-- Infinite-scroll Retry button on the Session List and Timeline now actually retries — previously the click was a no-op because the load gate also blocked the retry path. Filter/sort changes also clear any prior error state.
-- Infinite scroll no longer stalls on a stuck "X / N loaded" when the server returns an empty page or a page of all-duplicate rows; offset advances by a fixed page size and stops cleanly once the server has no more rows.
-
 ## [0.3.2] - 2026-05-01
 
 ### Added
