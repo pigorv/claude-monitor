@@ -122,13 +122,19 @@
   text-overflow: ellipsis;
 }
 
-/* Row of command/skill pills under the session summary. */
+/* Invocations column — slash commands and skill pills. */
+.invocations-cell {
+  max-width: 240px;
+}
+
+.invocations-cell .muted {
+  color: var(--text3);
+}
+
 .session-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 6px;
-  max-width: 280px;
 }
 
 .session-pills .pill-more {

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Session List rows now show command/skill pills (`/review`, `skill: debug-pipeline`, …) under the session summary, matching the Timeline styling. Truncates to three pills with a `+N more` chip that expands inline. Aggregated at import time and stored on each session, so list paint stays a single index lookup.
+- New "Invocations" column on the Session List shows the slash commands and skills used in each session as pills, matching the Timeline styling. Truncates to three pills with a `+N more` chip that expands inline. Aggregated at import time and stored on each session, so list paint stays a single index lookup.
 
 ## [0.3.4] - 2026-05-08
 

@@ -485,6 +485,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
             <thead>
               <tr>
                 <th class=${sortClass("project_name")} onClick=${() => toggleSort("project_name")}>Session</th>
+                <th title="Slash commands and skill invocations used in this session">Invocations</th>
                 <th class=${sortClass("model")} onClick=${() => toggleSort("model")}>Model</th>
                 <th class=${sortClass("duration_ms")} onClick=${() => toggleSort("duration_ms")}>Duration</th>
                 <th class=${sortClass("subagent_count")} onClick=${() => toggleSort("subagent_count")}>Agents</th>
@@ -508,9 +509,11 @@ export function SessionList({ params }: { params: URLSearchParams }) {
                         ${s.status === "running" ? html`<span class="active-dot" title="Active session"></span>` : null}
                       </div>
                       <div class="proj-summary">${s.summary || "—"}</div>
-                      ${s.invocations && s.invocations.length > 0 && html`
-                        <${SessionPills} invocations=${s.invocations} />
-                      `}
+                    </td>
+                    <td class="invocations-cell">
+                      ${s.invocations && s.invocations.length > 0
+                        ? html`<${SessionPills} invocations=${s.invocations} />`
+                        : html`<span class="muted">—</span>`}
                     </td>
                     <td>
                       ${(s.models_used && s.models_used.length > 1)
