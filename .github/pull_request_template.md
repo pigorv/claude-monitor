@@ -28,6 +28,10 @@ What does this PR do and why?
 
 How did you verify this works? Include the commands you ran, fixtures or transcripts you tested against, and any UI flows you exercised in the browser.
 
+## How to validate
+
+Concrete steps a reviewer can run themselves to confirm the change behaves as described — commands, URLs to open, fixtures to load, what to look for vs. what would be a regression. Keep it short and specific (the goal is "I ran these three things in 2 minutes and saw the right thing").
+
 ## Risk / rollout notes
 
 Anything reviewers should know before merging — schema migrations, breaking CLI flag changes, new runtime dependencies, performance implications. "None" is a fine answer.
