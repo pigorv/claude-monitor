@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `/create-pr` skill that drafts a pull request body against `.github/pull_request_template.md` and waits for an explicit `go` before pushing or calling `gh pr create`. Triggers on phrases like "open a PR", "ship it", or when the agent decides a PR is the next step.
+- New **How to validate** section in the PR template — concrete steps a reviewer can run themselves to confirm the change, distinct from the author-facing "Test plan".
+
 ## [0.3.4] - 2026-05-08
 
 ### Fixed
