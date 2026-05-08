@@ -457,6 +457,7 @@ describe('Sessions route: corrupt metadata handling', () => {
       end_reason: null,
       transcript_path: '/tmp/t.jsonl',
       metadata: 'this is {not valid json!!!',
+      invocations: null,
     } as unknown as Session;
     upsertSession(session);
   });

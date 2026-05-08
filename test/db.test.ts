@@ -51,6 +51,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     end_reason: 'user_exit',
     transcript_path: '/tmp/transcript.jsonl',
     metadata: null,
+    invocations: null,
     ...overrides,
   };
 }

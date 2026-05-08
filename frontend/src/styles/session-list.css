@@ -122,6 +122,32 @@
   text-overflow: ellipsis;
 }
 
+/* Row of command/skill pills under the session summary. */
+.session-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  max-width: 280px;
+}
+
+.session-pills .pill-more {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--r-xs);
+  background: var(--bg-2);
+  color: var(--text3);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: var(--mono);
+}
+
+.session-pills .pill-more:hover {
+  color: var(--text);
+  border-color: var(--text3);
+}
+
 /* Active session: pulsing green dot */
 .active-dot {
   width: 7px;

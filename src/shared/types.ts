@@ -47,11 +47,17 @@ export interface Session {
   end_reason: string | null;
   transcript_path: string | null;
   metadata: string | null;
+  invocations: string | null;
   agent_avg_compression: number | null;
   agent_total_tokens: number;
   agent_pressure_events: number;
   agent_compacted_count: number;
   peak_concurrency: number;
+}
+
+export interface Invocation {
+  type: 'command' | 'skill';
+  name: string;
 }
 
 export interface Event {
@@ -233,6 +239,7 @@ export interface SessionSummary {
   summary: string;
   cost_estimate_usd?: number;
   mini_timeline?: MiniTimelinePoint[];
+  invocations?: Invocation[];
 }
 
 export interface SessionListResponse {

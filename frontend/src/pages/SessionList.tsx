@@ -7,7 +7,8 @@ import { usePersistentState } from "../hooks/usePersistentState";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { updateParams } from "../lib/url-state";
 import { migrateProjectFilterKey } from "../lib/migrate-project-filter";
-import type { SessionSummary, ProjectInfo } from "../../../src/shared/types";
+import type { SessionSummary, ProjectInfo, Invocation } from "../../../src/shared/types";
+import "../styles/pills.css";
 import "../styles/session-list.css";
 
 // ── Formatting helpers ──────────────────────────────────────────────
@@ -70,6 +71,31 @@ function projectColor(name: string): string {
     hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
   }
   return colors[Math.abs(hash) % colors.length];
+}
+
+// ── Pills row for commands/skills ───────────────────────────────────
+
+const PILLS_VISIBLE_LIMIT = 3;
+
+function SessionPills({ invocations }: { invocations: Invocation[] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (invocations.length === 0) return null;
+  const visible = expanded ? invocations : invocations.slice(0, PILLS_VISIBLE_LIMIT);
+  const hidden = invocations.length - visible.length;
+  return html`
+    <div class="session-pills" onClick=${(e: Event) => e.stopPropagation()}>
+      ${visible.map((inv) =>
+        inv.type === "command"
+          ? html`<span class="command-pill">${inv.name}</span>`
+          : html`<span class="skill-badge">skill: ${inv.name}</span>`
+      )}
+      ${hidden > 0 && html`
+        <span class="pill-more" onClick=${() => setExpanded(true)} title="Show all ${invocations.length} invocations">
+          +${hidden} more
+        </span>
+      `}
+    </div>
+  `;
 }
 
 // ── Sort / filter types ─────────────────────────────────────────────
@@ -482,6 +508,9 @@ export function SessionList({ params }: { params: URLSearchParams }) {
                         ${s.status === "running" ? html`<span class="active-dot" title="Active session"></span>` : null}
                       </div>
                       <div class="proj-summary">${s.summary || "—"}</div>
+                      ${s.invocations && s.invocations.length > 0 && html`
+                        <${SessionPills} invocations=${s.invocations} />
+                      `}
                     </td>
                     <td>
                       ${(s.models_used && s.models_used.length > 1)
