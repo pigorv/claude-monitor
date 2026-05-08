@@ -117,9 +117,17 @@
   color: var(--text);
   margin-top: 2px;
   max-width: 280px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.proj-summary-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 /* Invocations column — slash commands and skill pills. */

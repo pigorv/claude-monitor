@@ -50,6 +50,19 @@ function parseInvocations(raw: string | null): Invocation[] | undefined {
   }
 }
 
+function parseStartedWith(raw: string | null): Invocation | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.type === 'command' || parsed.type === 'skill') && typeof parsed.name === 'string') {
+      return parsed as Invocation;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function sessionToSummary(
   session: Session,
   miniTimeline?: import('../../shared/types.js').MiniTimelinePoint[],
@@ -78,6 +91,7 @@ function sessionToSummary(
     cost_estimate_usd: estimateCost(session.model, session.total_input_tokens, session.total_output_tokens),
     mini_timeline: miniTimeline ?? [],
     invocations: parseInvocations(session.invocations),
+    started_with: parseStartedWith(session.started_with),
   };
 }
 

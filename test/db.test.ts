@@ -52,6 +52,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     transcript_path: '/tmp/transcript.jsonl',
     metadata: null,
     invocations: null,
+    started_with: null,
     ...overrides,
   };
 }

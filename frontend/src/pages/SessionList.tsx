@@ -508,7 +508,14 @@ export function SessionList({ params }: { params: URLSearchParams }) {
                         ${s.project_name || "—"}
                         ${s.status === "running" ? html`<span class="active-dot" title="Active session"></span>` : null}
                       </div>
-                      <div class="proj-summary">${s.summary || "—"}</div>
+                      <div class="proj-summary">
+                        ${s.started_with && (
+                          s.started_with.type === "command"
+                            ? html`<span class="cmd-pill">${s.started_with.name}</span>`
+                            : html`<span class="skill-badge">skill: ${s.started_with.name}</span>`
+                        )}
+                        <span class="proj-summary-text">${s.summary || "—"}</span>
+                      </div>
                     </td>
                     <td class="invocations-cell">
                       ${s.invocations && s.invocations.length > 0

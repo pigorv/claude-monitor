@@ -132,6 +132,35 @@ WHERE EXISTS (
 );
 `;
 
+// Backfills the new column from each session's first non-system user_message
+// event. Captures whether the session was *started* with a slash command or
+// skill, which is a stronger signal than "any invocation appears in this
+// session". Mirrors deriveStartedWith() in the importer.
+const MIGRATION_011_SESSION_STARTED_WITH = `
+ALTER TABLE sessions ADD COLUMN started_with TEXT;
+
+UPDATE sessions SET started_with = (
+  SELECT
+    CASE
+      WHEN json_extract(metadata, '$.command') IS NOT NULL THEN
+        json_object('type', 'command', 'name', json_extract(metadata, '$.command'))
+      WHEN json_extract(metadata, '$.subtype') = 'skill_expansion'
+       AND json_extract(metadata, '$.skill_name') IS NOT NULL THEN
+        json_object('type', 'skill', 'name', json_extract(metadata, '$.skill_name'))
+      ELSE NULL
+    END
+  FROM events
+  WHERE session_id = sessions.id
+    AND event_type = 'user_message'
+    AND (
+      json_extract(metadata, '$.subtype') IS NULL
+      OR json_extract(metadata, '$.subtype') != 'system_generated'
+    )
+  ORDER BY sequence_num ASC
+  LIMIT 1
+);
+`;
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -143,6 +172,7 @@ const MIGRATIONS: Migration[] = [
   { id: 8, name: '008-events-cache-write', sql: MIGRATION_008_EVENTS_CACHE_WRITE },
   { id: 9, name: '009-models-used', sql: MIGRATION_009_MODELS_USED },
   { id: 10, name: '010-session-invocations', sql: MIGRATION_010_SESSION_INVOCATIONS },
+  { id: 11, name: '011-session-started-with', sql: MIGRATION_011_SESSION_STARTED_WITH },
 ];
 
 export function runMigrations(db: Database.Database): void {

@@ -408,4 +408,63 @@ describe('importTranscript invocations aggregation', () => {
     assert.ok(session);
     assert.equal(session.invocations, null);
   });
+
+  it('captures started_with when the first user message is a slash command', async () => {
+    const filePath = join(TEST_DIR, 'started-cmd.jsonl');
+    writeFileSync(filePath, INVOCATIONS_JSONL);
+
+    await importTranscript(filePath);
+
+    const session = getSession('inv-session-1');
+    assert.ok(session);
+    assert.ok(session.started_with, 'started_with should be set');
+    assert.deepEqual(JSON.parse(session.started_with!), {
+      type: 'command',
+      name: '/review',
+    });
+  });
+
+  it('leaves started_with null when the first user message is plain text', async () => {
+    const filePath = join(TEST_DIR, 'plain.jsonl');
+    writeFileSync(filePath, SAMPLE_JSONL);
+
+    await importTranscript(filePath);
+
+    const session = getSession('test-session-1');
+    assert.ok(session);
+    assert.equal(session.started_with, null);
+  });
+
+  it('captures started_with as skill when first user message is a skill expansion', async () => {
+    const SKILL_FIRST_JSONL = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'skill-first-1', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: 'Base directory for this skill: /home/user/.claude/skills/triage-issue\n\nTriage' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'skill-first-1', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Triaging.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'skill-first.jsonl');
+    writeFileSync(filePath, SKILL_FIRST_JSONL);
+
+    await importTranscript(filePath);
+
+    const session = getSession('skill-first-1');
+    assert.ok(session);
+    assert.deepEqual(JSON.parse(session.started_with!), {
+      type: 'skill',
+      name: 'triage-issue',
+    });
+  });
 });
