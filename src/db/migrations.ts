@@ -96,82 +96,9 @@ const MIGRATION_009_MODELS_USED = `
 ALTER TABLE sessions ADD COLUMN models_used TEXT;
 `;
 
-// Backfills the new column from each session's user_message events. Dedupes by
-// (type, name) and preserves first-seen order via MIN(sequence_num).
-const MIGRATION_010_SESSION_INVOCATIONS = `
-ALTER TABLE sessions ADD COLUMN invocations TEXT;
-
-UPDATE sessions SET invocations = (
-  SELECT json_group_array(json_object('type', type, 'name', name))
-  FROM (
-    SELECT type, name, MIN(sequence_num) AS first_seq
-    FROM (
-      SELECT
-        'command' AS type,
-        json_extract(metadata, '$.command') AS name,
-        sequence_num
-      FROM events
-      WHERE session_id = sessions.id
-        AND event_type = 'user_message'
-        AND json_extract(metadata, '$.command') IS NOT NULL
-      UNION ALL
-      SELECT
-        'skill' AS type,
-        json_extract(metadata, '$.skill_name') AS name,
-        sequence_num
-      FROM events
-      WHERE session_id = sessions.id
-        AND event_type = 'user_message'
-        AND json_extract(metadata, '$.subtype') = 'skill_expansion'
-        AND json_extract(metadata, '$.skill_name') IS NOT NULL
-    )
-    GROUP BY type, name
-    ORDER BY first_seq
-  )
-)
-WHERE EXISTS (
-  SELECT 1 FROM events
-  WHERE session_id = sessions.id
-    AND event_type = 'user_message'
-    AND (
-      json_extract(metadata, '$.command') IS NOT NULL
-      OR json_extract(metadata, '$.subtype') = 'skill_expansion'
-    )
-);
-`;
-
-// Backfills the new column from each session's first non-system user_message
-// event. Captures whether the session was *started* with a slash command or
-// skill, which is a stronger signal than "any invocation appears in this
-// session". Mirrors deriveStartedWith() in the importer.
-const MIGRATION_011_SESSION_STARTED_WITH = `
-ALTER TABLE sessions ADD COLUMN started_with TEXT;
-
-UPDATE sessions SET started_with = (
-  SELECT
-    CASE
-      WHEN json_extract(metadata, '$.command') IS NOT NULL THEN
-        json_object('type', 'command', 'name', json_extract(metadata, '$.command'))
-      WHEN json_extract(metadata, '$.subtype') = 'skill_expansion'
-       AND json_extract(metadata, '$.skill_name') IS NOT NULL THEN
-        json_object('type', 'skill', 'name', json_extract(metadata, '$.skill_name'))
-      ELSE NULL
-    END
-  FROM events
-  WHERE session_id = sessions.id
-    AND event_type = 'user_message'
-    AND (
-      json_extract(metadata, '$.subtype') IS NULL
-      OR json_extract(metadata, '$.subtype') != 'system_generated'
-    )
-  ORDER BY sequence_num ASC
-  LIMIT 1
-);
-`;
-
-// Reusable backfills for the two pill-related columns. Migration #12 re-runs
-// them when the columns exist but were never populated (drift caused by an
-// older _migrations table inheriting our IDs from a different feature branch).
+// Backfill SQL for sessions.invocations: dedupe (type, name) pairs and preserve
+// first-seen order via MIN(sequence_num). Guarded by `WHERE invocations IS NULL`
+// so it's safe to re-run.
 const BACKFILL_INVOCATIONS_SQL = `
 UPDATE sessions SET invocations = (
   SELECT json_group_array(json_object('type', type, 'name', name))
@@ -213,6 +140,9 @@ WHERE invocations IS NULL
   );
 `;
 
+// Backfill SQL for sessions.started_with: takes the first non-system user
+// message and captures whether the session was *kicked off* with a slash
+// command or skill. Mirrors deriveStartedWith() in the importer.
 const BACKFILL_STARTED_WITH_SQL = `
 UPDATE sessions SET started_with = (
   SELECT
@@ -237,12 +167,12 @@ UPDATE sessions SET started_with = (
 WHERE started_with IS NULL;
 `;
 
-// Self-healing migration. Some users have older _migrations rows for ids 10/11
-// from a different prior branch where those numbers were used for unrelated
-// migrations — our 010/011 then never run, leaving sessions.invocations and
-// sessions.started_with missing even though the rows look "applied". This
-// migration adds whichever columns are missing and re-runs the backfills.
-function migration012ReconcileInvocations(db: Database.Database): void {
+// Single migration for the session-pills feature: adds sessions.invocations
+// and sessions.started_with columns and backfills both from events. Uses
+// imperative run() rather than raw SQL so the column adds can be guarded
+// against pre-existing columns — together with the `WHERE … IS NULL` guards
+// in the backfills, the migration is fully idempotent.
+function migration010SessionPills(db: Database.Database): void {
   if (!tableHasColumn(db, 'sessions', 'invocations')) {
     db.exec('ALTER TABLE sessions ADD COLUMN invocations TEXT');
   }
@@ -263,9 +193,7 @@ const MIGRATIONS: Migration[] = [
   { id: 7, name: '007-index-cleanup', sql: MIGRATION_007_INDEX_CLEANUP },
   { id: 8, name: '008-events-cache-write', sql: MIGRATION_008_EVENTS_CACHE_WRITE },
   { id: 9, name: '009-models-used', sql: MIGRATION_009_MODELS_USED },
-  { id: 10, name: '010-session-invocations', sql: MIGRATION_010_SESSION_INVOCATIONS },
-  { id: 11, name: '011-session-started-with', sql: MIGRATION_011_SESSION_STARTED_WITH },
-  { id: 12, name: '012-reconcile-invocations', run: migration012ReconcileInvocations },
+  { id: 10, name: '010-session-pills', run: migration010SessionPills },
 ];
 
 export function runMigrations(db: Database.Database): void {
