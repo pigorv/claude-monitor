@@ -19,8 +19,6 @@ export type EventType =
 
 export type EventSource = 'transcript_import';
 
-export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
-
 // ── Database / domain interfaces ────────────────────────────────────
 
 export interface Session {
@@ -42,7 +40,6 @@ export interface Session {
   compaction_count: number;
   tool_call_count: number;
   subagent_count: number;
-  risk_score: number | null;
   summary: string | null;
   end_reason: string | null;
   transcript_path: string | null;
@@ -179,20 +176,6 @@ export interface ContextThresholds {
   dangerPct: number;
 }
 
-export interface RiskAssessment {
-  score: number;
-  level: RiskLevel;
-  signals: RiskSignal[];
-}
-
-export interface RiskSignal {
-  name: string;
-  value: number;
-  weight: number;
-  description: string;
-  event_id?: number;
-}
-
 export interface TokenDataPoint {
   timestamp: string;
   input_tokens: number;
@@ -235,8 +218,6 @@ export interface SessionSummary {
   compaction_count: number;
   tool_call_count: number;
   subagent_count: number;
-  risk_score: number;
-  risk_level: string;
   summary: string;
   cost_estimate_usd?: number;
   mini_timeline?: MiniTimelinePoint[];
@@ -321,7 +302,6 @@ export interface SessionDetailResponse {
   session: Session;
   token_timeline: TokenDataPoint[];
   agents: (AgentRelationship & { internal_tool_calls?: InternalToolCall[]; token_timeline?: TokenDataPoint[] })[];
-  risk: RiskAssessment;
   stats: SessionStats;
   compaction_details?: CompactionDetail[];
   event_count?: number;

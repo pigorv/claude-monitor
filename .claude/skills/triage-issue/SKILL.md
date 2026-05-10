@@ -27,7 +27,7 @@ The skill is invoked as `/triage-issue <number>` or `/triage-issue` with no argu
 - Default GitHub labels only: `bug`, `enhancement`, `documentation`, `question`, `duplicate`, `help wanted`, `good first issue`, `invalid`, `wontfix`. Do **not** invent new labels — if you think a new `area:*` label would help, mention it in the proposal text and let the user decide whether to create it.
 - Surface areas (use these to locate code, not as labels):
   - **Ingestion** — `src/ingestion/` (jsonl-parser, thinking-extractor, token-tracker, transcript-importer, session-linker, transcript-watcher)
-  - **Analysis** — `src/analysis/risk-scoring.ts`
+  - **Analysis** — `src/analysis/` (compaction detection, session summary, agent efficiency)
   - **Server / API** — `src/server/` (Hono routes)
   - **Database** — `src/db/` (schema, migrations, queries)
   - **Frontend** — `frontend/src/` (SessionList, SessionDetail with Timeline/Context/Agents tabs, Settings)
@@ -73,7 +73,7 @@ Compare titles + first paragraph of body. A duplicate is **2+ existing issues wi
 
 | Shape | Route |
 |---|---|
-| Data discrepancy ("session missing", "wrong tokens", "chart broken", "events not showing", "risk score weird") | Spawn an `Agent` (general-purpose) and brief it with the trace described in the `debug-pipeline` skill. The subagent has access to that skill via its own Skill tool. Cite the agent's findings in the triage; don't paste the full trace. |
+| Data discrepancy ("session missing", "wrong tokens", "chart broken", "events not showing", "agent tree wrong") | Spawn an `Agent` (general-purpose) and brief it with the trace described in the `debug-pipeline` skill. The subagent has access to that skill via its own Skill tool. Cite the agent's findings in the triage; don't paste the full trace. |
 | Feature request needing scoping ("the dashboard should…", "add X to…") | Spawn an `Agent` and brief it with the workflow described in the `claude-monitor-pm` skill to sketch the minimal-clean implementation path. Summarize, do not paste the full plan. |
 | Visual/UI bug with no screenshot | Skip code inspection. The first follow-up question must ask for a screenshot or short recording. |
 | Hook / CLI / setup issue | Read `src/index.ts` and the hook setup code; don't dive into the dashboard. |

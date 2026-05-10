@@ -4,9 +4,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getDb, closeDb } from '../../src/db/index.js';
-import { upsertSession } from '../../src/db/queries/sessions.js';
 import { createApp } from '../../src/server/app.js';
-import type { Session, SessionListResponse, SessionDetailResponse } from '../../src/shared/types.js';
+import type { SessionListResponse, SessionDetailResponse } from '../../src/shared/types.js';
 
 function makeSession(overrides: Record<string, unknown> = {}) {
   return {
@@ -27,7 +26,6 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     compaction_count: 1,
     tool_call_count: 10,
     subagent_count: 2,
-    risk_score: 0.35,
     summary: 'Implemented feature X',
     end_reason: 'user_exit',
     transcript_path: '/tmp/transcript.jsonl',
@@ -51,12 +49,12 @@ describe('Sessions routes', () => {
         id, project_path, project_name, model, source, status, started_at, ended_at,
         duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
         total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
-        subagent_count, risk_score, summary, end_reason, transcript_path, metadata
+        subagent_count, summary, end_reason, transcript_path, metadata
       ) VALUES (
         @id, @project_path, @project_name, @model, @source, @status, @started_at, @ended_at,
         @duration_ms, @total_input_tokens, @total_output_tokens, @total_cache_read_tokens,
         @total_cache_write_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
-        @subagent_count, @risk_score, @summary, @end_reason, @transcript_path, @metadata
+        @subagent_count, @summary, @end_reason, @transcript_path, @metadata
       )
     `);
 
@@ -68,14 +66,12 @@ describe('Sessions routes', () => {
       model: 'claude-opus-4-20250514',
       status: 'running',
       started_at: '2026-01-16T10:00:00Z',
-      risk_score: 0.75,
       summary: 'Debugging issue Y',
     }));
     insertSession.run(makeSession({
       id: 'sess-3',
       status: 'imported',
       started_at: '2026-01-14T08:00:00Z',
-      risk_score: 0.1,
       model: 'claude-sonnet-4-20250514',
       summary: 'Quick fix',
     }));
@@ -131,8 +127,6 @@ describe('Sessions routes', () => {
     assert.equal(s.model, 'claude-sonnet-4-20250514');
     assert.equal(s.status, 'completed');
     assert.equal(s.duration_ms, 1800000);
-    assert.equal(s.risk_score, 0.35);
-    assert.equal(s.risk_level, 'medium');
     assert.equal(s.summary, 'Implemented feature X');
     assert.equal(typeof s.peak_tokens, 'number');
     assert.ok(s.peak_tokens >= 550);
@@ -166,20 +160,6 @@ describe('Sessions routes', () => {
     assert.equal(body.sessions[0].id, 'sess-1');
   });
 
-  it('filters by min_risk', async () => {
-    const res = await app.request('/api/sessions?min_risk=0.5');
-    const body: SessionListResponse = await res.json();
-    assert.equal(body.total, 1);
-    assert.equal(body.sessions[0].id, 'sess-2');
-  });
-
-  it('sorts by risk_score ascending', async () => {
-    const res = await app.request('/api/sessions?sort=risk_score&order=asc');
-    const body: SessionListResponse = await res.json();
-    assert.equal(body.sessions[0].id, 'sess-3');
-    assert.equal(body.sessions[2].id, 'sess-2');
-  });
-
   it('respects limit and offset', async () => {
     const res = await app.request('/api/sessions?limit=1&offset=0');
     const body: SessionListResponse = await res.json();
@@ -211,23 +191,10 @@ describe('Sessions routes', () => {
     assert.equal(s.model, 'unknown');
     assert.equal(s.duration_ms, 0);
     assert.equal(s.peak_context_pct, 0);
-    assert.equal(s.risk_score, 0);
-    assert.equal(s.risk_level, 'low');
     assert.equal(s.summary, '');
 
     // Clean up
     db.prepare('DELETE FROM sessions WHERE id = ?').run('sess-null');
-  });
-
-  // ── Risk level computation ──
-
-  it('computes risk levels correctly', async () => {
-    const res = await app.request('/api/sessions?sort=risk_score&order=asc');
-    const body: SessionListResponse = await res.json();
-    const levels = body.sessions.map((s) => ({ id: s.id, level: s.risk_level }));
-    assert.equal(levels.find((l) => l.id === 'sess-3')!.level, 'low');
-    assert.equal(levels.find((l) => l.id === 'sess-1')!.level, 'medium');
-    assert.equal(levels.find((l) => l.id === 'sess-2')!.level, 'high');
   });
 
   // ── GET /api/sessions/:id ──
@@ -251,11 +218,6 @@ describe('Sessions routes', () => {
     assert.ok(Array.isArray(body.agents));
     assert.equal(body.agents.length, 1);
     assert.equal(body.agents[0].child_agent_id, 'agent-abc');
-
-    // Risk
-    assert.equal(body.risk.score, 0.35);
-    assert.equal(body.risk.level, 'medium');
-    assert.ok(Array.isArray(body.risk.signals));
 
     // Stats
     assert.ok(Array.isArray(body.stats.unique_tools));
@@ -422,45 +384,30 @@ describe('Sessions routes', () => {
   });
 });
 
-// ── Sessions route: corrupt metadata ──────────────────────────────────
+// ── Sessions route: corrupt invocations/started_with JSON ────────────
 
-describe('Sessions route: corrupt metadata handling', () => {
+describe('Sessions route: corrupt JSON in pill columns', () => {
   let tmpDir: string;
   let app: ReturnType<typeof createApp>;
 
   beforeAll(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'corrupt-meta-'));
-    getDb(join(tmpDir, 'test.sqlite'));
+    tmpDir = mkdtempSync(join(tmpdir(), 'corrupt-pills-'));
+    const db = getDb(join(tmpDir, 'test.sqlite'));
+    db.prepare(`
+      INSERT INTO sessions (
+        id, project_path, status, started_at,
+        total_input_tokens, total_output_tokens,
+        total_cache_read_tokens, total_cache_write_tokens,
+        compaction_count, tool_call_count, subagent_count,
+        invocations, started_with
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'corrupt-pills-1', '/tmp/p', 'imported', '2026-03-12T10:00:00.000Z',
+      0, 0, 0, 0, 0, 0, 0,
+      'this is {not valid json',
+      '{"type": "command", "name":',
+    );
     app = createApp();
-
-    const session = {
-      id: 'corrupt-meta-1',
-      project_path: '/tmp/proj',
-      project_name: 'proj',
-      model: 'sonnet',
-      models_used: null,
-      source: null,
-      status: 'imported',
-      started_at: '2026-03-12T10:00:00.000Z',
-      ended_at: '2026-03-12T10:30:00.000Z',
-      duration_ms: 1800000,
-      total_input_tokens: 5000,
-      total_output_tokens: 1000,
-      total_cache_read_tokens: 0,
-      total_cache_write_tokens: 0,
-      peak_context_pct: 25.0,
-      compaction_count: 0,
-      tool_call_count: 5,
-      subagent_count: 0,
-      risk_score: 0.2,
-      summary: 'test session',
-      end_reason: null,
-      transcript_path: '/tmp/t.jsonl',
-      metadata: 'this is {not valid json!!!',
-      invocations: null,
-      started_with: null,
-    } as unknown as Session;
-    upsertSession(session);
   });
 
   afterAll(() => {
@@ -468,11 +415,25 @@ describe('Sessions route: corrupt metadata handling', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('handles corrupt metadata without crashing', async () => {
-    const res = await app.request('/api/sessions/corrupt-meta-1');
+  it('list endpoint returns 200 and omits both fields when JSON is malformed', async () => {
+    const res = await app.request('/api/sessions');
     assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.equal(body.session.id, 'corrupt-meta-1');
-    assert.deepEqual(body.risk.signals, []);
+    const body: SessionListResponse = await res.json();
+    const s = body.sessions.find((row) => row.id === 'corrupt-pills-1');
+    assert.ok(s, 'session should still appear in list');
+    assert.equal(s.invocations, undefined);
+    assert.equal(s.started_with, undefined);
+  });
+
+  it('detail endpoint returns 200 when both fields are malformed', async () => {
+    const res = await app.request('/api/sessions/corrupt-pills-1');
+    assert.equal(res.status, 200);
+    const body: SessionDetailResponse = await res.json();
+    assert.equal(body.session.id, 'corrupt-pills-1');
+    // Detail endpoint returns the raw Session row (no pill parsing). The
+    // resilience guarantee is "doesn't crash"; the list endpoint is the one
+    // that asserts the parsed shape is undefined for corrupt JSON.
+    assert.equal(body.session.invocations, 'this is {not valid json');
+    assert.equal(body.session.started_with, '{"type": "command", "name":');
   });
 });

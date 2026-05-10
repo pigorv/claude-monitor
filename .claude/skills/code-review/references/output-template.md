@@ -43,7 +43,7 @@ Print findings to stdout in this exact format. The user reads this directly.
 - **Skip empty bands.** If `CRITICAL (0)` — omit the section entirely. Don't print empty headers.
 - **Always render `### Scope check` first** (above CRITICAL) when it has content. Scope concerns dominate everything else.
 - **Sort within a band by confidence descending.** Highest-confidence finding first.
-- **The first sentence of each finding is the problem, not the fix.** "Migration drops `risk_score` without a backfill" — not "Add a backfill before dropping `risk_score`."
+- **The first sentence of each finding is the problem, not the fix.** "Migration drops `peak_context_pct` without a backfill" — not "Add a backfill before dropping `peak_context_pct`."
 - **Fix line is concrete.** A code sketch is better than prose. Two lines of pseudo-diff beats a paragraph of "consider doing X".
 - **No emoji.** Not in the header, not in findings, not in the footer.
 - **No closing message.** After the last finding, stop. Don't add "Let me know if you want me to fix any of these" — the user already knows the skill is read-only.
@@ -58,22 +58,22 @@ Print findings to stdout in this exact format. The user reads this directly.
 
 ### CRITICAL (1)
 [CRITICAL] (confidence: 9/10) src/db/migrations.ts:118
-  Migration 008 drops `risk_score` and recreates with NOT NULL but no backfill.
+  Migration 011 drops `peak_context_pct` and recreates with NOT NULL but no backfill.
   Why: existing rows hit `NOT NULL` violation:
-    `ALTER TABLE sessions DROP COLUMN risk_score;`
-    `ALTER TABLE sessions ADD COLUMN risk_score REAL NOT NULL;`
+    `ALTER TABLE sessions DROP COLUMN peak_context_pct;`
+    `ALTER TABLE sessions ADD COLUMN peak_context_pct REAL NOT NULL;`
   Fix: add a backfill step:
-    `UPDATE sessions SET risk_score = 0.0 WHERE risk_score IS NULL;`
+    `UPDATE sessions SET peak_context_pct = 0.0 WHERE peak_context_pct IS NULL;`
     Or change to `NOT NULL DEFAULT 0.0`.
 
 ### HIGH (1)
 [HIGH] (confidence: 7/10) src/server/routes/sessions.ts:54
-  `parseFloat(maxRisk)` accepts NaN without rejecting the request.
-  Why: existing pattern is parseFloat + Number.isFinite (see line 41 of same file).
-  Fix: `if (!Number.isFinite(parsed)) return c.json({error:'invalid maxRisk'}, 400);`
+  `parseInt(limit)` accepts NaN without rejecting the request.
+  Why: existing pattern is parseInt + Number.isFinite (see line 41 of same file).
+  Fix: `if (!Number.isFinite(parsed)) return c.json({error:'invalid limit'}, 400);`
 
 ### Notes
-- The db and api specialists both flagged routes that consume the new `risk_score`
+- The db and api specialists both flagged routes that consume the new `peak_context_pct`
   column without a fallback. After the migration is fixed, the api finding above
   resolves automatically.
 ```

@@ -25,7 +25,7 @@ You are reviewing diff hunks under `src/server/**`, `src/cli/**`, and `src/index
 
 | # | Rule | Bug shape |
 |---|---|---|
-| H1 | Numeric query params validated with `Number.isFinite` after `parseFloat`/`parseInt`. | `parseFloat(req.query('maxRisk'))` used directly — NaN sneaks through. |
+| H1 | Numeric query params validated with `Number.isFinite` after `parseFloat`/`parseInt`. | `parseInt(req.query('limit'))` used directly — NaN sneaks through. |
 | H2 | Enum-shaped query params validated against an allowlist. | `status` accepted as freeform string and passed to a `WHERE status = ?` query. |
 | H3 | New endpoints have at least one route-list test (200 + 4xx). | `routes/foo.ts` added with no `test/server/foo.test.ts`. |
 | H4 | Error responses don't include stack traces or absolute paths. | `c.json({error: err.stack}, 500)` leaking `/Users/Ihor_Prysiazhnyi/...`. |

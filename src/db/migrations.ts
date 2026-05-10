@@ -2,14 +2,13 @@ import type Database from 'better-sqlite3';
 import { INITIAL_SCHEMA } from './schema.js';
 import * as logger from '../shared/logger.js';
 
-interface Migration {
-  id: number;
-  name: string;
-  /** Either raw SQL or an imperative function. Function form lets a migration
-   * inspect schema state (e.g. via PRAGMA table_info) before mutating it. */
-  sql?: string;
-  run?: (db: Database.Database) => void;
-}
+/** Either raw SQL or an imperative function. Function form lets a migration
+ * inspect schema state (e.g. via PRAGMA table_info) before mutating it. The
+ * discriminated union ensures exactly one of `sql` / `run` is set — `tsc`
+ * catches a future migration that defines both or neither. */
+type Migration =
+  | { id: number; name: string; sql: string }
+  | { id: number; name: string; run: (db: Database.Database) => void };
 
 function tableHasColumn(db: Database.Database, table: string, column: string): boolean {
   const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
@@ -183,6 +182,15 @@ function migration010SessionPills(db: Database.Database): void {
   db.exec(BACKFILL_STARTED_WITH_SQL);
 }
 
+function migration011DropRiskScore(db: Database.Database): void {
+  // One-shot cleanup of stale risk-scoring metadata blobs left over from
+  // older imports. Safe because no current reader uses sessions.metadata.
+  db.exec("UPDATE sessions SET metadata = NULL WHERE metadata LIKE '%risk_signals%'");
+  if (tableHasColumn(db, 'sessions', 'risk_score')) {
+    db.exec('ALTER TABLE sessions DROP COLUMN risk_score');
+  }
+}
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -194,6 +202,7 @@ const MIGRATIONS: Migration[] = [
   { id: 8, name: '008-events-cache-write', sql: MIGRATION_008_EVENTS_CACHE_WRITE },
   { id: 9, name: '009-models-used', sql: MIGRATION_009_MODELS_USED },
   { id: 10, name: '010-session-pills', run: migration010SessionPills },
+  { id: 11, name: '011-drop-risk-score', run: migration011DropRiskScore },
 ];
 
 export function runMigrations(db: Database.Database): void {
@@ -214,12 +223,10 @@ export function runMigrations(db: Database.Database): void {
 
     logger.info(`Applying migration: ${migration.name}`);
     db.transaction(() => {
-      if (migration.run) {
+      if ('run' in migration) {
         migration.run(db);
-      } else if (migration.sql) {
-        db.exec(migration.sql);
       } else {
-        throw new Error(`Migration ${migration.name} has neither sql nor run`);
+        db.exec(migration.sql);
       }
       db.prepare('INSERT INTO _migrations (id, name) VALUES (?, ?)').run(
         migration.id,

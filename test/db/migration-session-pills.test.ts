@@ -10,11 +10,19 @@ const TMP = join(tmpdir(), `drift-${Date.now()}`);
 const DB_PATH = join(TMP, 'drift.sqlite');
 
 describe('migration 010-session-pills', () => {
-  beforeEach(() => mkdirSync(TMP, { recursive: true }));
-  afterEach(() => rmSync(TMP, { recursive: true, force: true }));
+  let db: Database.Database;
+
+  beforeEach(() => {
+    mkdirSync(TMP, { recursive: true });
+    db = new Database(DB_PATH);
+  });
+
+  afterEach(() => {
+    db?.close();
+    rmSync(TMP, { recursive: true, force: true });
+  });
 
   it('adds invocations + started_with columns and backfills from events', () => {
-    const db = new Database(DB_PATH);
     db.exec(`
       CREATE TABLE _migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL DEFAULT (datetime('now')));
       CREATE TABLE sessions (id TEXT PRIMARY KEY, summary TEXT, metadata TEXT);
@@ -42,11 +50,9 @@ describe('migration 010-session-pills', () => {
 
     const applied = (db.prepare('SELECT id, name FROM _migrations ORDER BY id').all() as { id: number; name: string }[]);
     assert.ok(applied.find((m) => m.id === 10 && m.name === '010-session-pills'), 'migration 10 should be recorded');
-    db.close();
   });
 
   it('is idempotent when columns already exist (re-running on a partially-set-up DB is a no-op)', () => {
-    const db = new Database(DB_PATH);
     db.exec(`
       CREATE TABLE _migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL DEFAULT (datetime('now')));
       CREATE TABLE sessions (
@@ -74,6 +80,5 @@ describe('migration 010-session-pills', () => {
     const row = db.prepare("SELECT invocations, started_with FROM sessions WHERE id = 's1'").get() as { invocations: string; started_with: string };
     assert.equal(row.invocations, existing, 'pre-populated invocations should be preserved');
     assert.deepEqual(JSON.parse(row.started_with), { type: 'command', name: '/preserve' });
-    db.close();
   });
 });

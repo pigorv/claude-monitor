@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Local observability dashboard for Claude Code sessions. Imports JSONL transcript files from `~/.claude/projects/`, analyzes context pressure and risk, and serves a Preact SPA dashboard.
+Local observability dashboard for Claude Code sessions. Imports JSONL transcript files from `~/.claude/projects/`, analyzes context pressure and compaction patterns, and serves a Preact SPA dashboard.
 
 ## Tech Stack
 
@@ -36,9 +36,9 @@ npx vitest run test/ingestion/thinking-extractor.test.ts
 ### Data Flow
 
 ```
-JSONL transcript → jsonl-parser → thinking-extractor → token-tracker → risk-scoring → SQLite
-                                                                                        ↓
-                                                            Preact SPA ← Hono API ← queries/
+JSONL transcript → jsonl-parser → thinking-extractor → token-tracker → SQLite
+                                                                          ↓
+                                                Preact SPA ← Hono API ← queries/
 ```
 
 ### Ingestion Pipeline (`src/ingestion/`)
@@ -52,7 +52,7 @@ JSONL transcript → jsonl-parser → thinking-extractor → token-tracker → r
 
 ### Analysis Engine (`src/analysis/`)
 
-Risk scoring produces a 0.0–1.0 composite score from 5 weighted signals: context utilization (30%), compaction count (25%), post-compaction drift (20%), long tool output (15%), deep nesting (10%).
+Post-import analyses: compaction detection (drops in input tokens), session summary generation (model + duration + tool/compaction/subagent counts + peak context), agent efficiency (compression ratio, peak context tokens, parent-impact %), and plan↔implementation session linking.
 
 ### Server (`src/server/`)
 
@@ -61,8 +61,8 @@ Hono app with routes: `/api/health`, `/api/sessions`, `/api/sessions/:id`, `/api
 ### Database (`src/db/`)
 
 - **connection.ts** — singleton with prepared statement caching and WAL pragmas
-- **schema.ts** — tables: `sessions` (24 cols), `events`, `agent_relationships`, `session_links`
-- **migrations.ts** — 7 sequential migrations
+- **schema.ts** — tables: `sessions` (23 cols), `events`, `agent_relationships`, `session_links`
+- **migrations.ts** — 10 sequential migrations
 - **queries/** — batch queries to avoid N+1; statement caching for hot paths
 
 ### Frontend (`frontend/src/`)

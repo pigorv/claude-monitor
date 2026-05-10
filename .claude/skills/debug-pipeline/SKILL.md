@@ -4,12 +4,12 @@ description: >
   End-to-end data pipeline debugger for claude-monitor. Traces data from raw JSONL transcripts
   through SQLite ingestion to API responses to frontend rendering. Use this skill whenever
   the user reports a data issue, missing session, wrong token counts, broken chart, missing events,
-  incorrect risk scores, agent tree problems, or any discrepancy between what's in the transcript
+  agent tree problems, or any discrepancy between what's in the transcript
   and what's shown in the dashboard. Also trigger when the user says things like "why isn't X showing",
   "the data looks wrong", "session is missing", "tokens don't match", "chart is broken",
   "events aren't appearing", "reimport didn't work", or wants to inspect how a specific
   JSONL file was processed. Covers the full pipeline: JSONL parsing, event extraction,
-  token tracking, risk scoring, DB storage, API retrieval, and Playwright-based UI verification.
+  token tracking, DB storage, API retrieval, and Playwright-based UI verification.
 allowed-tools: Bash(sqlite3:*), Bash(playwright-cli:*), Read(*), Grep(*), Glob(*)
 ---
 
@@ -29,8 +29,8 @@ assumptions the code uses to compute derived values.
 For example, if a compaction looks suspicious, don't just verify the token drop happened in the DB.
 Go read `token-tracker.ts` and check whether `effectiveContextTokens` is computed correctly from
 all the right fields (`input_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`).
-If a risk score looks wrong, don't just check the inputs — verify the formula weights and
-thresholds match what you'd expect.
+If agent efficiency numbers look wrong, don't just check the inputs — verify the compression-ratio
+and parent-impact formulas match what you'd expect.
 
 **Always ask: "Is the code computing this value correctly?" — not just "Does this value match
 between layers?"**
@@ -45,7 +45,6 @@ Don't always trace the full pipeline — start where the problem likely lives an
 | "Session not importing" / "session missing" | JSONL source → Ingestion | DB |
 | "Wrong token counts" / "chart looks off" | DB (token data) → **transformation code** | JSONL source |
 | "Events missing" / "tool calls not showing" | DB (events table) | JSONL source → extraction code |
-| "Risk score seems wrong" | DB (session record) → **risk-scoring.ts formula** | Token snapshots in events |
 | "Compaction looks wrong" | **token-tracker.ts formula** → JSONL raw usage | DB |
 | "Agent tree broken" / "subagents missing" | DB (agent_relationships) | JSONL subagent files |
 | "UI shows X but API returns Y" | API response → UI (Playwright) | — |
@@ -180,12 +179,12 @@ The SQLite database lives at `~/.claude-monitor/data.sqlite`. Use sqlite3 CLI di
 sqlite3 "$HOME/.claude-monitor/data.sqlite" \
   "SELECT id, project_name, model, status, started_at, ended_at, duration_ms, \
    total_input_tokens, total_output_tokens, peak_context_pct, compaction_count, \
-   tool_call_count, subagent_count, risk_score, transcript_path \
+   tool_call_count, subagent_count, transcript_path \
    FROM sessions WHERE id = '<session-id>'"
 
 # Search sessions by project
 sqlite3 "$HOME/.claude-monitor/data.sqlite" \
-  "SELECT id, project_name, started_at, risk_score FROM sessions \
+  "SELECT id, project_name, started_at, peak_context_pct FROM sessions \
    WHERE project_path LIKE '%<project>%' ORDER BY started_at DESC LIMIT 10"
 
 # Check if session was imported (vs missing)
@@ -333,7 +332,7 @@ playwright-cli snapshot
 ```
 
 ### What to look for in the UI
-- **Session list**: Is the session showing? Is the risk badge correct? Sparkline present?
+- **Session list**: Is the session showing? Sparkline / health strip present?
 - **Timeline tab**: Are events rendering? Correct count? Tool calls grouped?
 - **Context tab**: Does the chart have data points? Compaction markers showing?
 - **Agents tab**: Agent tree populated? Efficiency metrics correct?
@@ -357,7 +356,7 @@ derived values and verify its logic against the raw inputs**.
 | `src/ingestion/token-tracker.ts` | `context_pct`, compaction detection, token snapshots | Missing fields in effective context calc (e.g., `cache_creation_input_tokens`); wrong model threshold lookup |
 | `src/ingestion/thinking-extractor.ts` | Event types, tool call merging, agent ID assignment | Orphaned tool_call_end events; agent ID extraction regex failures; content block type mismatches |
 | `src/ingestion/transcript-importer.ts` | Session aggregates, event records, `context_pct` per event | `buildEventRecords()` may compute `context_pct` differently from `token-tracker.ts`; `computeAggregates()` may use wrong token field for totals |
-| `src/analysis/risk-scoring.ts` | `risk_score` (0.0–1.0 composite) | Discrete quantization from integer inputs (subagent counts, compaction counts); weight/threshold mismatches |
+| `src/analysis/agent-efficiency.ts` | Agent compression ratio, peak context tokens, parent impact | Off-by-one when matching agent timeline to parent timeline; missing tokens when timeline has no entries |
 | `src/db/queries/events.ts` | Token timeline query, `is_compaction` flag | Uses `CASE WHEN event_type = 'compaction'` but events may not have that type set; `WHERE input_tokens IS NOT NULL` filters out events silently |
 
 ### Audit checklist
@@ -410,7 +409,7 @@ sqlite3 "$HOME/.claude-monitor/data.sqlite" \
    bugs live. Key files:
    - JSONL → events: `src/ingestion/thinking-extractor.ts`
    - Messages → tokens: `src/ingestion/token-tracker.ts`
-   - Events → risk: `src/analysis/risk-scoring.ts`
+   - Events → agent metrics: `src/analysis/agent-efficiency.ts`
    - DB → API: `src/server/routes/` + `src/db/queries/`
    - API → UI: `frontend/src/pages/SessionDetail.tsx` + component files
 5. **Manually recompute** at least one derived value from raw inputs to confirm the code's formula

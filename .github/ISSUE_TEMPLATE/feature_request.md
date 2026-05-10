@@ -25,7 +25,7 @@ Tick all that apply:
 - [ ] Ingestion (JSONL parsing, transcript import, watcher)
 - [ ] Dashboard UI (session list, timeline, context chart, agent tree)
 - [ ] CLI (`start`, `import`, `status` commands)
-- [ ] Analysis (risk scoring, compaction detection, token tracking)
+- [ ] Analysis (compaction detection, token tracking, agent efficiency)
 - [ ] Database (SQLite schema, migrations, queries)
 - [ ] Docs
 

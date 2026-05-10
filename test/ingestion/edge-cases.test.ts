@@ -226,15 +226,15 @@ describe('Transcript importer edge cases', () => {
     assert.equal(session.compaction_count, 1);
   });
 
-  it('computes risk score and summary for imported session', async () => {
+  it('computes summary for imported session', async () => {
     const jsonl = [
       JSON.stringify({
-        parentUuid: null, cwd: '/tmp/p', sessionId: 'risk-sess', type: 'user',
+        parentUuid: null, cwd: '/tmp/p', sessionId: 'summary-sess', type: 'user',
         message: { role: 'user', content: 'do something complex' },
         timestamp: '2026-01-01T00:00:00.000Z', uuid: 'u1',
       }),
       JSON.stringify({
-        parentUuid: 'u1', cwd: '/tmp/p', sessionId: 'risk-sess', type: 'assistant',
+        parentUuid: 'u1', cwd: '/tmp/p', sessionId: 'summary-sess', type: 'assistant',
         message: {
           model: 'claude-sonnet-4-5', role: 'assistant',
           content: [{ type: 'text', text: 'Done.' }],
@@ -244,16 +244,13 @@ describe('Transcript importer edge cases', () => {
       }),
     ].join('\n');
 
-    const filePath = join(TEST_DIR, 'risk.jsonl');
+    const filePath = join(TEST_DIR, 'summary.jsonl');
     writeFileSync(filePath, jsonl);
 
     await importTranscript(filePath);
 
-    const session = getSession('risk-sess');
+    const session = getSession('summary-sess');
     assert.ok(session);
-    assert.equal(typeof session.risk_score, 'number');
-    assert.ok(session.risk_score! >= 0);
-    assert.ok(session.risk_score! <= 1);
     assert.ok(session.summary);
     assert.ok(session.summary!.length > 0);
   });

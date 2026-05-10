@@ -19,12 +19,12 @@ describe('Stats route', () => {
       INSERT INTO sessions (id, project_path, status, started_at,
         total_input_tokens, total_output_tokens, total_cache_read_tokens,
         total_cache_write_tokens, compaction_count, tool_call_count, subagent_count,
-        duration_ms, risk_score)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        duration_ms)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    insertSession.run('sess-1', '/tmp/a', 'completed', '2026-01-15T10:00:00Z', 5000, 3000, 1000, 500, 2, 10, 1, 1800000, 0.4);
-    insertSession.run('sess-2', '/tmp/b', 'completed', '2026-01-16T10:00:00Z', 8000, 4000, 2000, 800, 0, 15, 3, 3600000, 0.7);
+    insertSession.run('sess-1', '/tmp/a', 'completed', '2026-01-15T10:00:00Z', 5000, 3000, 1000, 500, 2, 10, 1, 1800000);
+    insertSession.run('sess-2', '/tmp/b', 'completed', '2026-01-16T10:00:00Z', 8000, 4000, 2000, 800, 0, 15, 3, 3600000);
 
     // Insert some events
     db.prepare(`
@@ -52,7 +52,6 @@ describe('Stats route', () => {
     assert.equal(body.total_cache_read_tokens, 3000);
     assert.equal(body.total_cache_write_tokens, 1300);
     assert.equal(body.avg_duration_ms, 2700000);
-    assert.equal(body.avg_risk_score, 0.55);
     assert.equal(body.total_compactions, 2);
     assert.equal(body.total_tool_calls, 25);
     assert.equal(body.total_subagents, 4);
@@ -77,18 +76,18 @@ describe('Stats route', () => {
       INSERT INTO sessions (id, project_path, status, started_at, model,
         total_input_tokens, total_output_tokens, total_cache_read_tokens,
         total_cache_write_tokens, compaction_count, tool_call_count, subagent_count,
-        duration_ms, risk_score)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        duration_ms)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run('sess-cost-1', '/tmp/c', 'completed', '2026-01-17T10:00:00Z',
-      'claude-sonnet-4-20250514', 1000000, 500000, 0, 0, 0, 0, 0, 1000, 0.1);
+      'claude-sonnet-4-20250514', 1000000, 500000, 0, 0, 0, 0, 0, 1000);
     db.prepare(`
       INSERT INTO sessions (id, project_path, status, started_at, model,
         total_input_tokens, total_output_tokens, total_cache_read_tokens,
         total_cache_write_tokens, compaction_count, tool_call_count, subagent_count,
-        duration_ms, risk_score)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        duration_ms)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run('sess-cost-2', '/tmp/d', 'completed', '2026-01-17T11:00:00Z',
-      'claude-opus-4-20250514', 1000000, 500000, 0, 0, 0, 0, 0, 2000, 0.2);
+      'claude-opus-4-20250514', 1000000, 500000, 0, 0, 0, 0, 0, 2000);
 
     const res = await app.request('/api/stats');
     const body = await res.json();

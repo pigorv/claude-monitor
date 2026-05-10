@@ -46,7 +46,6 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     compaction_count: 1,
     tool_call_count: 25,
     subagent_count: 2,
-    risk_score: 0.35,
     summary: 'Test session summary',
     end_reason: 'user_exit',
     transcript_path: '/tmp/transcript.jsonl',
@@ -150,25 +149,35 @@ describe('Database Layer', () => {
       assert.equal(retrieved.total_input_tokens, 60000);
     });
 
+    it('should preserve invocations/started_with when upserting with null', () => {
+      // First upsert: seed both pill columns with non-null values.
+      upsertSession(makeSession({
+        invocations: '[{"type":"command","name":"/x"}]',
+        started_with: '{"type":"command","name":"/x"}',
+      }));
+      // Second upsert: writes null for both — COALESCE should preserve the prior values.
+      upsertSession(makeSession({ invocations: null, started_with: null }));
+      const retrieved = getSession('test-session-1');
+      assert.ok(retrieved);
+      assert.equal(retrieved.invocations, '[{"type":"command","name":"/x"}]');
+      assert.equal(retrieved.started_with, '{"type":"command","name":"/x"}');
+    });
+
     it('should update partial session fields', () => {
-      updateSession('test-session-1', { status: 'running', risk_score: 0.8 });
+      updateSession('test-session-1', { status: 'running', total_input_tokens: 75000 });
       const retrieved = getSession('test-session-1');
       assert.ok(retrieved);
       assert.equal(retrieved.status, 'running');
-      assert.equal(retrieved.risk_score, 0.8);
+      assert.equal(retrieved.total_input_tokens, 75000);
     });
 
     it('should list sessions with filters', () => {
       insertSession(makeSession({ id: 'test-session-2', status: 'completed', model: 'claude-haiku-4-5' }));
-      insertSession(makeSession({ id: 'test-session-3', status: 'completed', risk_score: 0.9 }));
+      insertSession(makeSession({ id: 'test-session-3', status: 'completed' }));
 
       const { sessions, total } = listSessions({ status: 'completed' });
       assert.equal(total, 2);
       assert.equal(sessions.length, 2);
-
-      const { sessions: risky } = listSessions({ minRisk: 0.85 });
-      assert.equal(risky.length, 1);
-      assert.equal(risky[0].id, 'test-session-3');
 
       const { sessions: haiku } = listSessions({ model: 'haiku' });
       assert.equal(haiku.length, 1);
