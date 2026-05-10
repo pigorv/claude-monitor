@@ -383,3 +383,52 @@ describe('Sessions routes', () => {
     assert.ok(body.event_count >= 3); // We inserted at least 3 events
   });
 });
+
+// ── Sessions route: corrupt invocations/started_with JSON ────────────
+
+describe('Sessions route: corrupt JSON in pill columns', () => {
+  let tmpDir: string;
+  let app: ReturnType<typeof createApp>;
+
+  beforeAll(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'corrupt-pills-'));
+    const db = getDb(join(tmpDir, 'test.sqlite'));
+    db.prepare(`
+      INSERT INTO sessions (
+        id, project_path, status, started_at,
+        total_input_tokens, total_output_tokens,
+        total_cache_read_tokens, total_cache_write_tokens,
+        compaction_count, tool_call_count, subagent_count,
+        invocations, started_with
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'corrupt-pills-1', '/tmp/p', 'imported', '2026-03-12T10:00:00.000Z',
+      0, 0, 0, 0, 0, 0, 0,
+      'this is {not valid json',
+      '{"type": "command", "name":',
+    );
+    app = createApp();
+  });
+
+  afterAll(() => {
+    closeDb();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('list endpoint returns 200 and omits both fields when JSON is malformed', async () => {
+    const res = await app.request('/api/sessions');
+    assert.equal(res.status, 200);
+    const body: SessionListResponse = await res.json();
+    const s = body.sessions.find((row) => row.id === 'corrupt-pills-1');
+    assert.ok(s, 'session should still appear in list');
+    assert.equal(s.invocations, undefined);
+    assert.equal(s.started_with, undefined);
+  });
+
+  it('detail endpoint returns 200 when both fields are malformed', async () => {
+    const res = await app.request('/api/sessions/corrupt-pills-1');
+    assert.equal(res.status, 200);
+    const body: SessionDetailResponse = await res.json();
+    assert.equal(body.session.id, 'corrupt-pills-1');
+  });
+});
