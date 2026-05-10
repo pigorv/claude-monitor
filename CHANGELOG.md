@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Session List "Agents" column was no longer center-aligned after the Skills column was inserted at position 2 (the positional `nth-child(4)` selector started hitting Duration). Centering now follows the Agents cell directly.
+- Session List header labels in narrow sortable columns (Duration, Agents) appeared shifted up vs. the rest of the row. The sort-arrow placeholder (`th.sortable::after`) was wrapping below the label in narrow cells, doubling the line box. Headers stay on a single line now.
 
 ### Removed
 

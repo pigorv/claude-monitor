@@ -338,6 +338,10 @@ th .th-hint:hover {
 th.sortable {
   cursor: pointer;
   user-select: none;
+  /* Keep label and sort-arrow placeholder (::after) on a single line so
+     narrow columns don't push the arrow below the text and shift the
+     label up via the now-doubled line box. */
+  white-space: nowrap;
 }
 
 th.sortable:hover {
