@@ -506,12 +506,17 @@ export function SessionList({ params }: { params: URLSearchParams }) {
                         ${s.status === "running" ? html`<span class="active-dot" title="Active session"></span>` : null}
                       </div>
                       <div class="proj-summary">
-                        ${s.started_with && (
-                          s.started_with.type === "command"
-                            ? html`<span class="cmd-pill">${s.started_with.name}</span>`
-                            : html`<span class="skill-badge">${s.started_with.name}</span>`
-                        )}
-                        <span class="proj-summary-text">${s.summary || "—"}</span>
+                        ${s.started_with && html`<span class="cmd-pill">${s.started_with.name}</span>`}
+                        ${(() => {
+                          const summary = (s.summary ?? "").trim();
+                          const startedName = s.started_with?.name;
+                          // Hide the summary when it duplicates the command/skill that started
+                          // the session (e.g. row labelled both "/clear" and "/clear").
+                          if (startedName && summary === startedName) return null;
+                          if (summary) return html`<span class="proj-summary-text">${summary}</span>`;
+                          if (!s.started_with) return html`<span class="proj-summary-text">—</span>`;
+                          return null;
+                        })()}
                       </div>
                     </td>
                     <td class="skills-cell">
