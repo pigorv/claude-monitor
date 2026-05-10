@@ -509,7 +509,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
                         ${s.started_with && (
                           s.started_with.type === "command"
                             ? html`<span class="cmd-pill">${s.started_with.name}</span>`
-                            : html`<span class="skill-badge">skill: ${s.started_with.name}</span>`
+                            : html`<span class="skill-badge">${s.started_with.name}</span>`
                         )}
                         <span class="proj-summary-text">${s.summary || "—"}</span>
                       </div>
