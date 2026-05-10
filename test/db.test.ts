@@ -149,6 +149,20 @@ describe('Database Layer', () => {
       assert.equal(retrieved.total_input_tokens, 60000);
     });
 
+    it('should preserve invocations/started_with when upserting with null', () => {
+      // First upsert: seed both pill columns with non-null values.
+      upsertSession(makeSession({
+        invocations: '[{"type":"command","name":"/x"}]',
+        started_with: '{"type":"command","name":"/x"}',
+      }));
+      // Second upsert: writes null for both — COALESCE should preserve the prior values.
+      upsertSession(makeSession({ invocations: null, started_with: null }));
+      const retrieved = getSession('test-session-1');
+      assert.ok(retrieved);
+      assert.equal(retrieved.invocations, '[{"type":"command","name":"/x"}]');
+      assert.equal(retrieved.started_with, '{"type":"command","name":"/x"}');
+    });
+
     it('should update partial session fields', () => {
       updateSession('test-session-1', { status: 'running', total_input_tokens: 75000 });
       const retrieved = getSession('test-session-1');

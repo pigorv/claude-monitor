@@ -240,8 +240,7 @@
 }
 
 /* Center-align agents column */
-td:nth-child(4),
-th:nth-child(4) {
+.agents-cell {
   text-align: center;
 }
 

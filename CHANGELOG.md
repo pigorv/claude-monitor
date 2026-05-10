@@ -12,9 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New "Skills" column on the Session List shows skill names invoked in each session as pills (matching the Timeline styling). Truncates to three pills with a `+N more` chip that expands inline. Aggregated at import time and stored on each session, so list paint stays a single index lookup.
 - Sessions that *started* with a slash command or skill now show the same Timeline pill (blue `/command`, orange skill name) inline before the summary text in the Session List, making it easy to scan for "the session I kicked off with `/review`".
 
+### Changed
+
+- Expanded skills list in the Session List can now be collapsed back: the `+N more` chip toggles to "Show less" while expanded.
+
+### Fixed
+
+- Session List "Agents" column was no longer center-aligned after the Skills column was inserted at position 2 (the positional `nth-child(4)` selector started hitting Duration). Centering now follows the Agents cell directly.
+
 ### Removed
 
-- Risk scoring feature (composite session risk score and `risk_score` DB column). The score was never rendered in the UI; backend pipeline, API fields (`risk_score`, `risk_level`, `risk` on session detail, `avg_risk_score`/`high_risk_sessions` on stats, `min_risk` filter, `risk_score` sort), and the `context-pressure` analysis module are removed. Migration 011 drops the column from existing databases.
+- Risk scoring feature (composite session risk score and `risk_score` DB column). The score was never rendered in the UI; backend pipeline, API fields (`risk_score`, `risk_level`, `risk` on session detail, `avg_risk_score`/`high_risk_sessions` on stats, `min_risk` filter, `risk_score` sort), and the `context-pressure` analysis module are removed. Migration 011 drops the column from existing databases and clears any stale `risk_signals` blobs left in `sessions.metadata` by older imports.
 
 ## [0.3.4] - 2026-05-08
 

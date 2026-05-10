@@ -430,5 +430,10 @@ describe('Sessions route: corrupt JSON in pill columns', () => {
     assert.equal(res.status, 200);
     const body: SessionDetailResponse = await res.json();
     assert.equal(body.session.id, 'corrupt-pills-1');
+    // Detail endpoint returns the raw Session row (no pill parsing). The
+    // resilience guarantee is "doesn't crash"; the list endpoint is the one
+    // that asserts the parsed shape is undefined for corrupt JSON.
+    assert.equal(body.session.invocations, 'this is {not valid json');
+    assert.equal(body.session.started_with, '{"type": "command", "name":');
   });
 });

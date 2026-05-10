@@ -81,14 +81,17 @@ function SessionPills({ invocations }: { invocations: Invocation[] }) {
   const [expanded, setExpanded] = useState(false);
   const skills = invocations.filter((inv) => inv.type === "skill");
   if (skills.length === 0) return null;
+  const overflow = skills.length > PILLS_VISIBLE_LIMIT;
   const visible = expanded ? skills : skills.slice(0, PILLS_VISIBLE_LIMIT);
   const hidden = skills.length - visible.length;
   return html`
     <div class="session-pills" onClick=${(e: Event) => e.stopPropagation()}>
       ${visible.map((inv) => html`<span class="skill-badge">${inv.name}</span>`)}
-      ${hidden > 0 && html`
-        <span class="pill-more" onClick=${() => setExpanded(true)} title="Show all ${skills.length} skills">
-          +${hidden} more
+      ${overflow && html`
+        <span class="pill-more"
+              onClick=${() => setExpanded((v) => !v)}
+              title=${expanded ? "Show fewer" : `Show all ${skills.length} skills`}>
+          ${expanded ? "Show less" : `+${hidden} more`}
         </span>
       `}
     </div>
@@ -483,7 +486,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
                 <th title="Skills invoked in this session">Skills</th>
                 <th class=${sortClass("model")} onClick=${() => toggleSort("model")}>Model</th>
                 <th class=${sortClass("duration_ms")} onClick=${() => toggleSort("duration_ms")}>Duration</th>
-                <th class=${sortClass("subagent_count")} onClick=${() => toggleSort("subagent_count")}>Agents</th>
+                <th class="${sortClass("subagent_count")} agents-cell" onClick=${() => toggleSort("subagent_count")}>Agents</th>
                 <th
                   title="Main session only (excludes subagents). Context % of the model window, peak tokens scaled to a 1M reference, and compaction count (one filled dot per compaction, capped at three)."
                   style="cursor: help;"
@@ -541,7 +544,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
                       }
                     </td>
                     <td class="mono">${formatDuration(s.duration_ms)}</td>
-                    <td>
+                    <td class="agents-cell">
                       ${s.subagent_count > 0
                         ? html`<span class="ag">${s.subagent_count}</span>`
                         : html`<span class="ag none">0</span>`
