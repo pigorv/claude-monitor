@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- New "Invocations" column on the Session List shows the slash commands and skills used in each session as pills, matching the Timeline styling. Truncates to three pills with a `+N more` chip that expands inline. Aggregated at import time and stored on each session, so list paint stays a single index lookup.
-- Sessions that *started* with a slash command or skill now show the same Timeline pill (blue `/command`, orange `skill: name`) inline before the summary text in the Session List, making it easy to scan for "the session I kicked off with `/review`".
+- New "Skills" column on the Session List shows skill names invoked in each session as pills (matching the Timeline styling). Truncates to three pills with a `+N more` chip that expands inline. Aggregated at import time and stored on each session, so list paint stays a single index lookup.
+- Sessions that *started* with a slash command or skill now show the same Timeline pill (blue `/command`, orange skill name) inline before the summary text in the Session List, making it easy to scan for "the session I kicked off with `/review`".
 
 ## [0.3.4] - 2026-05-08
 

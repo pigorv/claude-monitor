@@ -73,24 +73,21 @@ function projectColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-// ── Pills row for commands/skills ───────────────────────────────────
+// ── Pills row for skills ────────────────────────────────────────────
 
 const PILLS_VISIBLE_LIMIT = 3;
 
 function SessionPills({ invocations }: { invocations: Invocation[] }) {
   const [expanded, setExpanded] = useState(false);
-  if (invocations.length === 0) return null;
-  const visible = expanded ? invocations : invocations.slice(0, PILLS_VISIBLE_LIMIT);
-  const hidden = invocations.length - visible.length;
+  const skills = invocations.filter((inv) => inv.type === "skill");
+  if (skills.length === 0) return null;
+  const visible = expanded ? skills : skills.slice(0, PILLS_VISIBLE_LIMIT);
+  const hidden = skills.length - visible.length;
   return html`
     <div class="session-pills" onClick=${(e: Event) => e.stopPropagation()}>
-      ${visible.map((inv) =>
-        inv.type === "command"
-          ? html`<span class="command-pill">${inv.name}</span>`
-          : html`<span class="skill-badge">skill: ${inv.name}</span>`
-      )}
+      ${visible.map((inv) => html`<span class="skill-badge">${inv.name}</span>`)}
       ${hidden > 0 && html`
-        <span class="pill-more" onClick=${() => setExpanded(true)} title="Show all ${invocations.length} invocations">
+        <span class="pill-more" onClick=${() => setExpanded(true)} title="Show all ${skills.length} skills">
           +${hidden} more
         </span>
       `}
@@ -485,7 +482,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
             <thead>
               <tr>
                 <th class=${sortClass("project_name")} onClick=${() => toggleSort("project_name")}>Session</th>
-                <th title="Slash commands and skill invocations used in this session">Invocations</th>
+                <th title="Skills invoked in this session">Skills</th>
                 <th class=${sortClass("model")} onClick=${() => toggleSort("model")}>Model</th>
                 <th class=${sortClass("duration_ms")} onClick=${() => toggleSort("duration_ms")}>Duration</th>
                 <th class=${sortClass("subagent_count")} onClick=${() => toggleSort("subagent_count")}>Agents</th>
@@ -517,8 +514,8 @@ export function SessionList({ params }: { params: URLSearchParams }) {
                         <span class="proj-summary-text">${s.summary || "—"}</span>
                       </div>
                     </td>
-                    <td class="invocations-cell">
-                      ${s.invocations && s.invocations.length > 0
+                    <td class="skills-cell">
+                      ${s.invocations && s.invocations.some((i) => i.type === "skill")
                         ? html`<${SessionPills} invocations=${s.invocations} />`
                         : html`<span class="muted">—</span>`}
                     </td>

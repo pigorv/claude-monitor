@@ -130,12 +130,12 @@
   min-width: 0;
 }
 
-/* Invocations column — slash commands and skill pills. */
-.invocations-cell {
+/* Skills column — skill name pills. */
+.skills-cell {
   max-width: 240px;
 }
 
-.invocations-cell .muted {
+.skills-cell .muted {
   color: var(--text3);
 }
 
