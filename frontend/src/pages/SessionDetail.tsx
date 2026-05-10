@@ -8,6 +8,7 @@ import { BackToTop } from "../components/BackToTop";
 import { updateParams } from "../lib/url-state";
 import type { SessionDetailResponse } from "../../../src/shared/types";
 import { resolveThresholds } from "../lib/chart-config";
+import "../styles/pills.css";
 import "../styles/session-detail.css";
 
 // One-shot cleanup of a now-unused preference. Sentinel ensures we don't
