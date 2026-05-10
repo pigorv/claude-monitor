@@ -117,9 +117,49 @@
   color: var(--text);
   margin-top: 2px;
   max-width: 280px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.proj-summary-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Skills column — skill name pills. */
+.skills-cell {
+  max-width: 240px;
+}
+
+.skills-cell .muted {
+  color: var(--text3);
+}
+
+.session-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.session-pills .pill-more {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--r-xs);
+  background: var(--bg-2);
+  color: var(--text3);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: var(--mono);
+}
+
+.session-pills .pill-more:hover {
+  color: var(--text);
+  border-color: var(--text3);
 }
 
 /* Active session: pulsing green dot */

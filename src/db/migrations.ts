@@ -5,7 +5,15 @@ import * as logger from '../shared/logger.js';
 interface Migration {
   id: number;
   name: string;
-  sql: string;
+  /** Either raw SQL or an imperative function. Function form lets a migration
+   * inspect schema state (e.g. via PRAGMA table_info) before mutating it. */
+  sql?: string;
+  run?: (db: Database.Database) => void;
+}
+
+function tableHasColumn(db: Database.Database, table: string, column: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  return rows.some((r) => r.name === column);
 }
 
 const MIGRATION_002_AGENT_EFFICIENCY = `
@@ -88,6 +96,93 @@ const MIGRATION_009_MODELS_USED = `
 ALTER TABLE sessions ADD COLUMN models_used TEXT;
 `;
 
+// Backfill SQL for sessions.invocations: dedupe (type, name) pairs and preserve
+// first-seen order via MIN(sequence_num). Guarded by `WHERE invocations IS NULL`
+// so it's safe to re-run.
+const BACKFILL_INVOCATIONS_SQL = `
+UPDATE sessions SET invocations = (
+  SELECT json_group_array(json_object('type', type, 'name', name))
+  FROM (
+    SELECT type, name, MIN(sequence_num) AS first_seq
+    FROM (
+      SELECT
+        'command' AS type,
+        json_extract(metadata, '$.command') AS name,
+        sequence_num
+      FROM events
+      WHERE session_id = sessions.id
+        AND event_type = 'user_message'
+        AND json_extract(metadata, '$.command') IS NOT NULL
+      UNION ALL
+      SELECT
+        'skill' AS type,
+        json_extract(metadata, '$.skill_name') AS name,
+        sequence_num
+      FROM events
+      WHERE session_id = sessions.id
+        AND event_type = 'user_message'
+        AND json_extract(metadata, '$.subtype') = 'skill_expansion'
+        AND json_extract(metadata, '$.skill_name') IS NOT NULL
+    )
+    GROUP BY type, name
+    ORDER BY first_seq
+  )
+)
+WHERE invocations IS NULL
+  AND EXISTS (
+    SELECT 1 FROM events
+    WHERE session_id = sessions.id
+      AND event_type = 'user_message'
+      AND (
+        json_extract(metadata, '$.command') IS NOT NULL
+        OR json_extract(metadata, '$.subtype') = 'skill_expansion'
+      )
+  );
+`;
+
+// Backfill SQL for sessions.started_with: takes the first non-system user
+// message and captures whether the session was *kicked off* with a slash
+// command or skill. Mirrors deriveStartedWith() in the importer.
+const BACKFILL_STARTED_WITH_SQL = `
+UPDATE sessions SET started_with = (
+  SELECT
+    CASE
+      WHEN json_extract(metadata, '$.command') IS NOT NULL THEN
+        json_object('type', 'command', 'name', json_extract(metadata, '$.command'))
+      WHEN json_extract(metadata, '$.subtype') = 'skill_expansion'
+       AND json_extract(metadata, '$.skill_name') IS NOT NULL THEN
+        json_object('type', 'skill', 'name', json_extract(metadata, '$.skill_name'))
+      ELSE NULL
+    END
+  FROM events
+  WHERE session_id = sessions.id
+    AND event_type = 'user_message'
+    AND (
+      json_extract(metadata, '$.subtype') IS NULL
+      OR json_extract(metadata, '$.subtype') != 'system_generated'
+    )
+  ORDER BY sequence_num ASC
+  LIMIT 1
+)
+WHERE started_with IS NULL;
+`;
+
+// Single migration for the session-pills feature: adds sessions.invocations
+// and sessions.started_with columns and backfills both from events. Uses
+// imperative run() rather than raw SQL so the column adds can be guarded
+// against pre-existing columns — together with the `WHERE … IS NULL` guards
+// in the backfills, the migration is fully idempotent.
+function migration010SessionPills(db: Database.Database): void {
+  if (!tableHasColumn(db, 'sessions', 'invocations')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN invocations TEXT');
+  }
+  if (!tableHasColumn(db, 'sessions', 'started_with')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN started_with TEXT');
+  }
+  db.exec(BACKFILL_INVOCATIONS_SQL);
+  db.exec(BACKFILL_STARTED_WITH_SQL);
+}
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -98,6 +193,7 @@ const MIGRATIONS: Migration[] = [
   { id: 7, name: '007-index-cleanup', sql: MIGRATION_007_INDEX_CLEANUP },
   { id: 8, name: '008-events-cache-write', sql: MIGRATION_008_EVENTS_CACHE_WRITE },
   { id: 9, name: '009-models-used', sql: MIGRATION_009_MODELS_USED },
+  { id: 10, name: '010-session-pills', run: migration010SessionPills },
 ];
 
 export function runMigrations(db: Database.Database): void {
@@ -118,7 +214,13 @@ export function runMigrations(db: Database.Database): void {
 
     logger.info(`Applying migration: ${migration.name}`);
     db.transaction(() => {
-      db.exec(migration.sql);
+      if (migration.run) {
+        migration.run(db);
+      } else if (migration.sql) {
+        db.exec(migration.sql);
+      } else {
+        throw new Error(`Migration ${migration.name} has neither sql nor run`);
+      }
       db.prepare('INSERT INTO _migrations (id, name) VALUES (?, ?)').run(
         migration.id,
         migration.name,

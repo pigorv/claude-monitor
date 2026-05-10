@@ -33,12 +33,12 @@ export function insertSession(session: Session): void {
       id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
       duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
       total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
-      subagent_count, risk_score, summary, end_reason, transcript_path, metadata
+      subagent_count, risk_score, summary, end_reason, transcript_path, metadata, invocations, started_with
     ) VALUES (
       @id, @project_path, @project_name, @model, @models_used, @source, @status, @started_at, @ended_at,
       @duration_ms, @total_input_tokens, @total_output_tokens, @total_cache_read_tokens,
       @total_cache_write_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
-      @subagent_count, @risk_score, @summary, @end_reason, @transcript_path, @metadata
+      @subagent_count, @risk_score, @summary, @end_reason, @transcript_path, @metadata, @invocations, @started_with
     )
   `);
   _insertSessionStmt.run(session);
@@ -51,12 +51,12 @@ export function upsertSession(session: Session): void {
       id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
       duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
       total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
-      subagent_count, risk_score, summary, end_reason, transcript_path, metadata
+      subagent_count, risk_score, summary, end_reason, transcript_path, metadata, invocations, started_with
     ) VALUES (
       @id, @project_path, @project_name, @model, @models_used, @source, @status, @started_at, @ended_at,
       @duration_ms, @total_input_tokens, @total_output_tokens, @total_cache_read_tokens,
       @total_cache_write_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
-      @subagent_count, @risk_score, @summary, @end_reason, @transcript_path, @metadata
+      @subagent_count, @risk_score, @summary, @end_reason, @transcript_path, @metadata, @invocations, @started_with
     )
     ON CONFLICT(id) DO UPDATE SET
       project_path = excluded.project_path,
@@ -80,7 +80,9 @@ export function upsertSession(session: Session): void {
       summary = COALESCE(excluded.summary, summary),
       end_reason = COALESCE(excluded.end_reason, end_reason),
       transcript_path = COALESCE(excluded.transcript_path, transcript_path),
-      metadata = COALESCE(excluded.metadata, metadata)
+      metadata = COALESCE(excluded.metadata, metadata),
+      invocations = COALESCE(excluded.invocations, invocations),
+      started_with = COALESCE(excluded.started_with, started_with)
   `);
   _upsertSessionStmt.run(session);
 }
@@ -117,7 +119,7 @@ const SESSION_LIST_COLUMNS = `
   id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
   duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
   total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
-  subagent_count, risk_score, summary, end_reason, transcript_path
+  subagent_count, risk_score, summary, end_reason, transcript_path, invocations, started_with
 `;
 
 export function listSessions(filters: SessionFilters = {}): { sessions: Session[]; total: number } {

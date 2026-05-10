@@ -4,7 +4,7 @@ import { getDb } from '../db/connection.js';
 import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
 import { sessionExists, upsertSession } from '../db/queries/sessions.js';
 import * as logger from '../shared/logger.js';
-import type { Event, Session, TextBlock, TranscriptMessage } from '../shared/types.js';
+import type { Event, Invocation, Session, TextBlock, TranscriptMessage } from '../shared/types.js';
 import { parseTranscript, extractAiTitle } from './jsonl-parser.js';
 import { extractAllEvents, mergeToolCallEvents, assignAgentIds, type ParsedEvent } from './thinking-extractor.js';
 import { buildTokenSnapshots, computeAggregates, estimateContextPct } from './token-tracker.js';
@@ -159,7 +159,9 @@ export async function importTranscript(
 
   // Build session record
   const modelsUsed = deriveModelsUsed(messages);
-  const session = buildSessionRecord(sessionId, filePath, messages, model, modelsUsed, aggregates, toolCallCount, subagentCount, riskAssessment, summary);
+  const invocations = deriveInvocations(parsedEvents);
+  const startedWith = deriveStartedWith(parsedEvents);
+  const session = buildSessionRecord(sessionId, filePath, messages, model, modelsUsed, invocations, startedWith, aggregates, toolCallCount, subagentCount, riskAssessment, summary);
 
   // Build event records with token info from snapshots
   const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model);
@@ -603,6 +605,52 @@ function deriveModelsUsed(messages: TranscriptMessage[]): string[] {
   return models;
 }
 
+// Captures whether the session was *started* with a slash command or skill,
+// by looking at the first non-system user_message. Stronger signal than "any
+// invocation appears in this session": this means the user invoked a command
+// or skill as the very first thing they did.
+function deriveStartedWith(events: ParsedEvent[]): Invocation | null {
+  for (const evt of events) {
+    if (evt.event_type !== 'user_message') continue;
+    const meta = evt.metadata;
+    if (meta?.subtype === 'system_generated') continue;
+    if (meta && typeof meta.command === 'string') {
+      return { type: 'command', name: meta.command };
+    }
+    if (meta?.subtype === 'skill_expansion' && typeof meta.skill_name === 'string') {
+      return { type: 'skill', name: meta.skill_name };
+    }
+    return null;
+  }
+  return null;
+}
+
+function deriveInvocations(events: ParsedEvent[]): Invocation[] {
+  const seen = new Set<string>();
+  const invocations: Invocation[] = [];
+  for (const evt of events) {
+    if (evt.event_type !== 'user_message' || !evt.metadata) continue;
+    const meta = evt.metadata;
+    const command = typeof meta.command === 'string' ? meta.command : null;
+    if (command) {
+      const key = `command:${command}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        invocations.push({ type: 'command', name: command });
+      }
+      continue;
+    }
+    if (meta.subtype === 'skill_expansion' && typeof meta.skill_name === 'string') {
+      const key = `skill:${meta.skill_name}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        invocations.push({ type: 'skill', name: meta.skill_name });
+      }
+    }
+  }
+  return invocations;
+}
+
 function deriveProjectPath(messages: TranscriptMessage[]): string {
   for (const msg of messages) {
     if (msg.cwd) return msg.cwd;
@@ -616,6 +664,8 @@ function buildSessionRecord(
   messages: TranscriptMessage[],
   model: string | null,
   modelsUsed: string[],
+  invocations: Invocation[],
+  startedWith: Invocation | null,
   aggregates: ReturnType<typeof computeAggregates>,
   toolCallCount: number,
   subagentCount: number,
@@ -654,6 +704,8 @@ function buildSessionRecord(
     end_reason: null,
     transcript_path: filePath,
     metadata: JSON.stringify({ risk_signals: riskAssessment.signals }),
+    invocations: invocations.length > 0 ? JSON.stringify(invocations) : null,
+    started_with: startedWith ? JSON.stringify(startedWith) : null,
     agent_avg_compression: null,
     agent_total_tokens: 0,
     agent_pressure_events: 0,

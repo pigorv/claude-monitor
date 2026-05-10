@@ -297,3 +297,174 @@ describe('importTranscript with sample fixture', () => {
     assert.ok(timeline.length > 0);
   });
 });
+
+// ── Invocations aggregation ────────────────────────────────────────
+
+const INVOCATIONS_JSONL = [
+  // /review command (first appearance)
+  JSON.stringify({
+    parentUuid: null, cwd: '/tmp/project', sessionId: 'inv-session-1', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'text', text: '<command-name>/review</command-name>\n<command-message>review</command-message>' }] },
+    timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'inv-session-1', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'Reviewing.' }],
+      usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:01.000Z', uuid: 'a-1',
+  }),
+  // skill expansion
+  JSON.stringify({
+    parentUuid: 'a-1', cwd: '/tmp/project', sessionId: 'inv-session-1', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'text', text: 'Base directory for this skill: /home/user/.claude/skills/debug-pipeline\n\nDebug the pipeline' }] },
+    timestamp: '2026-01-01T00:01:02.000Z', uuid: 'u-2',
+  }),
+  JSON.stringify({
+    parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'inv-session-1', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'Debugging.' }],
+      usage: { input_tokens: 1100, output_tokens: 60, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:03.000Z', uuid: 'a-2',
+  }),
+  // plain user message — must be ignored
+  JSON.stringify({
+    parentUuid: 'a-2', cwd: '/tmp/project', sessionId: 'inv-session-1', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: 'just a normal question' },
+    timestamp: '2026-01-01T00:01:04.000Z', uuid: 'u-3',
+  }),
+  JSON.stringify({
+    parentUuid: 'u-3', cwd: '/tmp/project', sessionId: 'inv-session-1', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'Sure.' }],
+      usage: { input_tokens: 1200, output_tokens: 70, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:05.000Z', uuid: 'a-3',
+  }),
+  // duplicate /review — must be deduped
+  JSON.stringify({
+    parentUuid: 'a-3', cwd: '/tmp/project', sessionId: 'inv-session-1', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'text', text: '<command-name>/review</command-name>' }] },
+    timestamp: '2026-01-01T00:01:06.000Z', uuid: 'u-4',
+  }),
+  JSON.stringify({
+    parentUuid: 'u-4', cwd: '/tmp/project', sessionId: 'inv-session-1', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'Done.' }],
+      usage: { input_tokens: 1300, output_tokens: 80, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:07.000Z', uuid: 'a-4',
+  }),
+].join('\n');
+
+describe('importTranscript invocations aggregation', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  it('aggregates commands and skills, dedupes, preserves first-seen order', async () => {
+    const filePath = join(TEST_DIR, 'invocations.jsonl');
+    writeFileSync(filePath, INVOCATIONS_JSONL);
+
+    await importTranscript(filePath);
+
+    const session = getSession('inv-session-1');
+    assert.ok(session);
+    assert.ok(session.invocations, 'invocations should be set');
+    const parsed = JSON.parse(session.invocations!);
+    assert.deepEqual(parsed, [
+      { type: 'command', name: '/review' },
+      { type: 'skill', name: 'debug-pipeline' },
+    ]);
+  });
+
+  it('leaves invocations null when a session has no commands or skills', async () => {
+    const filePath = join(TEST_DIR, 'plain.jsonl');
+    writeFileSync(filePath, SAMPLE_JSONL);
+
+    await importTranscript(filePath);
+
+    const session = getSession('test-session-1');
+    assert.ok(session);
+    assert.equal(session.invocations, null);
+  });
+
+  it('captures started_with when the first user message is a slash command', async () => {
+    const filePath = join(TEST_DIR, 'started-cmd.jsonl');
+    writeFileSync(filePath, INVOCATIONS_JSONL);
+
+    await importTranscript(filePath);
+
+    const session = getSession('inv-session-1');
+    assert.ok(session);
+    assert.ok(session.started_with, 'started_with should be set');
+    assert.deepEqual(JSON.parse(session.started_with!), {
+      type: 'command',
+      name: '/review',
+    });
+  });
+
+  it('leaves started_with null when the first user message is plain text', async () => {
+    const filePath = join(TEST_DIR, 'plain.jsonl');
+    writeFileSync(filePath, SAMPLE_JSONL);
+
+    await importTranscript(filePath);
+
+    const session = getSession('test-session-1');
+    assert.ok(session);
+    assert.equal(session.started_with, null);
+  });
+
+  it('captures started_with as skill when first user message is a skill expansion', async () => {
+    const SKILL_FIRST_JSONL = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'skill-first-1', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: 'Base directory for this skill: /home/user/.claude/skills/triage-issue\n\nTriage' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'skill-first-1', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Triaging.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'skill-first.jsonl');
+    writeFileSync(filePath, SKILL_FIRST_JSONL);
+
+    await importTranscript(filePath);
+
+    const session = getSession('skill-first-1');
+    assert.ok(session);
+    assert.deepEqual(JSON.parse(session.started_with!), {
+      type: 'skill',
+      name: 'triage-issue',
+    });
+  });
+});

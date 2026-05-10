@@ -7,7 +7,8 @@ import { usePersistentState } from "../hooks/usePersistentState";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { updateParams } from "../lib/url-state";
 import { migrateProjectFilterKey } from "../lib/migrate-project-filter";
-import type { SessionSummary, ProjectInfo } from "../../../src/shared/types";
+import type { SessionSummary, ProjectInfo, Invocation } from "../../../src/shared/types";
+import "../styles/pills.css";
 import "../styles/session-list.css";
 
 // ── Formatting helpers ──────────────────────────────────────────────
@@ -70,6 +71,28 @@ function projectColor(name: string): string {
     hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
   }
   return colors[Math.abs(hash) % colors.length];
+}
+
+// ── Pills row for skills ────────────────────────────────────────────
+
+const PILLS_VISIBLE_LIMIT = 3;
+
+function SessionPills({ invocations }: { invocations: Invocation[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const skills = invocations.filter((inv) => inv.type === "skill");
+  if (skills.length === 0) return null;
+  const visible = expanded ? skills : skills.slice(0, PILLS_VISIBLE_LIMIT);
+  const hidden = skills.length - visible.length;
+  return html`
+    <div class="session-pills" onClick=${(e: Event) => e.stopPropagation()}>
+      ${visible.map((inv) => html`<span class="skill-badge">${inv.name}</span>`)}
+      ${hidden > 0 && html`
+        <span class="pill-more" onClick=${() => setExpanded(true)} title="Show all ${skills.length} skills">
+          +${hidden} more
+        </span>
+      `}
+    </div>
+  `;
 }
 
 // ── Sort / filter types ─────────────────────────────────────────────
@@ -459,6 +482,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
             <thead>
               <tr>
                 <th class=${sortClass("project_name")} onClick=${() => toggleSort("project_name")}>Session</th>
+                <th title="Skills invoked in this session">Skills</th>
                 <th class=${sortClass("model")} onClick=${() => toggleSort("model")}>Model</th>
                 <th class=${sortClass("duration_ms")} onClick=${() => toggleSort("duration_ms")}>Duration</th>
                 <th class=${sortClass("subagent_count")} onClick=${() => toggleSort("subagent_count")}>Agents</th>
@@ -481,7 +505,24 @@ export function SessionList({ params }: { params: URLSearchParams }) {
                         ${s.project_name || "—"}
                         ${s.status === "running" ? html`<span class="active-dot" title="Active session"></span>` : null}
                       </div>
-                      <div class="proj-summary">${s.summary || "—"}</div>
+                      <div class="proj-summary">
+                        ${s.started_with && html`<span class="cmd-pill">${s.started_with.name}</span>`}
+                        ${(() => {
+                          const summary = (s.summary ?? "").trim();
+                          const startedName = s.started_with?.name;
+                          // Hide the summary when it duplicates the command/skill that started
+                          // the session (e.g. row labelled both "/clear" and "/clear").
+                          if (startedName && summary === startedName) return null;
+                          if (summary) return html`<span class="proj-summary-text">${summary}</span>`;
+                          if (!s.started_with) return html`<span class="proj-summary-text">—</span>`;
+                          return null;
+                        })()}
+                      </div>
+                    </td>
+                    <td class="skills-cell">
+                      ${s.invocations && s.invocations.some((i) => i.type === "skill")
+                        ? html`<${SessionPills} invocations=${s.invocations} />`
+                        : html`<span class="muted">—</span>`}
                     </td>
                     <td>
                       ${(s.models_used && s.models_used.length > 1)

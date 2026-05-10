@@ -7,6 +7,7 @@ import type {
   RiskAssessment,
   SessionStats,
   InternalToolCall,
+  Invocation,
 } from '../../shared/types.js';
 import { getSession, listSessions, listProjects, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions } from '../../db/queries/sessions.js';
 import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
@@ -33,6 +34,33 @@ function estimateCost(model: string | null, inputTokens: number, outputTokens: n
   const pricing = MODEL_PRICING[key];
   const cost = (inputTokens / 1_000_000) * pricing.input_per_mtok + (outputTokens / 1_000_000) * pricing.output_per_mtok;
   return Math.round(cost * 1_000_000) / 1_000_000;
+}
+
+function parseInvocations(raw: string | null): Invocation[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed.filter(
+      (x): x is Invocation =>
+        x && (x.type === 'command' || x.type === 'skill') && typeof x.name === 'string',
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function parseStartedWith(raw: string | null): Invocation | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.type === 'command' || parsed.type === 'skill') && typeof parsed.name === 'string') {
+      return parsed as Invocation;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function sessionToSummary(
@@ -62,6 +90,8 @@ function sessionToSummary(
     summary: session.summary ?? '',
     cost_estimate_usd: estimateCost(session.model, session.total_input_tokens, session.total_output_tokens),
     mini_timeline: miniTimeline ?? [],
+    invocations: parseInvocations(session.invocations),
+    started_with: parseStartedWith(session.started_with),
   };
 }
 
