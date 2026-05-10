@@ -8,11 +8,9 @@ import type { Event, Session, TextBlock, TranscriptMessage } from '../shared/typ
 import { parseTranscript, extractAiTitle } from './jsonl-parser.js';
 import { extractAllEvents, mergeToolCallEvents, assignAgentIds, type ParsedEvent } from './thinking-extractor.js';
 import { buildTokenSnapshots, computeAggregates, estimateContextPct } from './token-tracker.js';
-import { computeRiskAssessment } from '../analysis/risk-scoring.js';
 import { generateSessionSummary } from '../analysis/session-summary.js';
 import { computeAgentEfficiency, inferExecutionModes, analyzeAgentFileReads } from '../analysis/agent-efficiency.js';
 import { getAllAgentTokenTimelines, updateAgentRelationship } from '../db/queries/sessions.js';
-import type { RiskAssessment } from '../shared/types.js';
 import { detectAndLinkSessions } from './session-linker.js';
 
 // ── Import result ──────────────────────────────────────────────────
@@ -77,7 +75,7 @@ export async function importTranscript(
   const parsedEvents = mergeToolCallEvents(rawEvents);
   const agentInfos = assignAgentIds(parsedEvents);
 
-  // Compute tool call and subagent counts once (used by risk, summary, and session record)
+  // Compute tool call and subagent counts once (used by summary and session record)
   const toolCounts = new Map<string, number>();
   let toolCallCount = 0;
   let subagentCount = 0;
@@ -99,17 +97,7 @@ export async function importTranscript(
 
   // Build token snapshots
   const model = deriveModel(messages);
-  const snapshots = buildTokenSnapshots(messages, model);
-  const aggregates = computeAggregates(snapshots);
-
-  // Compute risk assessment
-  const riskAssessment = computeRiskAssessment({
-    snapshots,
-    events: parsedEvents,
-    model,
-    compactionCount: aggregates.compaction_count,
-    subagentCount,
-  });
+  const aggregates = computeAggregates(buildTokenSnapshots(messages, model));
 
   const durationMs = new Date(messages[messages.length - 1].timestamp).getTime() - new Date(messages[0].timestamp).getTime();
 
@@ -153,13 +141,12 @@ export async function importTranscript(
     compactionCount: aggregates.compaction_count,
     subagentCount,
     peakContextPct: aggregates.peak_context_pct > 0 ? aggregates.peak_context_pct : null,
-    riskLevel: riskAssessment.level,
     firstUserMessage,
   });
 
   // Build session record
   const modelsUsed = deriveModelsUsed(messages);
-  const session = buildSessionRecord(sessionId, filePath, messages, model, modelsUsed, aggregates, toolCallCount, subagentCount, riskAssessment, summary);
+  const session = buildSessionRecord(sessionId, filePath, messages, model, modelsUsed, aggregates, toolCallCount, subagentCount, summary);
 
   // Build event records with token info from snapshots
   const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model);
@@ -619,7 +606,6 @@ function buildSessionRecord(
   aggregates: ReturnType<typeof computeAggregates>,
   toolCallCount: number,
   subagentCount: number,
-  riskAssessment: RiskAssessment,
   summary: string,
 ): Session {
   const projectPath = deriveProjectPath(messages);
@@ -649,11 +635,10 @@ function buildSessionRecord(
     compaction_count: aggregates.compaction_count,
     tool_call_count: toolCallCount,
     subagent_count: subagentCount,
-    risk_score: riskAssessment.score,
     summary,
     end_reason: null,
     transcript_path: filePath,
-    metadata: JSON.stringify({ risk_signals: riskAssessment.signals }),
+    metadata: null,
     agent_avg_compression: null,
     agent_total_tokens: 0,
     agent_pressure_events: 0,

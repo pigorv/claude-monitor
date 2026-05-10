@@ -16,7 +16,6 @@ stats.get('/api/stats', (c) => {
       COALESCE(SUM(total_cache_read_tokens), 0) as total_cache_read_tokens,
       COALESCE(SUM(total_cache_write_tokens), 0) as total_cache_write_tokens,
       COALESCE(AVG(duration_ms), 0) as avg_duration_ms,
-      COALESCE(AVG(risk_score), 0) as avg_risk_score,
       COALESCE(SUM(compaction_count), 0) as total_compactions,
       COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
       COALESCE(SUM(subagent_count), 0) as total_subagents,
@@ -50,10 +49,6 @@ stats.get('/api/stats', (c) => {
   }
   totalCostEstimate = Math.round(totalCostEstimate * 1_000_000) / 1_000_000;
 
-  const highRiskRow = db.prepare(`
-    SELECT COUNT(*) as cnt FROM sessions WHERE risk_score >= 0.6
-  `).get() as { cnt: number };
-
   const todayRow = db.prepare(`
     SELECT COUNT(*) as cnt FROM sessions WHERE started_at >= date('now') AND started_at < date('now', '+1 day')
   `).get() as { cnt: number };
@@ -69,13 +64,11 @@ stats.get('/api/stats', (c) => {
     total_cache_read_tokens: tokenRow.total_cache_read_tokens,
     total_cache_write_tokens: tokenRow.total_cache_write_tokens,
     avg_duration_ms: Math.round(tokenRow.avg_duration_ms),
-    avg_risk_score: Math.round(tokenRow.avg_risk_score * 100) / 100,
     total_compactions: tokenRow.total_compactions,
     total_tool_calls: tokenRow.total_tool_calls,
     total_subagents: tokenRow.total_subagents,
     sessions_with_compactions: tokenRow.sessions_with_compactions,
     total_cost_estimate_usd: totalCostEstimate,
-    high_risk_sessions: highRiskRow.cnt,
     sessions_today: todayRow.cnt,
   });
 });

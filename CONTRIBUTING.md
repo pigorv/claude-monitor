@@ -16,7 +16,7 @@ src/
   cli/          # CLI entry point and commands (import, start, status)
   server/       # Hono HTTP server, routes, middleware
   ingestion/    # JSONL parser, transcript importer, thinking extractor, token tracker
-  analysis/     # Context pressure scoring, risk heuristics, session summary
+  analysis/     # Compaction detection, session summary, agent efficiency, session linking
   shared/       # Types, constants, logger
   db/           # SQLite schema, connection, migrations, queries
 frontend/       # Preact + HTM dashboard (built with Vite)

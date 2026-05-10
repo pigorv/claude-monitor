@@ -5,7 +5,7 @@ import * as logger from '../shared/logger.js';
 interface Migration {
   id: number;
   name: string;
-  sql: string;
+  sql: string | ((db: Database.Database) => void);
 }
 
 const MIGRATION_002_AGENT_EFFICIENCY = `
@@ -88,6 +88,13 @@ const MIGRATION_009_MODELS_USED = `
 ALTER TABLE sessions ADD COLUMN models_used TEXT;
 `;
 
+function migration010DropRiskScore(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
+  if (columns.some((c) => c.name === 'risk_score')) {
+    db.exec('ALTER TABLE sessions DROP COLUMN risk_score');
+  }
+}
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -98,6 +105,7 @@ const MIGRATIONS: Migration[] = [
   { id: 7, name: '007-index-cleanup', sql: MIGRATION_007_INDEX_CLEANUP },
   { id: 8, name: '008-events-cache-write', sql: MIGRATION_008_EVENTS_CACHE_WRITE },
   { id: 9, name: '009-models-used', sql: MIGRATION_009_MODELS_USED },
+  { id: 10, name: '010-drop-risk-score', sql: migration010DropRiskScore },
 ];
 
 export function runMigrations(db: Database.Database): void {
@@ -118,7 +126,11 @@ export function runMigrations(db: Database.Database): void {
 
     logger.info(`Applying migration: ${migration.name}`);
     db.transaction(() => {
-      db.exec(migration.sql);
+      if (typeof migration.sql === 'function') {
+        migration.sql(db);
+      } else {
+        db.exec(migration.sql);
+      }
       db.prepare('INSERT INTO _migrations (id, name) VALUES (?, ?)').run(
         migration.id,
         migration.name,

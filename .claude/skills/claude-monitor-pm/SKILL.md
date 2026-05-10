@@ -53,7 +53,7 @@ Before designing anything, read the actual code that's relevant. This is non-neg
 src/cli/commands/    — CLI commands (import, start, status, setup)
 src/server/routes/   — Hono API routes
 src/ingestion/       — JSONL parser, hook handler, file watcher, agent linker
-src/analysis/        — Context pressure, risk scoring, session summary
+src/analysis/        — Compaction detection, session summary, agent efficiency, session linking
 src/shared/          — Types, constants, logger
 src/db/              — Schema, connection, queries (sessions, events, stats)
 frontend/src/pages/  — SessionList, SessionDetail, Settings

@@ -4,7 +4,6 @@ import type {
   SessionSummary,
   SessionListResponse,
   SessionDetailResponse,
-  RiskAssessment,
   SessionStats,
   InternalToolCall,
 } from '../../shared/types.js';
@@ -12,7 +11,6 @@ import { getSession, listSessions, listProjects, getAgentRelationships, getAllAg
 import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
 import { getSessionStats, getToolFrequency, getFileActivity, getPeakParentTokens, getPeakParentTokensForSessions } from '../../db/queries/stats.js';
 import type { SessionFilters } from '../../db/queries/sessions.js';
-import { riskLevel } from '../../analysis/risk-scoring.js';
 import { MODEL_PRICING } from '../../shared/constants.js';
 import { analyzeCompactions } from '../../analysis/compaction-analysis.js';
 
@@ -40,7 +38,6 @@ function sessionToSummary(
   miniTimeline?: import('../../shared/types.js').MiniTimelinePoint[],
   peakTokens?: number,
 ): SessionSummary {
-  const score = session.risk_score ?? 0;
   return {
     id: session.id,
     project_name: session.project_name ?? 'unknown',
@@ -57,8 +54,6 @@ function sessionToSummary(
     compaction_count: session.compaction_count,
     tool_call_count: session.tool_call_count,
     subagent_count: session.subagent_count,
-    risk_score: score,
-    risk_level: riskLevel(score),
     summary: session.summary ?? '',
     cost_estimate_usd: estimateCost(session.model, session.total_input_tokens, session.total_output_tokens),
     mini_timeline: miniTimeline ?? [],
@@ -80,10 +75,6 @@ sessions.get('/api/sessions', (c) => {
   if (q('model')) filters.model = q('model');
   if (q('since')) filters.since = q('since');
   if (q('until')) filters.until = q('until');
-  if (q('min_risk')) {
-    const v = parseFloat(q('min_risk')!);
-    if (!isNaN(v)) filters.minRisk = v;
-  }
   if (q('q')) filters.q = q('q');
   if (q('sort')) filters.sort = q('sort');
   if (q('order') === 'asc' || q('order') === 'desc') filters.order = q('order') as 'asc' | 'desc';
@@ -126,22 +117,6 @@ sessions.get('/api/sessions/:id', (c) => {
   const agents = getAgentRelationships(id);
   const stats = getSessionStats(id);
   const toolFreq = getToolFrequency(id);
-
-  const score = session.risk_score ?? 0;
-  let signals: RiskAssessment['signals'] = [];
-  if (session.metadata) {
-    try {
-      const parsed = JSON.parse(session.metadata);
-      signals = parsed.risk_signals ?? [];
-    } catch {
-      // Metadata is corrupt — ignore and use empty signals
-    }
-  }
-  const risk: RiskAssessment = {
-    score,
-    level: riskLevel(score),
-    signals,
-  };
 
   const toolFrequency: Record<string, number> = {};
   for (const entry of toolFreq) {
@@ -246,7 +221,6 @@ sessions.get('/api/sessions/:id', (c) => {
     session,
     token_timeline: tokenTimeline,
     agents: agentsWithTools,
-    risk,
     stats: sessionStats,
     compaction_details: compactionDetails,
     event_count: eventCount,

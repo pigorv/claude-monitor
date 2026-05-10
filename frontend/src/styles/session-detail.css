@@ -219,15 +219,6 @@
   border-color: var(--accent);
 }
 
-/* Risk signals */
-.risk-signals {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding: 8px 0;
-}
-
 /* Timeline */
 .timeline-toolbar {
   display: flex;

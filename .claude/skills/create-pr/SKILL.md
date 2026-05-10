@@ -137,7 +137,7 @@ If found, render as `Closes #N` (default) or `Refs #N` if the change clearly doe
 Hard rules:
 
 - ≤ 70 chars. Reject anything longer and shorten.
-- Imperative mood, lowercase first letter unless it's a proper noun (`add risk score export`, not `Adds risk score export.`).
+- Imperative mood, lowercase first letter unless it's a proper noun (`add session export endpoint`, not `Adds session export endpoint.`).
 - No trailing period.
 - No emoji unless the user explicitly asked for one.
 - If a single commit on the branch, default to that commit's subject (cleaned up).

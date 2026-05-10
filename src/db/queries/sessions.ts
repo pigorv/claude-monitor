@@ -33,12 +33,12 @@ export function insertSession(session: Session): void {
       id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
       duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
       total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
-      subagent_count, risk_score, summary, end_reason, transcript_path, metadata
+      subagent_count, summary, end_reason, transcript_path, metadata
     ) VALUES (
       @id, @project_path, @project_name, @model, @models_used, @source, @status, @started_at, @ended_at,
       @duration_ms, @total_input_tokens, @total_output_tokens, @total_cache_read_tokens,
       @total_cache_write_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
-      @subagent_count, @risk_score, @summary, @end_reason, @transcript_path, @metadata
+      @subagent_count, @summary, @end_reason, @transcript_path, @metadata
     )
   `);
   _insertSessionStmt.run(session);
@@ -51,12 +51,12 @@ export function upsertSession(session: Session): void {
       id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
       duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
       total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
-      subagent_count, risk_score, summary, end_reason, transcript_path, metadata
+      subagent_count, summary, end_reason, transcript_path, metadata
     ) VALUES (
       @id, @project_path, @project_name, @model, @models_used, @source, @status, @started_at, @ended_at,
       @duration_ms, @total_input_tokens, @total_output_tokens, @total_cache_read_tokens,
       @total_cache_write_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
-      @subagent_count, @risk_score, @summary, @end_reason, @transcript_path, @metadata
+      @subagent_count, @summary, @end_reason, @transcript_path, @metadata
     )
     ON CONFLICT(id) DO UPDATE SET
       project_path = excluded.project_path,
@@ -76,7 +76,6 @@ export function upsertSession(session: Session): void {
       compaction_count = excluded.compaction_count,
       tool_call_count = excluded.tool_call_count,
       subagent_count = excluded.subagent_count,
-      risk_score = COALESCE(excluded.risk_score, risk_score),
       summary = COALESCE(excluded.summary, summary),
       end_reason = COALESCE(excluded.end_reason, end_reason),
       transcript_path = COALESCE(excluded.transcript_path, transcript_path),
@@ -98,7 +97,6 @@ export interface SessionFilters {
   model?: string;
   since?: string;
   until?: string;
-  minRisk?: number;
   q?: string;
   sort?: string;
   order?: 'asc' | 'desc';
@@ -107,7 +105,7 @@ export interface SessionFilters {
 }
 
 const ALLOWED_SORT_COLUMNS = new Set([
-  'started_at', 'duration_ms', 'risk_score', 'total_input_tokens',
+  'started_at', 'duration_ms', 'total_input_tokens',
   'compaction_count', 'tool_call_count', 'subagent_count',
   'project_name', 'model',
 ]);
@@ -117,7 +115,7 @@ const SESSION_LIST_COLUMNS = `
   id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
   duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
   total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
-  subagent_count, risk_score, summary, end_reason, transcript_path
+  subagent_count, summary, end_reason, transcript_path
 `;
 
 export function listSessions(filters: SessionFilters = {}): { sessions: Session[]; total: number } {
@@ -147,10 +145,6 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
   if (filters.until) {
     conditions.push('started_at <= @until');
     params.until = filters.until;
-  }
-  if (filters.minRisk !== undefined) {
-    conditions.push('risk_score >= @minRisk');
-    params.minRisk = filters.minRisk;
   }
   if (filters.q) {
     // LIKE with leading % cannot use indexes — acceptable for <10K sessions

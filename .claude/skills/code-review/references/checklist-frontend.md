@@ -48,7 +48,7 @@ Flag the unsafe shapes when a transcript-derived value reaches them.
 | H3 | Token-chart code respects the >= 2 data point requirement (uPlot crashes/blanks otherwise). | New chart component renders with no length check. |
 | H4 | Dark-theme CSS variables used (no hardcoded `#fff` / `#000`). | New component using literal hex outside the project's variable set. |
 | H5 | Hash routing changes update the route allowlist consistently. | New tab added to `SessionDetail` UI but `VALID_TABS` (or the route guard) not updated → fall-through. |
-| H6 | Frontend types match server response shapes after a route changes. | Frontend reads `session.risk_score` but server now returns `riskScore`. |
+| H6 | Frontend types match server response shapes after a route changes. | Frontend reads `session.peak_context_pct` but server now returns `peakContextPct`. |
 
 ### MEDIUM — flag at confidence ≥ 7
 

@@ -1,5 +1,3 @@
-import type { RiskLevel } from '../shared/types.js';
-
 // ── Input type ──────────────────────────────────────────────────────
 
 export interface SummaryInput {
@@ -10,7 +8,6 @@ export interface SummaryInput {
   compactionCount: number;
   subagentCount: number;
   peakContextPct: number | null;
-  riskLevel: RiskLevel;
   firstUserMessage?: string;
 }
 
@@ -124,8 +121,6 @@ function generateStatsSummary(input: SummaryInput): string {
   if (input.peakContextPct != null && input.peakContextPct > 0) {
     parts.push(`peak ${input.peakContextPct.toFixed(0)}% context`);
   }
-
-  parts.push(`${capitalize(input.riskLevel)} risk`);
 
   const summary = parts[0] + (parts.length > 1 ? ', ' + parts.slice(1).join('. ') : '') + '.';
 

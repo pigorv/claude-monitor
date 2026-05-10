@@ -12,7 +12,6 @@ describe('generateSessionSummary', () => {
       compactionCount: 0,
       subagentCount: 0,
       peakContextPct: 40,
-      riskLevel: 'low',
     });
 
     assert.ok(summary.startsWith('Opus session'), `Expected to start with "Opus session", got: ${summary}`);
@@ -27,7 +26,6 @@ describe('generateSessionSummary', () => {
       compactionCount: 0,
       subagentCount: 0,
       peakContextPct: null,
-      riskLevel: 'low',
     });
 
     assert.ok(summary.includes('1h 2m'), `Expected duration "1h 2m", got: ${summary}`);
@@ -42,7 +40,6 @@ describe('generateSessionSummary', () => {
       compactionCount: 2,
       subagentCount: 0,
       peakContextPct: null,
-      riskLevel: 'medium',
     });
 
     assert.ok(summary.includes('2 compactions'), `Expected compaction info, got: ${summary}`);
@@ -57,7 +54,6 @@ describe('generateSessionSummary', () => {
       compactionCount: 0,
       subagentCount: 0,
       peakContextPct: null,
-      riskLevel: 'low',
     });
 
     assert.ok(!summary.includes('compaction'), `Should not mention compactions, got: ${summary}`);
@@ -72,25 +68,9 @@ describe('generateSessionSummary', () => {
       compactionCount: 0,
       subagentCount: 3,
       peakContextPct: null,
-      riskLevel: 'high',
     });
 
     assert.ok(summary.includes('3 subagents'), `Expected subagent info, got: ${summary}`);
-  });
-
-  it('includes risk level', () => {
-    const summary = generateSessionSummary({
-      model: 'claude-haiku-4-5',
-      durationMs: 30_000,
-      toolCallCount: 20,
-      topTools: ['Read', 'Bash', 'Edit'],
-      compactionCount: 1,
-      subagentCount: 0,
-      peakContextPct: 82,
-      riskLevel: 'critical',
-    });
-
-    assert.ok(summary.includes('Critical risk'), `Expected risk level, got: ${summary}`);
   });
 
   it('handles unknown model gracefully', () => {
@@ -102,7 +82,6 @@ describe('generateSessionSummary', () => {
       compactionCount: 0,
       subagentCount: 0,
       peakContextPct: null,
-      riskLevel: 'low',
     });
 
     assert.ok(summary.startsWith('Unknown session'), `Expected "Unknown session", got: ${summary}`);
@@ -117,7 +96,6 @@ describe('generateSessionSummary', () => {
       compactionCount: 5,
       subagentCount: 10,
       peakContextPct: 99.5,
-      riskLevel: 'critical',
     });
 
     assert.ok(summary.length <= 150, `Expected <= 150 chars, got ${summary.length}: ${summary}`);
@@ -133,7 +111,6 @@ describe('generateSessionSummary', () => {
     compactionCount: 0,
     subagentCount: 0,
     peakContextPct: null,
-    riskLevel: 'low' as const,
   };
 
   it('uses command name when slash command has empty args', () => {

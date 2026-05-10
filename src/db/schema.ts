@@ -17,7 +17,6 @@ CREATE TABLE sessions (
     compaction_count INTEGER DEFAULT 0,
     tool_call_count INTEGER DEFAULT 0,
     subagent_count INTEGER DEFAULT 0,
-    risk_score REAL,
     summary TEXT,
     end_reason TEXT,
     transcript_path TEXT,

@@ -117,7 +117,6 @@ interface StatsData {
   session_count: number;
   total_input_tokens: number;
   total_output_tokens: number;
-  avg_risk_score: number;
   avg_duration_ms: number;
   total_compactions: number;
   total_subagents: number;
@@ -125,7 +124,6 @@ interface StatsData {
   total_cost_estimate_usd?: number;
   oldest_session?: string;
   newest_session?: string;
-  high_risk_sessions?: number;
   sessions_today?: number;
 }
 

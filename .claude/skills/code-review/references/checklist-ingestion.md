@@ -5,7 +5,7 @@ You are reviewing diff hunks under `src/ingestion/**` and `src/analysis/**`. App
 ## Pipeline shape (reminder)
 
 ```
-JSONL → jsonl-parser → thinking-extractor → token-tracker → risk-scoring → DB
+JSONL → jsonl-parser → thinking-extractor → token-tracker → DB
 ```
 
 Two files compute things that have to stay in sync: `src/ingestion/thinking-extractor.ts` (events, tool merging, agent IDs) and `src/ingestion/transcript-importer.ts` (session aggregates, event records, per-event `context_pct`). When one changes, check the other.
@@ -29,7 +29,6 @@ Two files compute things that have to stay in sync: `src/ingestion/thinking-extr
 | H3 | Agent ID assignment from tool names handles the existing patterns (`Task`, `Agent`, custom subagent names). | New tool name regex narrower than what the pipeline already accepts → orphaned agent_id values. |
 | H4 | `isSubagentFile()` heuristic backed by a unit test before being changed. | Path detection changed without a fixture test asserting both true and false cases. |
 | H5 | Session aggregates (`computeAggregates`) consume the same token field as `token-tracker.ts`. | `total_input_tokens` summed from a different field than `effectiveContext` → DB and chart diverge. |
-| H6 | Risk-scoring weights/thresholds match the documented composite (30/25/20/15/10). | Weights edited without a corresponding test in `test/analysis/`. |
 
 ### MEDIUM — flag at confidence ≥ 7
 

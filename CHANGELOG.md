@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Risk scoring feature (composite session risk score and `risk_score` DB column). The score was never rendered in the UI; backend pipeline, API fields (`risk_score`, `risk_level`, `risk` on session detail, `avg_risk_score`/`high_risk_sessions` on stats, `min_risk` filter, `risk_score` sort), and the `context-pressure` analysis module are removed. Migration 010 drops the column from existing databases.
+
 ## [0.3.4] - 2026-05-08
 
 ### Fixed
