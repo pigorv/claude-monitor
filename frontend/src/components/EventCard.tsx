@@ -2,6 +2,7 @@ import { useState } from "preact/hooks";
 import { html } from "htm/preact";
 import type { Event } from "../../../src/shared/types";
 import { renderMarkdown } from "../lib/markdown";
+import { StructuredContent } from "./StructuredContent";
 import { computeLineDiff } from "../lib/diff";
 import { formatTokenMeta } from "../lib/format";
 
@@ -307,7 +308,9 @@ export function EventCard({ event, sessionStart, groupIndex }: EventCardProps) {
             <span class="sys-expand">${expanded ? '▾' : '›'}</span>
           </div>
           ${expanded && !contextData && html`
-            <div class="sys-expanded">${event.input_data || event.input_preview}</div>
+            <div class="sys-expanded">
+              ${StructuredContent({ text: event.input_data || event.input_preview, hint: "markdown" })}
+            </div>
           `}
           ${contextData && html`
             <div class="ctx-card">
@@ -360,7 +363,7 @@ export function EventCard({ event, sessionStart, groupIndex }: EventCardProps) {
               ${event.input_data && html`
                 <div class="detail-section">
                   <div class="detail-label">Input</div>
-                  <pre class="detail-content">${event.input_data}</pre>
+                  ${StructuredContent({ text: event.input_data, hint: "markdown" })}
                 </div>
               `}
             </div>
@@ -465,13 +468,13 @@ export function EventCard({ event, sessionStart, groupIndex }: EventCardProps) {
               ${event.tool_name !== "Edit" && event.input_data && html`
                 <div class="detail-section">
                   <div class="detail-label">Input</div>
-                  <pre class="detail-content">${event.input_data}</pre>
+                  ${StructuredContent({ text: event.input_data, hint: "json" })}
                 </div>
               `}
               ${(event.output_preview || event.output_data) && !(event.tool_name === "Edit" && /has been (updated|created) successfully/.test(event.output_preview || "")) && html`
                 <div class="detail-section">
                   <div class="detail-label">Output</div>
-                  <pre class="detail-content">${event.output_data || event.output_preview}</pre>
+                  ${StructuredContent({ text: event.output_data || event.output_preview })}
                 </div>
               `}
               ${(() => {
@@ -587,13 +590,13 @@ export function EventCard({ event, sessionStart, groupIndex }: EventCardProps) {
           ${event.thinking_text && html`
             <div class="detail-section">
               <div class="detail-label">Thinking</div>
-              <pre class="detail-content">${event.thinking_text}</pre>
+              ${StructuredContent({ text: event.thinking_text, hint: "markdown" })}
             </div>
           `}
           ${event.input_preview && html`
             <div class="detail-section">
               <div class="detail-label">Input</div>
-              <pre class="detail-content">${event.input_data || event.input_preview}</pre>
+              ${StructuredContent({ text: event.input_data || event.input_preview })}
             </div>
           `}
           ${event.output_preview && event.event_type === "assistant_message" && html`
@@ -607,7 +610,7 @@ export function EventCard({ event, sessionStart, groupIndex }: EventCardProps) {
           ${event.output_preview && event.event_type !== "assistant_message" && html`
             <div class="detail-section">
               <div class="detail-label">Output</div>
-              <pre class="detail-content">${event.output_data || event.output_preview}</pre>
+              ${StructuredContent({ text: event.output_data || event.output_preview })}
             </div>
           `}
           ${(() => {

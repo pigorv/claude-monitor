@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import { html } from "htm/preact";
 import { updateParams } from "../lib/url-state";
+import { renderStructuredInner } from "../lib/markdown";
 import type { AgentRelationship, InternalToolCall, AgentEfficiencyAggregates, TokenDataPoint } from "../../../src/shared/types";
 
 interface AgentTreeProps {
@@ -251,7 +252,7 @@ function AgentDetailPanel({
             <span>${promptOpen ? "\u25be" : "\u25b8"}</span> Prompt sent
           </div>
           <div class=${"section-content" + (promptOpen ? " expanded" : "")} onClick=${() => setPromptOpen(!promptOpen)}>
-            ${agent.prompt_data || agent.prompt_preview}
+            <div class="section-content-body" dangerouslySetInnerHTML=${{ __html: renderStructuredInner(agent.prompt_data || agent.prompt_preview || "", "markdown") }}></div>
             ${!promptOpen && html`<div class="fade" />`}
           </div>
         </div>
@@ -263,7 +264,7 @@ function AgentDetailPanel({
             <span>${resultOpen ? "\u25be" : "\u25b8"}</span> Result returned
           </div>
           <div class=${"section-content" + (resultOpen ? " expanded" : "")} onClick=${() => setResultOpen(!resultOpen)}>
-            ${resultText}
+            <div class="section-content-body" dangerouslySetInnerHTML=${{ __html: renderStructuredInner(resultText || "", "markdown") }}></div>
             ${!resultOpen && html`<div class="fade" />`}
           </div>
         </div>
@@ -329,7 +330,7 @@ function AgentDetailPanel({
                     ${tc.input_preview && html`
                       <div>
                         <div class="tool-detail-label">Input</div>
-                        <div class="tool-detail-content mono-content">${tc.input_preview}</div>
+                        <div class="tool-detail-content mono-content" dangerouslySetInnerHTML=${{ __html: renderStructuredInner(tc.input_preview, "json") }}></div>
                       </div>
                     `}
                     ${tc.result_preview && html`
@@ -341,7 +342,7 @@ function AgentDetailPanel({
                             ${isHeavy && totalEstTokens > 0 ? " \u2014 " + Math.round((tc.estimated_tokens || 0) / totalEstTokens * 100) + "% of agent context" : ""}
                           </span>
                         </div>
-                        <div class="tool-detail-content mono-content">${tc.result_preview}</div>
+                        <div class="tool-detail-content mono-content" dangerouslySetInnerHTML=${{ __html: renderStructuredInner(tc.result_preview) }}></div>
                       </div>
                     `}
                   </div>
