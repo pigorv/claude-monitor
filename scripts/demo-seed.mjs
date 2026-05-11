@@ -117,6 +117,11 @@ function buildSession({
   primaryModel = M_SONNET,
   largeModel = null,        // optional: switch mid-stream
   switchAfterStep = null,   // step index after which to switch to largeModel
+  firstUserText = null,     // if set, used as first-user-msg text in place of `title`
+                            // (use this to embed <command-name> tags for command pills)
+  trailingSkillExpansions = [], // strings: each becomes a synthetic "Base directory for this skill:"
+                                // user message before the closing "Thanks!" so the importer detects
+                                // a skill invocation in this session
 }) {
   const lines = [];
   // Custom title at the top of the file
@@ -125,7 +130,7 @@ function buildSession({
   // Initial user message kicks things off
   let { u: lastUuid, line: firstUserLine } = userMsg({
     sessionId, cwd, parent: null,
-    text: title, // first user message; importer picks slash-command preference
+    text: firstUserText ?? title, // command-tag markup goes here when present
     time: ts(startMs),
   });
   lines.push(firstUserLine);
@@ -268,6 +273,19 @@ function buildSession({
     }
   }
 
+  // Synthetic skill-expansion user messages, if any. The importer detects
+  // skill invocations by scanning user messages for the literal "Base directory
+  // for this skill:" line and extracting the skill name from the path.
+  for (const skillPath of trailingSkillExpansions) {
+    const { u: sU, line: sLine } = userMsg({
+      sessionId, cwd, parent: lastUuid, time: ts(cursorMs + 500),
+      text: `<system-reminder>\nBase directory for this skill: ${skillPath}\n</system-reminder>`,
+    });
+    lines.push(sLine);
+    lastUuid = sU;
+    cursorMs += 1_000;
+  }
+
   // Final follow-up user message so the chart has at least one closing point
   const { line: finalUserLine } = userMsg({
     sessionId, cwd, parent: lastUuid, time: ts(cursorMs + 1_000),
@@ -391,6 +409,11 @@ sessions.push(buildSession({
   primaryModel: M_SONNET,
   largeModel: M_OPUS,
   switchAfterStep: 4,
+  firstUserText:
+    "<command-name>/refactor</command-name>\n" +
+    "<command-message>refactor</command-message>\n" +
+    "<command-args>request validation middleware</command-args>",
+  trailingSkillExpansions: ["/Users/demo/.claude/skills/code-review/"],
   steps: [
     { kind: "tool", toolName: "Glob", toolInput: { pattern: "src/middleware/**/*.ts" }, toolOutput: "src/middleware/auth.ts\nsrc/middleware/validate.ts\nsrc/middleware/error.ts", thinking: "Need to find all middleware files.", deltaInput: 8_000, deltaCache: 12_000 },
     { kind: "tool", toolName: "Read", toolInput: { file_path: "src/middleware/validate.ts" }, toolOutput: "// 320 lines of validation logic...", deltaInput: 14_000, deltaCache: 22_000 },
@@ -427,6 +450,14 @@ sessions.push(buildSession({
   primaryModel: M_OPUS,
   largeModel: M_SONNET_1M,
   switchAfterStep: 0,
+  firstUserText:
+    "<command-name>/audit</command-name>\n" +
+    "<command-message>audit</command-message>\n" +
+    "<command-args>dashboard rendering performance</command-args>",
+  trailingSkillExpansions: [
+    "/Users/demo/.claude/skills/frontend-design/",
+    "/Users/demo/.claude/skills/code-review/",
+  ],
   steps: [
     { kind: "tool", toolName: "Glob", toolInput: { pattern: "frontend/src/**/*.tsx" }, toolOutput: "Found 24 files", deltaInput: 12_000, deltaCache: 18_000 },
     { kind: "agent", agentId: "audit-rendering-loop",       subagentType: "general-purpose", description: "Audit rendering hotspots", prompt: "Find components that re-render on every state update and propose useMemo/useCallback fixes. Check for inline object/array literals in JSX, unstable refs, and prop drilling that triggers extra renders.", thinking: "Delegating the rendering audit so the parent context stays small.", result: "Found 3 hot components: Timeline (re-renders on every event update), AgentTree (rebuilds entire layout on hover), SessionList (full re-render on filter change). Detailed findings + fixes in result.", },
@@ -460,6 +491,7 @@ sessions.push(buildSession({
   cwd: PROJECTS.recipe,
   startMs: 6 * 60 * 60_000,
   primaryModel: M_SONNET,
+  trailingSkillExpansions: ["/Users/demo/.claude/skills/playwright-cli/"],
   steps: [
     { kind: "tool", toolName: "WebFetch", toolInput: { url: "https://example.com/recipe/123" }, toolOutput: "<html>... 12kb fetched ...</html>", deltaInput: 24_000, deltaCache: 14_000 },
     { kind: "tool", toolName: "Read", toolInput: { file_path: "src/lib/parser.ts" }, toolOutput: "// existing JSON-LD parser, 220 lines", deltaInput: 18_000, deltaCache: 16_000 },
@@ -491,6 +523,11 @@ sessions.push(buildSession({
   cwd: PROJECTS.notes,
   startMs: 7.5 * 60 * 60_000,
   primaryModel: M_SONNET,
+  firstUserText:
+    "<command-name>/migrate</command-name>\n" +
+    "<command-message>migrate</command-message>\n" +
+    "<command-args>notes storage from JSON to SQLite</command-args>",
+  trailingSkillExpansions: ["/Users/demo/.claude/skills/release-readme/"],
   steps: [
     { kind: "tool", toolName: "Read", toolInput: { file_path: "src/storage/json-store.ts" }, toolOutput: "// 410 lines", deltaInput: 18_000, deltaCache: 18_000 },
     { kind: "tool", toolName: "Glob", toolInput: { pattern: "src/storage/**" }, toolOutput: "12 files", deltaInput: 8_000, deltaCache: 14_000 },
