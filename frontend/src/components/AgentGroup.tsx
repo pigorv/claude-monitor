@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "preact/hooks";
 import { html } from "htm/preact";
 import { fetchEvents } from "../api/client";
+import { renderStructuredInner } from "../lib/markdown";
 import type { Event, AgentRelationship } from "../../../src/shared/types";
 
 interface AgentGroupProps {
@@ -227,7 +228,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
           <div class="agent-tool-io">
             <div class="agent-tool-io-label">Input</div>
             <div class=${"agent-tool-io-content" + (expandedIo["in-" + evt.id] ? " expanded" : "")} onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleIo("in-" + evt.id); }}>
-              ${evt.input_data}
+              <div class="agent-tool-io-body" dangerouslySetInnerHTML=${{ __html: renderStructuredInner(evt.input_data, "json") }}></div>
               <div class="fade"></div>
             </div>
           </div>
@@ -236,7 +237,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
           <div class="agent-tool-io">
             <div class="agent-tool-io-label">Output${readPct >= 20 ? html` <span style="font-size:7px;color:var(--orange);font-weight:600;margin-left:3px">${readPct}% of agent reads</span>` : ""}</div>
             <div class=${"agent-tool-io-content" + (expandedIo["out-" + evt.id] ? " expanded" : "")} onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleIo("out-" + evt.id); }}>
-              ${evt.output_data || evt.output_preview}
+              <div class="agent-tool-io-body" dangerouslySetInnerHTML=${{ __html: renderStructuredInner(evt.output_data || evt.output_preview || "") }}></div>
               <div class="fade"></div>
             </div>
           </div>
@@ -275,7 +276,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
           </div>
           ${body && html`
             <div class=${"agent-event-body" + (isResult ? " result-body" : " assistant-nested") + (isBodyOpen ? " expanded" : "")} onClick=${() => toggleBody(evt.id)}>
-              ${body}
+              <div class="agent-event-body-content" dangerouslySetInnerHTML=${{ __html: renderStructuredInner(body, "markdown") }}></div>
               <div class="fade"></div>
             </div>
           `}

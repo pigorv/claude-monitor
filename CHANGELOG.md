@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Expanded skills list in the Session List can now be collapsed back: the `+N more` chip toggles to "Show less" while expanded.
+- Event detail panes now render structured content rather than plain `<pre>` text: tool inputs are pretty-printed JSON, thinking and skill-expansion bodies render as markdown (bold, lists, headings, inline code), and `<system-reminder>` / `<example>` tags are shown as styled blocks with the tag visible as a label. Tool outputs auto-detect format. Applied uniformly across the main Timeline, sub-agent groups (`AgentGroup`), and the Agents tab (`AgentTree`), so the same content renders the same way regardless of where it appears. Assistant message rendering is unchanged.
 
 ### Fixed
 

@@ -1224,6 +1224,137 @@
   overflow-y: auto;
 }
 
+/* ── Structured content renderers ────────────────────────────────── */
+
+/* Pretty-printed JSON in a tool input/output pane */
+.detail-content.json-block {
+  background: var(--bg-card);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* Markdown-rendered detail panes (thinking, skill bodies, system msgs) get
+   container chrome: white background, body-text size, comfy line-height. */
+.detail-content.markdown-content {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg-card);
+}
+
+/* Shared markdown body typography — applies to both fresh detail panes
+   (.detail-content.markdown-content) and inline rendering inside existing
+   styled containers (.md-rendered nested in .agent-event-body,
+   .agent-tool-io-content, .tool-detail-content). The inline variant
+   inherits font-size/color from its parent container. */
+:is(.detail-content.markdown-content, .md-rendered) {
+  font-family: var(--sans);
+  /* In an inline container, override mono parent's pre-wrap so block-level
+     markdown lays out normally instead of preserving raw text whitespace. */
+  white-space: normal;
+}
+:is(.detail-content.markdown-content, .md-rendered) > :first-child { margin-top: 0; }
+:is(.detail-content.markdown-content, .md-rendered) > :last-child { margin-bottom: 0; }
+:is(.detail-content.markdown-content, .md-rendered) p { margin: 0 0 8px; }
+:is(.detail-content.markdown-content, .md-rendered) h3,
+:is(.detail-content.markdown-content, .md-rendered) h4,
+:is(.detail-content.markdown-content, .md-rendered) h5 {
+  margin: 12px 0 6px;
+  font-weight: 600;
+  color: var(--text);
+}
+:is(.detail-content.markdown-content, .md-rendered) h3 { font-size: 14px; }
+:is(.detail-content.markdown-content, .md-rendered) h4 { font-size: 13px; }
+:is(.detail-content.markdown-content, .md-rendered) h5 { font-size: 12.5px; color: var(--text2); }
+:is(.detail-content.markdown-content, .md-rendered) ul,
+:is(.detail-content.markdown-content, .md-rendered) ol {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+}
+:is(.detail-content.markdown-content, .md-rendered) li { margin: 2px 0; }
+:is(.detail-content.markdown-content, .md-rendered) strong { font-weight: 600; color: var(--text); }
+:is(.detail-content.markdown-content, .md-rendered) em { font-style: italic; }
+:is(.detail-content.markdown-content, .md-rendered) a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--accent-border);
+}
+:is(.detail-content.markdown-content, .md-rendered) .md-inline-code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+:is(.detail-content.markdown-content, .md-rendered) .md-code-block {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  padding: 8px 10px;
+  margin: 6px 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+:is(.detail-content.markdown-content, .md-rendered) .md-code-block code {
+  font-family: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+/* Blockquote — left rule + muted text */
+.md-blockquote {
+  margin: 6px 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--border-hover);
+  color: var(--text2);
+}
+
+/* Preserved tag blocks (<system-reminder>, <example>) — keep the tags visible
+   as small chips bracketing a tinted body block. */
+.md-tagged-block {
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  padding: 6px 10px 8px;
+  background: var(--bg-muted);
+}
+.md-tagged-block .md-tag-label {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text3);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 5px;
+  margin: 0 0 4px;
+  letter-spacing: 0.02em;
+}
+.md-tagged-block .md-tag-label-close { margin: 4px 0 0; }
+.md-tagged-block .md-tagged-body { margin-top: 2px; }
+.md-tagged-block .md-tagged-body > :first-child { margin-top: 0; }
+.md-tagged-block .md-tagged-body > :last-child { margin-bottom: 0; }
+.md-tag-system-reminder {
+  background: var(--orange-tint);
+  border-color: var(--orange-border);
+}
+.md-tag-system-reminder .md-tag-label {
+  color: var(--orange);
+  border-color: var(--orange-border);
+}
+.md-tag-example {
+  background: var(--teal-tint);
+  border-color: var(--teal-border);
+}
+.md-tag-example .md-tag-label {
+  color: var(--teal);
+  border-color: var(--teal-border);
+}
+
 .detail-tokens {
   flex-direction: row;
   gap: 12px;
@@ -2437,6 +2568,15 @@
   max-height: 200px;
   overflow-y: auto;
   margin-top: 4px;
+}
+/* When sys-expanded wraps a StructuredContent renderer, drop the outer chrome
+   so the inner .detail-content provides the bordered box rather than nesting. */
+.sys-expanded:has(> .detail-content) {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  max-height: none;
+  overflow: visible;
 }
 
 /* ── System Group (collapsed consecutive) ── */
