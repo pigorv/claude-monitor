@@ -2898,12 +2898,15 @@
   background: var(--accent-tint);
 }
 
-/* Soft green tint behind the code body on both Write and Edit cards —
-   signals "code being written/changed". Per-line .diff-line-add /
-   .diff-line-remove backgrounds stack on top so the diff distinction
-   stays. */
-.event-card-mutating .diff-view {
+/* Write cards: soft green tint behind the code body so the card reads
+   as "all-new content". */
+.event-card-write .diff-view {
   background: rgba(34, 197, 94, 0.06);
+}
+/* Edit cards: near-white base so the per-line + / - tints stand out
+   like a classic side-by-side diff. */
+.event-card-edit .diff-view {
+  background: var(--bg-card);
 }
 
 /* ═══════════════════════════════════════════
