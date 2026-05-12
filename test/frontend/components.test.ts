@@ -319,6 +319,15 @@ describe('EventCard Write/Edit cards', () => {
     assert.ok(out.includes('Refactor the parser'), 'should include rationale text');
   });
 
+  it('truncates a rationale longer than 240 chars and shows the in-line expand chip', () => {
+    const long = 'A'.repeat(300);
+    const out = render(html`<${EventCard} event=${makeWrite('x')} rationale=${long} />`);
+    assert.ok(!out.includes('A'.repeat(300)), 'long rationale should be truncated');
+    assert.ok(out.includes('A'.repeat(240) + '…'), 'should slice to RAT_MAX and append the ellipsis');
+    assert.ok(out.includes('event-card-rationale-row'), 'rationale row should render');
+    assert.ok(out.includes('event-card-more-lines'), 'in-line expand chip should render in the rationale row');
+  });
+
   it('omits the rationale row when no rationale and context is low', () => {
     const out = render(html`<${EventCard} event=${makeWrite('x', { context_pct: 20 })} />`);
     assert.ok(!out.includes('event-card-rationale-row'), 'no rationale + low ctx → no rationale row');
@@ -329,6 +338,13 @@ describe('EventCard Write/Edit cards', () => {
     const out = render(html`<${EventCard} event=${makeWrite(longContent)} />`);
     assert.ok(out.includes('event-card-more-lines'), 'should show expand chip');
     assert.ok(out.includes('10 more lines'), 'should report 10 hidden lines');
+    // Body and rationale chips share the .event-card-more-lines class.
+    // No rationale prop is passed here, so only the body chip should render.
+    assert.equal(
+      out.match(/event-card-more-lines/g)?.length,
+      1,
+      'only the body chip should render — no second chip from the rationale row',
+    );
   });
 
   it('does not render expand chip when content fits the preview', () => {
