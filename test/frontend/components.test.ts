@@ -240,6 +240,126 @@ describe('EventCard', () => {
   });
 });
 
+// ─── EventCard: Write/Edit full-card render ─────────────
+
+describe('EventCard Write/Edit cards', () => {
+  function makeWrite(content: string, overrides: Partial<SessionEvent> = {}): SessionEvent {
+    return {
+      id: 1, session_id: 'sess-1',
+      event_type: 'tool_call_start', tool_name: 'Write',
+      timestamp: '2026-01-15T10:05:00Z',
+      context_pct: 30, duration_ms: 1200,
+      input_preview: null, output_preview: null,
+      thinking_summary: null, thinking_text: null,
+      input_tokens: null, output_tokens: 5400, cache_read_tokens: 12000, cache_write_tokens: null,
+      agent_id: null,
+      input_data: JSON.stringify({ file_path: '/Users/me/proj/src/foo.ts', content }),
+      output_data: null,
+      ...overrides,
+    } as SessionEvent;
+  }
+
+  function makeEdit(oldStr: string, newStr: string, overrides: Partial<SessionEvent> = {}): SessionEvent {
+    return {
+      id: 2, session_id: 'sess-1',
+      event_type: 'tool_call_start', tool_name: 'Edit',
+      timestamp: '2026-01-15T10:05:00Z',
+      context_pct: 30, duration_ms: 800,
+      input_preview: null, output_preview: null,
+      thinking_summary: null, thinking_text: null,
+      input_tokens: null, output_tokens: 2100, cache_read_tokens: null, cache_write_tokens: null,
+      agent_id: null,
+      input_data: JSON.stringify({ file_path: '/Users/me/proj/src/foo.py', old_string: oldStr, new_string: newStr }),
+      output_data: null,
+      ...overrides,
+    } as SessionEvent;
+  }
+
+  it('renders Write as full mutating card with diff-view body and write tint class', () => {
+    const out = render(html`<${EventCard} event=${makeWrite('const x = 1;\nconst y = 2;\n')} />`);
+    assert.ok(out.includes('event-card-mutating'), 'should use mutating card layout');
+    assert.ok(out.includes('event-card-write'), 'Write tool should get write-tint class');
+    assert.ok(!out.includes('event-card-edit'), 'Write must not also get edit class');
+    assert.ok(out.includes('diff-view'), 'should render diff-view body');
+    assert.ok(out.includes('event-card-meta-pill'), 'should render header meta pill');
+  });
+
+  it('renders Edit as mutating card with diff-line-add and diff-line-remove rows', () => {
+    const out = render(html`<${EventCard} event=${makeEdit('print("old")\n', 'print("new")\n')} />`);
+    assert.ok(out.includes('event-card-edit'), 'Edit tool should get edit-tint class');
+    assert.ok(!out.includes('event-card-write'), 'Edit must not also get write class');
+    assert.ok(out.includes('diff-line-add'), 'changed range should produce an add line');
+    assert.ok(out.includes('diff-line-remove'), 'changed range should produce a remove line');
+  });
+
+  it('puts language label (derived from extension) into the meta pill', () => {
+    const tsOut = render(html`<${EventCard} event=${makeWrite('x', { input_data: JSON.stringify({ file_path: '/a/b.ts', content: 'x' }) })} />`);
+    assert.ok(tsOut.includes('TypeScript'), '.ts → TypeScript label');
+    const pyOut = render(html`<${EventCard} event=${makeWrite('x', { input_data: JSON.stringify({ file_path: '/a/b.py', content: 'x' }) })} />`);
+    assert.ok(pyOut.includes('Python'), '.py → Python label');
+  });
+
+  it('escapes <script> in Write content (Prism path does not allow raw HTML injection)', () => {
+    const xss = '<script>alert("xss")</script>';
+    const out = render(html`<${EventCard} event=${makeWrite(xss + '\nconst x = 1;\n')} />`);
+    assert.ok(!out.includes('<script>alert'), 'literal <script>alert must never appear');
+    assert.ok(!out.includes('</script>'), 'literal closing </script> must never appear either');
+    assert.ok(out.includes('&lt;'), 'opening angle brackets must be HTML-entity escaped');
+  });
+
+  it('escapes raw HTML in Edit diff body too', () => {
+    const out = render(html`<${EventCard} event=${makeEdit('safe\n', '<img src=x onerror=alert(1)>\n')} />`);
+    assert.ok(!out.includes('<img src=x onerror'), 'raw HTML must not pass through to output');
+    assert.ok(out.includes('&lt;'), 'opening angle bracket should be escaped to &lt;');
+  });
+
+  it('shows the rationale row when a rationale prop is passed', () => {
+    const out = render(html`<${EventCard} event=${makeWrite('x')} rationale=${'Refactor the parser to handle empty input.'} />`);
+    assert.ok(out.includes('event-card-rationale-row'), 'should render rationale row');
+    assert.ok(out.includes('Refactor the parser'), 'should include rationale text');
+  });
+
+  it('omits the rationale row when no rationale and context is low', () => {
+    const out = render(html`<${EventCard} event=${makeWrite('x', { context_pct: 20 })} />`);
+    assert.ok(!out.includes('event-card-rationale-row'), 'no rationale + low ctx → no rationale row');
+  });
+
+  it('renders expand chip when content exceeds the 10-line preview cap', () => {
+    const longContent = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`).join('\n');
+    const out = render(html`<${EventCard} event=${makeWrite(longContent)} />`);
+    assert.ok(out.includes('event-card-more-lines'), 'should show expand chip');
+    assert.ok(out.includes('10 more lines'), 'should report 10 hidden lines');
+  });
+
+  it('does not render expand chip when content fits the preview', () => {
+    const out = render(html`<${EventCard} event=${makeWrite('a\nb\nc\n')} />`);
+    assert.ok(!out.includes('event-card-more-lines'), 'no chip when nothing is hidden');
+  });
+
+  it('applies mutating-error class when the tool result is an error', () => {
+    const evt = makeWrite('x', {
+      metadata: JSON.stringify({ tool_error: true }),
+    } as Partial<SessionEvent>);
+    const out = render(html`<${EventCard} event=${evt} />`);
+    assert.ok(out.includes('event-card-mutating-error'), 'errored Write should carry the error class');
+    assert.ok(out.includes('err-badge'), 'and should show an error badge in the header');
+  });
+
+  it('shows rejected badge when permission is denied', () => {
+    const evt = makeWrite('x', {
+      metadata: JSON.stringify({ permission_status: 'rejected' }),
+    } as Partial<SessionEvent>);
+    const out = render(html`<${EventCard} event=${evt} />`);
+    assert.ok(out.includes('permission-badge rejected'), 'rejected permission should show rejected badge');
+  });
+
+  it('renders the shortened file path in the header', () => {
+    const out = render(html`<${EventCard} event=${makeWrite('x', { input_data: JSON.stringify({ file_path: '/Users/me/proj/src/foo.ts', content: 'x' }) })} />`);
+    assert.ok(out.includes('event-card-mutating-path'), 'should render path slot');
+    assert.ok(out.includes('foo.ts'), 'shortened path should at least include the file name');
+  });
+});
+
 // ─── AgentTree / AgentFlow ──────────────────────────────
 
 describe('AgentTree', () => {
