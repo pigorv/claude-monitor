@@ -2784,9 +2784,13 @@
 .diff-view .token.keyword { color: var(--accent); font-weight: 500; }
 .diff-view .token.function,
 .diff-view .token.class-name { color: #b45309; }
-.diff-view .token.regex,
-.diff-view .token.important { color: var(--red, #dc2626); }
-.diff-view .token.important,
+.diff-view .token.regex { color: var(--red, #dc2626); }
+/* Markdown headings (Prism tags them with .title and often .important).
+   Keep them visually distinct from regular text but calm — using the
+   accent purple instead of red so they don't read like an error. */
+.diff-view .token.title,
+.diff-view .token.title .token.punctuation,
+.diff-view .token.important { color: var(--accent); font-weight: 600; }
 .diff-view .token.bold { font-weight: 600; }
 .diff-view .token.italic { font-style: italic; }
 
@@ -2876,14 +2880,28 @@
 }
 
 .event-card-more-lines {
-  font-size: 11px;
-  color: var(--text3);
-  padding: 4px 0 0;
-  cursor: pointer;
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 500;
   font-family: var(--mono);
+  color: var(--accent);
+  background: var(--accent-light);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.12s ease;
 }
 .event-card-more-lines:hover {
-  color: var(--accent);
+  background: var(--accent-tint);
+}
+
+/* Write content body — tint the whole diff-view green so the card reads
+   visually like a single big "addition", matching the green Edit + lines. */
+.event-card-write .diff-view {
+  background: rgba(34, 197, 94, 0.06);
 }
 
 /* ═══════════════════════════════════════════
