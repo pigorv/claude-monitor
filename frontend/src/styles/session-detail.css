@@ -2701,6 +2701,177 @@
 .ctx-row-total { background: var(--bg-muted); font-weight: 500; }
 
 /* ═══════════════════════════════════════════
+   Diff view — used by Write/Edit cards and the
+   existing expanded Edit row. Previously the
+   classes were referenced from JSX but had no
+   stylesheet rules.
+   ═══════════════════════════════════════════ */
+.diff-view {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 6px 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+.diff-line {
+  display: flex;
+  align-items: baseline;
+  padding: 0 12px;
+  min-height: 16px;
+}
+.diff-line-prefix {
+  display: inline-block;
+  width: 12px;
+  flex-shrink: 0;
+  color: var(--text3);
+  user-select: none;
+  text-align: center;
+}
+.diff-line-num {
+  display: inline-block;
+  width: 32px;
+  flex-shrink: 0;
+  padding-right: 8px;
+  color: var(--text3);
+  user-select: none;
+  text-align: right;
+  font-size: 10px;
+}
+.diff-line-text {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+.diff-line-add {
+  background: rgba(34, 197, 94, 0.10);
+}
+.diff-line-add .diff-line-prefix { color: var(--green, #16a34a); }
+.diff-line-remove {
+  background: rgba(220, 38, 38, 0.08);
+}
+.diff-line-remove .diff-line-prefix { color: var(--red, #dc2626); }
+.diff-line-unchanged .diff-line-text { color: var(--text2); }
+
+/* ═══════════════════════════════════════════
+   Write / Edit tool cards — full-card layout
+   with header meta-pill, optional rationale row,
+   collapsible body, and an [▸ expand] footer.
+   Renders for tool_call_start where tool_name is
+   Write or Edit (see EventCard.tsx).
+   ═══════════════════════════════════════════ */
+.event-card.event-card-mutating {
+  padding: 3px 0 3px 20px;
+  margin: 6px 0;
+}
+.event-card.event-card-mutating .event-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+}
+.event-card.event-card-mutating.event-card-mutating-error .event-content {
+  border-left-color: var(--red);
+}
+
+.event-card-mutating-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.event-card-mutating-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.event-card-mutating-path {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.event-card-meta-pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.event-card-rationale-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.event-card-rationale-row-ctx-only {
+  justify-content: flex-end;
+}
+.event-card-rationale {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text2);
+  flex: 1;
+  min-width: 0;
+}
+
+.event-card-body {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.event-card-body .diff-view {
+  margin: 0;
+}
+
+.event-card-more-lines {
+  font-size: 11px;
+  color: var(--text3);
+  padding: 4px 0 0;
+  cursor: pointer;
+  font-family: var(--mono);
+}
+.event-card-more-lines:hover {
+  color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════
+   User message — purple-accent card treatment.
+   Excludes system-generated, skill-expansion,
+   and slash-command branches (those have their
+   own render paths in EventCard.tsx).
+   ═══════════════════════════════════════════ */
+.event-card.event-user-message:not(.event-system-tagged):not(.event-skill-expansion):not(.event-cmd) {
+  padding: 3px 0 3px 20px;
+  margin: 6px 0;
+}
+.event-card.event-user-message:not(.event-system-tagged):not(.event-skill-expansion):not(.event-cmd) > .event-content {
+  background: var(--bg-card);
+  border: 1px solid var(--purple-border);
+  border-left: 3px solid var(--purple);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+}
+
+/* ═══════════════════════════════════════════
    RESPONSIVE — Phone
    ═══════════════════════════════════════════ */
 @media (max-width: 480px) {
