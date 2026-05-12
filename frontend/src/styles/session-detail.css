@@ -2881,15 +2881,15 @@
 
 .event-card-more-lines {
   display: inline-block;
-  margin-top: 8px;
-  font-size: 12px;
+  margin-top: 6px;
+  font-size: 10.5px;
   font-weight: 500;
   font-family: var(--mono);
   color: var(--accent);
   background: var(--accent-light);
   border: 1px solid var(--accent-border);
-  border-radius: var(--r-sm);
-  padding: 4px 10px;
+  border-radius: 6px;
+  padding: 2px 8px;
   cursor: pointer;
   user-select: none;
   transition: background-color 0.12s ease;
@@ -2898,9 +2898,11 @@
   background: var(--accent-tint);
 }
 
-/* Write content body — tint the whole diff-view green so the card reads
-   visually like a single big "addition", matching the green Edit + lines. */
-.event-card-write .diff-view {
+/* Soft green tint behind the code body on both Write and Edit cards —
+   signals "code being written/changed". Per-line .diff-line-add /
+   .diff-line-remove backgrounds stack on top so the diff distinction
+   stays. */
+.event-card-mutating .diff-view {
   background: rgba(34, 197, 94, 0.06);
 }
 
