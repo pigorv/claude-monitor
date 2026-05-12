@@ -333,6 +333,30 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
 
   const groupedItems = useMemo(() => groupTimelineItems(events, agents), [events, agents]);
 
+  // Map each Write/Edit tool_call_start to the thinking_summary of the nearest
+  // preceding thinking event since the last real user input. user_message is
+  // the only boundary — assistant_message is a separate event from the same
+  // API response, not a turn boundary, so it must not reset. A new thinking
+  // event always overrides the previous one.
+  const rationaleMap = useMemo(() => {
+    const map = new Map<number, string>();
+    let current: string | null = null;
+    for (const e of events) {
+      if (e.event_type === "user_message") {
+        current = null;
+      } else if (e.event_type === "thinking" && e.thinking_summary && e.thinking_summary.trim()) {
+        current = e.thinking_summary;
+      } else if (
+        e.event_type === "tool_call_start"
+        && (e.tool_name === "Write" || e.tool_name === "Edit")
+        && current
+      ) {
+        map.set(e.id, current);
+      }
+    }
+    return map;
+  }, [events]);
+
   // Token budget bar data
   const budgetData = useMemo(() => {
     if (!agents || agents.length === 0) return null;
@@ -443,6 +467,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
                               event=${evt}
                               sessionStart=${sessionStart}
                               groupIndex=${isTaskCreate ? idx + 1 : undefined}
+                              rationale=${rationaleMap.get(evt.id)}
                             />
                           `)}
                         </div>
@@ -469,7 +494,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
                         ${isExpanded && html`
                           <div style="margin-top: 4px;">
                             ${item.events.map(evt => html`
-                              <${EventCard} key=${evt.id} event=${evt} sessionStart=${sessionStart} />
+                              <${EventCard} key=${evt.id} event=${evt} sessionStart=${sessionStart} rationale=${rationaleMap.get(evt.id)} />
                             `)}
                           </div>
                         `}
@@ -481,6 +506,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
                   key=${item.event.id}
                   event=${item.event}
                   sessionStart=${sessionStart}
+                  rationale=${rationaleMap.get(item.event.id)}
                 />`
           )}
         </div>

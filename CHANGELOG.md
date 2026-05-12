@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Session Detail timeline: Write and Edit tool calls now render as full cards with rationale, diff/content body, and per-card metadata (language · duration · output · cache). The rationale is sourced from the nearest preceding `thinking_summary` in the same assistant turn. User messages adopt a matching purple-accent card style; system-generated, slash-command, and skill-expansion paths are unchanged. Bodies are syntax-highlighted (Prism.js, curated grammar set) and collapse to ~10 lines by default with in-place expand.
+
 ## [0.3.5] - 2026-05-11
 
 ### Added

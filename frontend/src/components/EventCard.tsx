@@ -3,13 +3,15 @@ import { html } from "htm/preact";
 import type { Event } from "../../../src/shared/types";
 import { renderMarkdown } from "../lib/markdown";
 import { StructuredContent } from "./StructuredContent";
-import { computeLineDiff } from "../lib/diff";
-import { formatTokenMeta } from "../lib/format";
+import { computeLineDiff, type DiffLine } from "../lib/diff";
+import { formatTokenMeta, formatTokenCount } from "../lib/format";
+import { highlight } from "../lib/syntax";
 
 interface EventCardProps {
   event: Event;
   sessionStart?: string;
   groupIndex?: number;
+  rationale?: string;
 }
 
 function formatTime(iso: string, _sessionStart?: string): string {
@@ -254,6 +256,39 @@ function getDotStyle(eventType: string, isSystemGenerated?: boolean, isSkillExpa
   return `background: ${bg};`;
 }
 
+// Derive a human-readable language label from a file extension.
+function detectLanguage(filePath: string | null): string {
+  if (!filePath) return "Text";
+  const ext = filePath.toLowerCase().split(".").pop() ?? "";
+  const map: Record<string, string> = {
+    ts: "TypeScript", tsx: "TypeScript", js: "JavaScript", jsx: "JavaScript",
+    mjs: "JavaScript", cjs: "JavaScript",
+    py: "Python", rb: "Ruby", go: "Go", rs: "Rust",
+    java: "Java", kt: "Kotlin", swift: "Swift",
+    c: "C", h: "C", cc: "C++", cpp: "C++", hpp: "C++",
+    cs: "C#", php: "PHP",
+    json: "JSON", yaml: "YAML", yml: "YAML", toml: "TOML",
+    md: "Markdown", mdx: "Markdown", html: "HTML", htm: "HTML",
+    css: "CSS", scss: "SCSS",
+    sql: "SQL", sh: "Shell", bash: "Shell", zsh: "Shell", fish: "Shell",
+  };
+  return map[ext] ?? (ext ? ext.toUpperCase() : "Text");
+}
+
+// Trim a diff to the first `maxLines` lines, preserving up to `leadingContext`
+// unchanged lines before the first change. Returns the lines to render and
+// how many were hidden.
+function previewDiff(
+  diff: DiffLine[],
+  maxLines = 24,
+  leadingContext = 8,
+): { lines: DiffLine[]; hidden: number } {
+  const firstChange = diff.findIndex((l) => l.type !== "unchanged");
+  const start = firstChange < 0 ? 0 : Math.max(0, firstChange - leadingContext);
+  const slice = diff.slice(start, start + maxLines);
+  return { lines: slice, hidden: Math.max(0, diff.length - slice.length) };
+}
+
 // Check if a tool event has an error (works for all tool types)
 function isToolErrorEvent(event: Event): boolean {
   const meta = parseMetadata(event);
@@ -265,7 +300,7 @@ function isToolErrorEvent(event: Event): boolean {
   return false;
 }
 
-export function EventCard({ event, sessionStart, groupIndex }: EventCardProps) {
+export function EventCard({ event, sessionStart, groupIndex, rationale }: EventCardProps) {
   const [expanded, setExpanded] = useState(false);
   const isToolEvent = event.event_type === "tool_call_start" || event.event_type === "tool_call_end";
   const label = TYPE_LABELS[event.event_type] || event.event_type;
@@ -343,7 +378,7 @@ export function EventCard({ event, sessionStart, groupIndex }: EventCardProps) {
     const cmdArgs = getCommandArgs(meta!);
 
     return html`
-      <div class=${"event-card event-user-message" + (hasExpandable ? " expandable" : "")}
+      <div class=${"event-card event-user-message event-cmd" + (hasExpandable ? " expandable" : "")}
         onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
       >
         <div class="event-dot dot-cmd"></div>
@@ -413,6 +448,125 @@ export function EventCard({ event, sessionStart, groupIndex }: EventCardProps) {
         <span class="tool-badge">ToolSearch</span>
         ${tsQuery && html`<span class="tool-summary">${truncate(tsQuery, 60)}</span>`}
         ${event.duration_ms != null && html`<span class="event-duration">${formatDuration(event.duration_ms)}</span>`}
+      </div>
+    `;
+  }
+
+  // Write/Edit — new full-card render with rationale + meta pill + collapsible body.
+  if (event.event_type === "tool_call_start" && (event.tool_name === "Write" || event.tool_name === "Edit")) {
+    const isErr = isToolErrorEvent(event);
+    const input = tryParseJson(event.input_data) ?? {};
+    const filePath = typeof input.file_path === "string" ? input.file_path : null;
+    const lang = detectLanguage(filePath);
+
+    // Header meta-pill parts
+    const metaParts: string[] = [lang];
+    if (event.duration_ms != null) metaParts.push(formatDuration(event.duration_ms));
+    const outStr = formatTokenCount(event.output_tokens ?? null);
+    if (outStr) metaParts.push(`out: ${outStr}`);
+    const cacheStr = formatTokenCount(event.cache_read_tokens ?? null);
+    if (cacheStr) metaParts.push(`cache: ${cacheStr}`);
+
+    // Body
+    const isWrite = event.tool_name === "Write";
+    const writeContent = isWrite && typeof input.content === "string" ? input.content : "";
+    const writeLines = isWrite ? writeContent.split("\n") : [];
+    const editDiff: DiffLine[] = !isWrite && typeof input.old_string === "string"
+      ? computeLineDiff(String(input.old_string), String(input.new_string ?? ""))
+      : [];
+    const PREVIEW_LINES = 10;
+    const EDIT_LEADING_CONTEXT = 3;
+    const writePreview = isWrite ? writeLines.slice(0, PREVIEW_LINES) : [];
+    const writeHidden = isWrite ? Math.max(0, writeLines.length - writePreview.length) : 0;
+    const editPreview = !isWrite ? previewDiff(editDiff, PREVIEW_LINES, EDIT_LEADING_CONTEXT) : { lines: [], hidden: 0 };
+    const hidden = isWrite ? writeHidden : editPreview.hidden;
+
+    // Rationale: truncate to 240 chars; track separate expand state.
+    const RAT_MAX = 240;
+    const ratLong = rationale != null && rationale.length > RAT_MAX;
+
+    const cardClass = "event-card event-card-mutating"
+      + (isWrite ? " event-card-write" : " event-card-edit")
+      + (isErr ? " event-card-mutating-error" : "");
+
+    return html`
+      <div class=${cardClass}>
+        <div class=${"event-dot dot-tool" + (isErr ? " dot-tool-err" : "")}></div>
+        <div class="event-content">
+          <div class="event-card-mutating-header">
+            <div class="event-card-mutating-header-left">
+              ${groupIndex != null && html`<span class="tg-item-badge">#${groupIndex}</span>`}
+              <span class=${"tool-badge " + toolBadgeClass}>${event.tool_name}</span>
+              ${filePath && html`<span class="event-card-mutating-path" title=${filePath}>${shortenPath(filePath)}</span>`}
+              ${isErr && isRejected && html`<span class="permission-badge rejected">rejected</span>`}
+              ${isErr && !isRejected && html`<span class="err-badge">error</span>`}
+            </div>
+            <div class="event-card-meta-pill">${metaParts.join(" · ")}</div>
+          </div>
+
+          ${rationale && html`
+            <div class="event-card-rationale-row">
+              <div class="event-card-rationale">
+                ${ratLong && !expanded
+                  ? html`<span>${truncate(rationale, RAT_MAX)}</span><span class="event-card-more-lines" onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(true); }}> [▸ expand]</span>`
+                  : html`<span>${rationale}</span>`
+                }
+              </div>
+              ${event.context_pct != null && event.context_pct >= 50 && html`
+                <span class="event-ctx">
+                  <span class="ctx-minibar">
+                    <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--red)' : event.context_pct >= 60 ? 'var(--orange)' : 'var(--yellow)'}"></span>
+                  </span>
+                  <span class="mono">${Math.round(event.context_pct)}%</span>
+                </span>
+              `}
+            </div>
+          `}
+
+          ${!rationale && event.context_pct != null && event.context_pct >= 50 && html`
+            <div class="event-card-rationale-row event-card-rationale-row-ctx-only">
+              <span class="event-ctx">
+                <span class="ctx-minibar">
+                  <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--red)' : event.context_pct >= 60 ? 'var(--orange)' : 'var(--yellow)'}"></span>
+                </span>
+                <span class="mono">${Math.round(event.context_pct)}%</span>
+              </span>
+            </div>
+          `}
+
+          <div class="event-card-body">
+            ${isWrite
+              ? html`
+                <div class="diff-view">
+                  ${(expanded ? writeLines : writePreview).map((text) => html`
+                    <div class="diff-line">
+                      <span class="diff-line-text" dangerouslySetInnerHTML=${{ __html: highlight(text, lang) }}></span>
+                    </div>
+                  `)}
+                </div>
+              `
+              : html`
+                <div class="diff-view">
+                  ${(expanded ? editDiff : editPreview.lines).map((line) => html`
+                    <div class=${"diff-line diff-line-" + line.type}>
+                      <span class="diff-line-prefix">${line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}</span>
+                      <span class="diff-line-text" dangerouslySetInnerHTML=${{ __html: highlight(line.text, lang) }}></span>
+                    </div>
+                  `)}
+                </div>
+              `}
+            ${!expanded && hidden > 0 && html`
+              <div class="event-card-more-lines" onClick=${() => setExpanded(true)}>
+                … ${hidden} more lines  [▸ expand]
+              </div>
+            `}
+            ${expanded && hidden > 0 && html`
+              <div class="event-card-more-lines" onClick=${() => setExpanded(false)}>
+                [▾ collapse]
+              </div>
+            `}
+          </div>
+        </div>
       </div>
     `;
   }
