@@ -2731,16 +2731,6 @@
   user-select: none;
   text-align: center;
 }
-.diff-line-num {
-  display: inline-block;
-  width: 32px;
-  flex-shrink: 0;
-  padding-right: 8px;
-  color: var(--text3);
-  user-select: none;
-  text-align: right;
-  font-size: 10px;
-}
 .diff-line-text {
   flex: 1;
   white-space: pre-wrap;
@@ -2756,6 +2746,49 @@
 }
 .diff-line-remove .diff-line-prefix { color: var(--red, #dc2626); }
 .diff-line-unchanged .diff-line-text { color: var(--text2); }
+
+/* ═══════════════════════════════════════════
+   Prism syntax tokens — minimal hand-tuned
+   palette against the project's existing
+   accent variables. Applied inside .diff-view
+   for both Write content and Edit diffs.
+   ═══════════════════════════════════════════ */
+.diff-view .token.comment,
+.diff-view .token.prolog,
+.diff-view .token.doctype,
+.diff-view .token.cdata {
+  color: var(--text3);
+  font-style: italic;
+}
+.diff-view .token.punctuation { color: var(--text2); }
+.diff-view .token.namespace { opacity: 0.7; }
+.diff-view .token.property,
+.diff-view .token.tag,
+.diff-view .token.boolean,
+.diff-view .token.number,
+.diff-view .token.constant,
+.diff-view .token.symbol,
+.diff-view .token.deleted { color: var(--orange); }
+.diff-view .token.selector,
+.diff-view .token.attr-name,
+.diff-view .token.string,
+.diff-view .token.char,
+.diff-view .token.builtin,
+.diff-view .token.inserted { color: var(--green, #16a34a); }
+.diff-view .token.operator,
+.diff-view .token.entity,
+.diff-view .token.url,
+.diff-view .token.variable { color: var(--text); }
+.diff-view .token.atrule,
+.diff-view .token.attr-value,
+.diff-view .token.keyword { color: var(--accent); font-weight: 500; }
+.diff-view .token.function,
+.diff-view .token.class-name { color: #b45309; }
+.diff-view .token.regex,
+.diff-view .token.important { color: var(--red, #dc2626); }
+.diff-view .token.important,
+.diff-view .token.bold { font-weight: 600; }
+.diff-view .token.italic { font-style: italic; }
 
 /* ═══════════════════════════════════════════
    Write / Edit tool cards — full-card layout

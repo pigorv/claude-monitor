@@ -5,6 +5,7 @@ import { renderMarkdown } from "../lib/markdown";
 import { StructuredContent } from "./StructuredContent";
 import { computeLineDiff, type DiffLine } from "../lib/diff";
 import { formatTokenMeta, formatTokenCount } from "../lib/format";
+import { highlight } from "../lib/syntax";
 
 interface EventCardProps {
   event: Event;
@@ -473,9 +474,11 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
     const editDiff: DiffLine[] = !isWrite && typeof input.old_string === "string"
       ? computeLineDiff(String(input.old_string), String(input.new_string ?? ""))
       : [];
-    const writePreview = isWrite ? writeLines.slice(0, 24) : [];
+    const PREVIEW_LINES = 10;
+    const EDIT_LEADING_CONTEXT = 3;
+    const writePreview = isWrite ? writeLines.slice(0, PREVIEW_LINES) : [];
     const writeHidden = isWrite ? Math.max(0, writeLines.length - writePreview.length) : 0;
-    const editPreview = !isWrite ? previewDiff(editDiff, 24, 8) : { lines: [], hidden: 0 };
+    const editPreview = !isWrite ? previewDiff(editDiff, PREVIEW_LINES, EDIT_LEADING_CONTEXT) : { lines: [], hidden: 0 };
     const hidden = isWrite ? writeHidden : editPreview.hidden;
 
     // Rationale: truncate to 240 chars; track separate expand state.
@@ -534,11 +537,10 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
           <div class="event-card-body">
             ${isWrite
               ? html`
-                <div class="diff-view diff-view-numbered">
-                  ${(expanded ? writeLines : writePreview).map((text, i) => html`
-                    <div class="diff-line diff-line-numbered">
-                      <span class="diff-line-num">${i + 1}</span>
-                      <span class="diff-line-text">${text}</span>
+                <div class="diff-view">
+                  ${(expanded ? writeLines : writePreview).map((text) => html`
+                    <div class="diff-line">
+                      <span class="diff-line-text" dangerouslySetInnerHTML=${{ __html: highlight(text, lang) }}></span>
                     </div>
                   `)}
                 </div>
@@ -548,7 +550,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
                   ${(expanded ? editDiff : editPreview.lines).map((line) => html`
                     <div class=${"diff-line diff-line-" + line.type}>
                       <span class="diff-line-prefix">${line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}</span>
-                      <span class="diff-line-text">${line.text}</span>
+                      <span class="diff-line-text" dangerouslySetInnerHTML=${{ __html: highlight(line.text, lang) }}></span>
                     </div>
                   `)}
                 </div>
