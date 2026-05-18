@@ -200,8 +200,8 @@ const TYPE_PILL_CLASS: Record<string, string> = {
   subagent_end: "pill-teal",
   compaction: "pill-orange",
   thinking: "pill-yellow",
-  assistant_message: "pill-purple",
-  user_message: "pill-blue",
+  assistant_message: "pill-gray",
+  user_message: "pill-purple",
   notification: "pill-gray",
 };
 
@@ -218,8 +218,8 @@ const TOOL_BADGE_CLASS: Record<string, string> = {
 
 // Dot color per event type for the timeline rail
 const DOT_COLORS: Record<string, string> = {
-  user_message: "#2563eb",
-  assistant_message: "var(--accent)",
+  user_message: "var(--purple)",
+  assistant_message: "var(--text2)",
   tool_call_start: "transparent",
   tool_call_end: "transparent",
   subagent_start: "var(--teal)",
@@ -237,8 +237,9 @@ const DOT_BORDER_COLORS: Record<string, string> = {
   thinking: "var(--yellow)",
 };
 
-// Event types where we suppress the type pill (dot + card border is enough)
-const SUPPRESS_PILL_TYPES = new Set(["assistant_message", "user_message", "thinking"]);
+// Event types where we suppress the type pill. User/assistant now show an
+// uppercase role label (USER / ASSISTANT); thinking keeps its own treatment.
+const SUPPRESS_PILL_TYPES = new Set(["thinking"]);
 
 function getDotStyle(eventType: string, isSystemGenerated?: boolean, isSkillExpansion?: boolean): string {
   if (isSystemGenerated) {
@@ -304,6 +305,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
   const [expanded, setExpanded] = useState(false);
   const isToolEvent = event.event_type === "tool_call_start" || event.event_type === "tool_call_end";
   const label = TYPE_LABELS[event.event_type] || event.event_type;
+  const isRoleMsg = event.event_type === "user_message" || event.event_type === "assistant_message";
   const pillClass = TYPE_PILL_CLASS[event.event_type] || "pill-gray";
   const typeClass = `event-card event-${event.event_type.replace(/_/g, "-")}`;
   const toolBadgeClass = event.tool_name ? (TOOL_BADGE_CLASS[event.tool_name] || "") : "";
@@ -666,7 +668,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
         ${isCommand && html`<span class="command-pill">${meta.command}</span>`}
         ${isSkillExpansion && html`<span class="skill-badge">skill: ${skillName || "expansion"}</span>`}
         ${isSystemGenerated && html`<span class="event-pill pill-gray">system</span>`}
-        ${!isToolEvent && !isCommand && !isSkillExpansion && !isSystemGenerated && !SUPPRESS_PILL_TYPES.has(event.event_type) && html`<span class=${"event-pill " + pillClass}>${label}</span>`}
+        ${!isToolEvent && !isCommand && !isSkillExpansion && !isSystemGenerated && !SUPPRESS_PILL_TYPES.has(event.event_type) && html`<span class=${"event-pill " + pillClass + (isRoleMsg ? " pill-role" : "")}>${isRoleMsg ? label.toUpperCase() : label}</span>`}
         ${event.tool_name && html`<span class=${"tool-badge " + toolBadgeClass}>${event.tool_name}</span>`}
         ${isRejected && html`<span class="permission-badge rejected">rejected</span>`}
         ${isToolError && !isRejected && html`<span class="permission-badge error">error</span>`}
@@ -694,12 +696,19 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
         </div>
       `}
 
-      ${!expanded && event.event_type === "assistant_message" && event.output_preview && html`
-        <div class="event-body event-body-assistant msg markdown-content"
-          dangerouslySetInnerHTML=${{ __html: renderMarkdown(event.output_preview) }}
-          onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}
-        />
-      `}
+      ${!expanded && event.event_type === "assistant_message" && event.output_preview && (() => {
+        // Fade the bottom only when the preview is long enough to actually
+        // be clipped by the 72px max-height (~3-4 lines); short replies
+        // shouldn't get a gradient over their last line.
+        const op = event.output_preview;
+        const truncated = op.length > 160 || op.split("\n").length > 3;
+        return html`
+          <div class=${"event-body event-body-assistant markdown-content" + (truncated ? " has-fade" : "")}
+            dangerouslySetInnerHTML=${{ __html: renderMarkdown(op) }}
+            onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}
+          />
+        `;
+      })()}
 
       ${!expanded && event.event_type === "user_message" && !isSkillExpansion && !isSystemGenerated && event.input_preview && html`
         <div class="event-body event-body-user" onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}>

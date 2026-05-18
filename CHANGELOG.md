@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Session Detail timeline: user messages no longer render with a double-nested box (a purple card wrapping a separate bordered inner body).
+
 ### Changed
+
+- Session Detail timeline: user and assistant messages now use a consistent, clearly distinguishable treatment. Both show an uppercase role label (`USER` purple, `ASSISTANT` green) and a matching rail-dot color. Each message body is a single box with matching border/radius/size: the user message is a faint purple-tinted box (and purple `USER` label + rail dot) so the human's input pops, while the assistant message is a neutral white card (gray `ASSISTANT` label + dot) — the calm baseline, since every saturated tint in the timeline is already a semantic signal (green=Write, teal=agent, orange=skill, yellow=think, red=error). No more ambiguous, near-identical message styling or double-nested boxes. Long assistant replies fade out at the clip line instead of being hard-cut, signalling there's more on click.
 
 - Session Detail timeline: Write and Edit tool calls now render as full cards with rationale, diff/content body, and per-card metadata (language · duration · output · cache). The rationale is sourced from the nearest preceding `thinking_summary` in the same assistant turn. User messages adopt a matching purple-accent card style; system-generated, slash-command, and skill-expansion paths are unchanged. Bodies are syntax-highlighted (Prism.js, curated grammar set) and collapse to ~10 lines by default with in-place expand.
 
