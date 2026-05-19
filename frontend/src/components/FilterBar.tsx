@@ -35,13 +35,16 @@ const MODEL_OPTIONS = [
 ];
 
 const SORT_OPTIONS = [
-  { value: "started_at:desc",     label: "↓ Latest" },
-  { value: "started_at:asc",      label: "↑ Oldest" },
-  { value: "duration_ms:desc",    label: "↓ Longest duration" },
-  { value: "duration_ms:asc",     label: "↑ Shortest duration" },
-  { value: "subagent_count:desc", label: "↓ Most agents" },
-  { value: "project_name:asc",    label: "Project A→Z" },
-  { value: "model:asc",           label: "Model A→Z" },
+  { value: "started_at:desc",        label: "↓ Latest" },
+  { value: "started_at:asc",         label: "↑ Oldest" },
+  { value: "duration_ms:desc",       label: "↓ Longest duration" },
+  { value: "duration_ms:asc",        label: "↑ Shortest duration" },
+  { value: "peak_context_pct:desc",  label: "↓ Highest ctx %" },
+  { value: "peak_context_pct:asc",   label: "↑ Lowest ctx %" },
+  { value: "cost_estimate_usd:desc", label: "↓ Most expensive" },
+  { value: "cost_estimate_usd:asc",  label: "↑ Cheapest" },
+  { value: "project_name:asc",       label: "Project A→Z" },
+  { value: "model:asc",              label: "Model A→Z" },
 ];
 
 export function FilterBar(props: FilterBarProps) {

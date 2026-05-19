@@ -213,11 +213,14 @@ export interface SessionSummary {
   duration_ms: number;
   total_input_tokens: number;
   total_output_tokens: number;
+  total_cache_read_tokens: number;
+  total_cache_write_tokens: number;
   peak_context_pct: number;
   peak_tokens: number;
   compaction_count: number;
   tool_call_count: number;
   subagent_count: number;
+  turn_count: number;
   summary: string;
   cost_estimate_usd?: number;
   mini_timeline?: MiniTimelinePoint[];

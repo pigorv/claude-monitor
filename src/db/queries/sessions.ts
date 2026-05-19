@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import type { Session, AgentRelationship, TokenDataPoint, LinkedSession, ProjectInfo } from '../../shared/types.js';
 import { getDb, onDbClose } from '../connection.js';
+import { MODEL_PRICING } from '../../shared/constants.js';
 
 // ── Cached prepared statements ──────────────────────────────────────
 let _insertSessionStmt: Database.Statement | null = null;
@@ -109,8 +110,20 @@ export interface SessionFilters {
 const ALLOWED_SORT_COLUMNS = new Set([
   'started_at', 'duration_ms', 'total_input_tokens',
   'compaction_count', 'tool_call_count', 'subagent_count',
-  'project_name', 'model',
+  'project_name', 'model', 'peak_context_pct',
 ]);
+
+/**
+ * SQL expression that mirrors estimateCost() (server route) so the list can be
+ * ordered by estimated cost server-side. Built from trusted MODEL_PRICING
+ * constants only — no user input is interpolated, so this is injection-safe.
+ */
+const COST_SORT_EXPR = `CASE ${Object.entries(MODEL_PRICING)
+  .map(
+    ([key, p]) =>
+      `WHEN lower(model) LIKE '%${key}%' THEN total_input_tokens / 1000000.0 * ${p.input_per_mtok} + total_output_tokens / 1000000.0 * ${p.output_per_mtok}`,
+  )
+  .join(' ')} ELSE 0 END`;
 
 /** Columns needed by sessionToSummary() — excludes large TEXT fields like metadata */
 const SESSION_LIST_COLUMNS = `
@@ -156,14 +169,21 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  const sortCol = filters.sort && ALLOWED_SORT_COLUMNS.has(filters.sort) ? filters.sort : 'started_at';
+  const orderExpr =
+    filters.sort === 'cost_estimate_usd'
+      ? COST_SORT_EXPR
+      : filters.sort && ALLOWED_SORT_COLUMNS.has(filters.sort)
+        ? filters.sort
+        : 'started_at';
   const sortOrder = filters.order === 'asc' ? 'ASC' : 'DESC';
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
 
-  // Single query with window function to get total count + paginated rows in one pass
+  // Single query with window function to get total count + paginated rows in one
+  // pass. `id` is a stable tiebreaker so pagination stays deterministic when the
+  // primary key has ties (e.g. many sessions at 0% peak context).
   const rows = db.prepare(
-    `SELECT ${SESSION_LIST_COLUMNS}, COUNT(*) OVER() as _total FROM sessions ${where} ORDER BY ${sortCol} ${sortOrder} LIMIT @limit OFFSET @offset`,
+    `SELECT ${SESSION_LIST_COLUMNS}, COUNT(*) OVER() as _total FROM sessions ${where} ORDER BY ${orderExpr} ${sortOrder}, id ASC LIMIT @limit OFFSET @offset`,
   ).all({ ...params, limit, offset }) as (Session & { _total: number })[];
 
   const total = rows.length > 0 ? rows[0]._total : 0;

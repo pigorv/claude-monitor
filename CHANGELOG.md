@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Session List rows now show a right-rail telemetry ledger: relative-start → ended clock (full timestamps on hover), model pill, duration · estimated cost, and a peak-context / input / output / cache-hit line. Peak context % is color-coded against the model's context thresholds; cache hit turns amber below 50%.
+- Session List groups rows under TODAY / YESTERDAY / THIS WEEK / date headers (with counts) when sorted by start time.
+- Sort dropdown gains "Highest/Lowest ctx %" and "Most expensive/Cheapest" options.
+
 ### Changed
 
+- Session List redesigned around recognition: the task intent is now the bold row title with the project name demoted to a small label; turns, sub-agents, tools, skills, and compaction count are consolidated into one muted subtitle line. The dedicated Skills, Agents, and Health columns were removed.
 - Session List filter controls consolidated into a single horizontal filter bar with Project, Model, and Sort dropdowns; result count badge pulses during loading; press `/` to focus search from anywhere on the page.
 - Session Detail timeline: Write and Edit tool calls now render as full cards with rationale, diff/content body, and per-card metadata (language · duration · output · cache). The rationale is sourced from the nearest preceding `thinking_summary` in the same assistant turn. User messages adopt a matching purple-accent card style; system-generated, slash-command, and skill-expansion paths are unchanged. Bodies are syntax-highlighted (Prism.js, curated grammar set) and collapse to ~10 lines by default with in-place expand.
 

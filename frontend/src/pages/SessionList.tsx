@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import { html } from "htm/preact";
 import { fetchSessions, fetchApi, fetchProjects } from "../api/client";
-import { SessionHealthStrip } from "../components/SessionHealthStrip";
 import { BackToTop } from "../components/BackToTop";
 import { FilterBar } from "../components/FilterBar";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { updateParams } from "../lib/url-state";
 import { migrateProjectFilterKey } from "../lib/migrate-project-filter";
-import { projectColor } from "../lib/format";
-import type { SessionSummary, ProjectInfo, Invocation } from "../../../src/shared/types";
+import { projectColor, formatTokenCount } from "../lib/format";
+import { resolveThresholds } from "../lib/chart-config";
+import type { SessionSummary, ProjectInfo } from "../../../src/shared/types";
 import "../styles/pills.css";
 import "../styles/session-list.css";
 
@@ -63,34 +63,204 @@ function isLargeContext(model: string | null | undefined): boolean {
   return m.includes("opus");
 }
 
-// ── Pills row for skills ────────────────────────────────────────────
+// Compact token glyph: "12K" / "142K"; raw for tiny counts, "0" for none.
+function compactTokens(n: number | null | undefined): string {
+  return formatTokenCount(n) ?? String(n ?? 0);
+}
 
-const PILLS_VISIBLE_LIMIT = 3;
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (isNaN(then)) return "";
+  const diffMin = Math.floor((Date.now() - then) / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
 
-function SessionPills({ invocations }: { invocations: Invocation[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const skills = invocations.filter((inv) => inv.type === "skill");
-  if (skills.length === 0) return null;
-  const overflow = skills.length > PILLS_VISIBLE_LIMIT;
-  const visible = expanded ? skills : skills.slice(0, PILLS_VISIBLE_LIMIT);
-  const hidden = skills.length - visible.length;
+function formatClock(d: Date): string {
+  if (isNaN(d.getTime())) return "";
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? "pm" : "am";
+  h = h % 12 || 12;
+  return `${h}:${String(m).padStart(2, "0")}${ampm}`;
+}
+
+// TODAY / YESTERDAY / THIS WEEK / ISO-date bucket from a start timestamp.
+function dateBucket(iso: string): { key: string; label: string } {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return { key: "unknown", label: "UNKNOWN" };
+  const startOfDay = (x: Date) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86_400_000);
+  if (diffDays <= 0) return { key: "today", label: "TODAY" };
+  if (diffDays === 1) return { key: "yesterday", label: "YESTERDAY" };
+  if (diffDays < 7) return { key: "week", label: "THIS WEEK" };
+  const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return { key: ymd, label: ymd };
+}
+
+// Peak-context color class — same model thresholds the Context chart uses.
+function ctxClass(pct: number, model: string | null | undefined): string {
+  const t = resolveThresholds(model);
+  if (pct >= t.dangerPct) return "tel-ctx tel-red";
+  if (pct >= t.warningPct) return "tel-ctx tel-amber";
+  return "tel-ctx tel-green";
+}
+
+// Cache hit ratio: cache_read / (cache_read + cache_write + input). Null when
+// there is no token activity to divide by.
+function cacheHitPct(s: SessionSummary): number | null {
+  const denom =
+    s.total_cache_read_tokens + s.total_cache_write_tokens + s.total_input_tokens;
+  if (denom <= 0) return null;
+  return (s.total_cache_read_tokens / denom) * 100;
+}
+
+// Drop a leading started-with name (and any joining punctuation) from the
+// summary so it isn't duplicated next to the pill.
+function stripPrefix(summary: string, prefix: string | undefined): string {
+  if (!prefix || !summary) return summary;
+  if (summary === prefix) return "";
+  if (summary.startsWith(prefix)) {
+    return summary.slice(prefix.length).replace(/^[\s—–\-:·|]+/, "").trim();
+  }
+  return summary;
+}
+
+// Turn / sub-agent / tool counts as a single muted string. Skills render as
+// pills separately so they keep their badge styling.
+function buildMeta(s: SessionSummary): string {
+  const parts: string[] = [];
+  if (s.turn_count > 0) parts.push(`${s.turn_count} turn${s.turn_count === 1 ? "" : "s"}`);
+  if (s.subagent_count > 0)
+    parts.push(`${s.subagent_count} sub-agent${s.subagent_count === 1 ? "" : "s"}`);
+  if (s.tool_call_count > 0)
+    parts.push(`${s.tool_call_count} tool${s.tool_call_count === 1 ? "" : "s"}`);
+  return parts.join(" · ");
+}
+
+function ModelPill({ s }: { s: SessionSummary }) {
+  const multi = s.models_used != null && s.models_used.length > 1;
+  const last = multi ? s.models_used![s.models_used!.length - 1] : s.model;
   return html`
-    <div class="session-pills" onClick=${(e: Event) => e.stopPropagation()}>
-      ${visible.map((inv) => html`<span class="skill-badge">${inv.name}</span>`)}
-      ${overflow && html`
-        <span class="pill-more"
-              onClick=${() => setExpanded((v) => !v)}
-              title=${expanded ? "Show fewer" : `Show all ${skills.length} skills`}>
-          ${expanded ? "Show less" : `+${hidden} more`}
-        </span>
-      `}
+    <span class="model-pill ${modelClass(last)}">
+      ${multi
+        ? s.models_used!.map(
+            (m: string, i: number) =>
+              html`${i > 0 ? html`<span class="model-switch">→</span>` : null}${modelLabel(m)}`,
+          )
+        : modelLabel(s.model)}
+      ${isLargeContext(last) ? html` <span class="ctx-label">1M</span>` : null}
+    </span>
+  `;
+}
+
+// ── Session row ─────────────────────────────────────────────────────
+
+function SessionRow({ s, onOpen }: { s: SessionSummary; onOpen: (id: string) => void }) {
+  const summary = (s.summary ?? "").trim();
+  const startedName = s.started_with?.name;
+  // The started-with pill carries the slash-command/skill name on the title
+  // line. When the summary leads with that same name (e.g. pill "/triage-issue"
+  // + summary "/triage-issue — 46"), drop the redundant prefix so the title
+  // shows only the remainder ("46"); show nothing extra when nothing remains.
+  const titleText = s.started_with
+    ? stripPrefix(summary, startedName) || null
+    : summary || "—";
+
+  const meta = buildMeta(s);
+  const skills = (s.invocations ?? [])
+    .filter((i) => i.type === "skill")
+    .map((i) => i.name);
+  const compacted =
+    s.compaction_count > 0 ? `${s.compaction_count}× compacted` : null;
+  const subGroups: unknown[] = [];
+  if (meta) subGroups.push(html`<span>${meta}</span>`);
+  if (skills.length > 0)
+    subGroups.push(
+      html`${skills.map((n) => html`<span class="skill-badge">${n}</span>`)}`,
+    );
+  if (compacted) subGroups.push(html`<span>${compacted}</span>`);
+
+  const startMs = new Date(s.started_at).getTime();
+  const dur = s.duration_ms && s.duration_ms > 0 ? s.duration_ms : 0;
+  const endedDate = new Date(startMs + dur);
+  const rel = formatRelative(s.started_at);
+  const clock = formatClock(endedDate);
+  const timeTitle = `Started ${s.started_at}\nEnded ${isNaN(endedDate.getTime()) ? "—" : endedDate.toISOString()}`;
+
+  const cost = s.cost_estimate_usd != null && s.cost_estimate_usd > 0
+    ? `$${s.cost_estimate_usd.toFixed(2)}`
+    : null;
+
+  const cachePct = cacheHitPct(s);
+
+  return html`
+    <div class="srow" onClick=${() => onOpen(s.id)}>
+      <div class="srow-main">
+        <div class="srow-l1">
+          <span class="proj-dot" style=${`background:${projectColor(s.project_name || "default")}`}></span>
+          <span class="srow-proj">${s.project_name || "—"}</span>
+          ${s.status === "running"
+            ? html`<span class="active-dot" title="Active session"></span>`
+            : null}
+        </div>
+        <div class="srow-title">
+          ${s.started_with
+            ? html`<span class="${s.started_with.type === "skill" ? "skill-badge" : "cmd-pill"} srow-title-pill">${s.started_with.name}</span>`
+            : null}
+          ${titleText
+            ? html`<span class="srow-title-text">${titleText}</span>`
+            : null}
+        </div>
+        <div class="srow-sub">
+          ${subGroups.length > 0
+            ? subGroups.map(
+                (g, i) =>
+                  html`${i > 0 ? html`<span class="tel-sep">·</span>` : null}${g}`,
+              )
+            : html`<span class="srow-sub-empty">—</span>`}
+        </div>
+      </div>
+      <div class="srow-rail">
+        <div class="rail-time" title=${timeTitle}>
+          ${rel} <span class="rail-arrow">→</span> ${clock}
+        </div>
+        <div class="rail-model">${html`<${ModelPill} s=${s} />`}</div>
+        <div class="rail-cost">
+          ${formatDuration(s.duration_ms)}${cost
+            ? html` · <span class="rail-usd">${cost}</span>`
+            : null}
+        </div>
+        <div class="rail-tel">
+          <span class=${ctxClass(s.peak_context_pct, s.models_used?.[s.models_used.length - 1] ?? s.model)}>
+            ${Math.round(s.peak_context_pct)}% ctx
+          </span>
+          <span class="tel-sep">·</span>
+          <span>${compactTokens(s.total_input_tokens)}↑ ${compactTokens(s.total_output_tokens)}↓</span>
+          ${cachePct !== null
+            ? html`<span class="tel-sep">·</span><span class=${cachePct < 50 ? "tel-cache-low" : ""}>${Math.round(cachePct)}% ⚡</span>`
+            : null}
+        </div>
+      </div>
     </div>
   `;
 }
 
 // ── Sort / filter types ─────────────────────────────────────────────
 
-type SortColumn = "started_at" | "project_name" | "model" | "duration_ms" | "subagent_count";
+type SortColumn =
+  | "started_at"
+  | "project_name"
+  | "model"
+  | "duration_ms"
+  | "peak_context_pct"
+  | "cost_estimate_usd";
 type SortOrder = "asc" | "desc";
 
 const SORT_COLUMN_TO_API: Record<SortColumn, string> = {
@@ -98,11 +268,12 @@ const SORT_COLUMN_TO_API: Record<SortColumn, string> = {
   project_name: "project_name",
   model: "model",
   duration_ms: "duration_ms",
-  subagent_count: "subagent_count",
+  peak_context_pct: "peak_context_pct",
+  cost_estimate_usd: "cost_estimate_usd",
 };
 
 const VALID_SORT_COLS: SortColumn[] = [
-  "started_at", "project_name", "model", "duration_ms", "compaction_count", "subagent_count",
+  "started_at", "project_name", "model", "duration_ms", "peak_context_pct", "cost_estimate_usd",
 ];
 const VALID_CHIPS: ChipFilter[] = ["all", "opus", "sonnet", "haiku"];
 
@@ -348,21 +519,18 @@ export function SessionList({ params }: { params: URLSearchParams }) {
 
   useInfiniteScroll(sentinelRef, { hasMore, loading, onLoadMore: loadMore });
 
-  function toggleSort(col: SortColumn) {
-    if (sortCol === col) {
-      applySort(col, sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      applySort(col, col === "started_at" ? "desc" : "asc");
-    }
-  }
-
-  function sortClass(col: SortColumn): string {
-    if (sortCol !== col) return "sortable";
-    return `sortable sort-${sortOrder}`;
-  }
-
   function navigateToSession(id: string) {
     location.hash = `#/session/${id}`;
+  }
+
+  // Date-group headers only make sense when rows are ordered by start time.
+  const grouped = sortCol === "started_at";
+  const bucketCounts = new Map<string, number>();
+  if (grouped) {
+    for (const s of sessions) {
+      const k = dateBucket(s.started_at).key;
+      bucketCounts.set(k, (bucketCounts.get(k) ?? 0) + 1);
+    }
   }
 
   // Stats calculations
@@ -436,90 +604,26 @@ export function SessionList({ params }: { params: URLSearchParams }) {
       ${!loading && !loadError && total === 0 && html`<div class="status-text">No sessions found.</div>`}
 
       ${sessions.length > 0 && html`
-        <div class="table-wrap sticky-head">
-          <table>
-            <thead>
-              <tr>
-                <th class=${sortClass("project_name")} onClick=${() => toggleSort("project_name")}>Session</th>
-                <th title="Skills invoked in this session">Skills</th>
-                <th class=${sortClass("model")} onClick=${() => toggleSort("model")}>Model</th>
-                <th class=${sortClass("duration_ms")} onClick=${() => toggleSort("duration_ms")}>Duration</th>
-                <th class="${sortClass("subagent_count")} agents-cell" onClick=${() => toggleSort("subagent_count")}>Agents</th>
-                <th
-                  title="Main session only (excludes subagents). Context % of the model window, peak tokens scaled to a 1M reference, and compaction count (one filled dot per compaction, capped at three)."
-                  style="cursor: help;"
-                >
-                  Health
-                  <span class="th-hint" aria-hidden="true">ⓘ</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              ${sessions.map(
-                (s: SessionSummary) => html`
-                  <tr onClick=${() => navigateToSession(s.id)}>
-                    <td>
-                      <div class="proj-name">
-                        <div class="proj-dot" style=${`background:${projectColor(s.project_name || "default")}`}></div>
-                        ${s.project_name || "—"}
-                        ${s.status === "running" ? html`<span class="active-dot" title="Active session"></span>` : null}
-                      </div>
-                      <div class="proj-summary">
-                        ${s.started_with && html`<span class="cmd-pill">${s.started_with.name}</span>`}
-                        ${(() => {
-                          const summary = (s.summary ?? "").trim();
-                          const startedName = s.started_with?.name;
-                          // Hide the summary when it duplicates the command/skill that started
-                          // the session (e.g. row labelled both "/clear" and "/clear").
-                          if (startedName && summary === startedName) return null;
-                          if (summary) return html`<span class="proj-summary-text">${summary}</span>`;
-                          if (!s.started_with) return html`<span class="proj-summary-text">—</span>`;
-                          return null;
-                        })()}
-                      </div>
-                    </td>
-                    <td class="skills-cell">
-                      ${s.invocations && s.invocations.some((i) => i.type === "skill")
-                        ? html`<${SessionPills} invocations=${s.invocations} />`
-                        : html`<span class="muted">—</span>`}
-                    </td>
-                    <td>
-                      ${(s.models_used && s.models_used.length > 1)
-                        ? html`
-                          <span class="model-pill ${modelClass(s.models_used[s.models_used.length - 1])}">
-                            ${s.models_used.map((m: string, i: number) => html`
-                              ${i > 0 ? html`<span class="model-switch">→</span>` : null}${modelLabel(m)}
-                            `)}
-                            ${isLargeContext(s.models_used[s.models_used.length - 1]) ? html` <span class="ctx-label">1M</span>` : null}
-                          </span>
-                        `
-                        : html`
-                          <span class="model-pill ${modelClass(s.model)}">
-                            ${modelLabel(s.model)}
-                            ${isLargeContext(s.model) ? html` <span class="ctx-label">1M</span>` : null}
-                          </span>
-                        `
-                      }
-                    </td>
-                    <td class="mono">${formatDuration(s.duration_ms)}</td>
-                    <td class="agents-cell">
-                      ${s.subagent_count > 0
-                        ? html`<span class="ag">${s.subagent_count}</span>`
-                        : html`<span class="ag none">0</span>`
-                      }
-                    </td>
-                    <td class="health">
-                      <${SessionHealthStrip}
-                        contextPct=${s.peak_context_pct ?? 0}
-                        peakTokens=${s.peak_tokens ?? 0}
-                        compactionCount=${s.compaction_count ?? 0}
-                      />
-                    </td>
-                  </tr>
-                `
-              )}
-            </tbody>
-          </table>
+        <div class="session-list">
+          ${(() => {
+            let lastKey: string | null = null;
+            return sessions.map((s: SessionSummary) => {
+              let header = null;
+              if (grouped) {
+                const b = dateBucket(s.started_at);
+                if (b.key !== lastKey) {
+                  lastKey = b.key;
+                  header = html`
+                    <div class="date-group">
+                      <span class="dg-label">${b.label}</span>
+                      <span class="dg-count">${bucketCounts.get(b.key)}</span>
+                    </div>
+                  `;
+                }
+              }
+              return html`${header}<${SessionRow} s=${s} onOpen=${navigateToSession} />`;
+            });
+          })()}
           <div class="infinite-sentinel" ref=${sentinelRef}>
             ${loading && html`<span class="status-text">Loading more…</span>`}
             ${loadError && !loading && html`

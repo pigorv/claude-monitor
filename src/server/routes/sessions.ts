@@ -9,7 +9,7 @@ import type {
   Invocation,
 } from '../../shared/types.js';
 import { getSession, listSessions, listProjects, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions } from '../../db/queries/sessions.js';
-import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
+import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getTurnCountsForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
 import { getSessionStats, getToolFrequency, getFileActivity, getPeakParentTokens, getPeakParentTokensForSessions } from '../../db/queries/stats.js';
 import type { SessionFilters } from '../../db/queries/sessions.js';
 import { MODEL_PRICING } from '../../shared/constants.js';
@@ -65,6 +65,7 @@ function sessionToSummary(
   session: Session,
   miniTimeline?: import('../../shared/types.js').MiniTimelinePoint[],
   peakTokens?: number,
+  turnCount?: number,
 ): SessionSummary {
   return {
     id: session.id,
@@ -77,11 +78,14 @@ function sessionToSummary(
     duration_ms: session.duration_ms ?? 0,
     total_input_tokens: session.total_input_tokens,
     total_output_tokens: session.total_output_tokens,
+    total_cache_read_tokens: session.total_cache_read_tokens ?? 0,
+    total_cache_write_tokens: session.total_cache_write_tokens ?? 0,
     peak_context_pct: session.peak_context_pct ?? 0,
     peak_tokens: peakTokens ?? 0,
     compaction_count: session.compaction_count,
     tool_call_count: session.tool_call_count,
     subagent_count: session.subagent_count,
+    turn_count: turnCount ?? 0,
     summary: session.summary ?? '',
     cost_estimate_usd: estimateCost(session.model, session.total_input_tokens, session.total_output_tokens),
     mini_timeline: miniTimeline ?? [],
@@ -123,9 +127,10 @@ sessions.get('/api/sessions', (c) => {
   const sessionIds = rows.map((s) => s.id);
   const miniTimelines = getMiniTimelinesForSessions(sessionIds);
   const peakTokensBySession = getPeakParentTokensForSessions(sessionIds);
+  const turnCountsBySession = getTurnCountsForSessions(sessionIds);
 
   const response: SessionListResponse = {
-    sessions: rows.map((s) => sessionToSummary(s, miniTimelines.get(s.id), peakTokensBySession.get(s.id))),
+    sessions: rows.map((s) => sessionToSummary(s, miniTimelines.get(s.id), peakTokensBySession.get(s.id), turnCountsBySession.get(s.id))),
     total,
     limit: filters.limit ?? 50,
     offset: filters.offset ?? 0,
