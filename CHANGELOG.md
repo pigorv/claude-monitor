@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-19
+
 ### Added
 
 - README hero GIF and all four feature screenshots recaptured with demo data; hero walkthrough updated to show Sort dropdown interaction and Write/Edit full-card diffs in the Timeline.
