@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- README hero GIF and all four feature screenshots recaptured with demo data; hero walkthrough updated to show Sort dropdown interaction and Write/Edit full-card diffs in the Timeline.
+
 - Session List rows now show a right-rail telemetry ledger: relative-start → ended clock (full timestamps on hover), model pill, duration · estimated cost, and a peak-context / input / output / cache-hit line. Peak context % is color-coded against the model's context thresholds; cache hit turns amber below 50%.
 - Session List groups rows under TODAY / YESTERDAY / THIS WEEK / date headers (with counts) when sorted by start time.
 - Sort dropdown gains "Highest/Lowest ctx %" and "Most expensive/Cheapest" options.

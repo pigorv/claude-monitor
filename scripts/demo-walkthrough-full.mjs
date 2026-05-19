@@ -200,7 +200,7 @@ console.log("→ Recording walkthrough");
 try {
   // ── Beat 1: SessionList tour ────────────────────────────────────
   await page.goto(`http://localhost:${PORT}/`);
-  await page.waitForSelector("table tbody tr");
+  await page.waitForSelector(".srow");
   await page.evaluate(() => window.__demoCursor.moveTo(700, 100));
   await dwell(1500);
 
@@ -211,33 +211,39 @@ try {
   await clearInput(searchInput);
   await dwell(400);
 
-  // 1b. Model chip filter: Sonnet → All
-  const sonnetChip = page.locator(".filter-chips .chip", { hasText: /^Sonnet$/ });
-  await clickWithRipple(sonnetChip);
-  await dwell(1000);
-  const allChip = page.locator(".filter-chips .chip", { hasText: /^All$/ });
-  await clickWithRipple(allChip);
+  // 1b. Model dropdown: filter to Sonnet → back to All models
+  // The filter bar has three .dd-root elements: Project (0), Model (1), Sort (2)
+  const modelTrigger = page.locator(".filter-bar .dd-root").nth(1).locator(".dd-trigger");
+  await clickWithRipple(modelTrigger);
+  await dwell(600); // dropdown opens showing colored swatches
+  await clickWithRipple(page.locator(".dd-option", { hasText: /^Sonnet$/ }));
+  await dwell(1000); // list narrows to Sonnet sessions
+  await clickWithRipple(page.locator(".filter-bar .dd-root").nth(1).locator(".dd-trigger"));
+  await dwell(400);
+  await clickWithRipple(page.locator(".dd-option", { hasText: /All models/ }));
   await dwell(600);
 
-  // 1c. Sort by Duration
-  const durationHeader = page.locator("th.sortable", { hasText: /^Duration$/ });
-  await clickWithRipple(durationHeader);
+  // 1c. Sort dropdown: switch to Longest duration
+  const sortTrigger = page.locator(".filter-bar .dd-root").nth(2).locator(".dd-trigger");
+  await clickWithRipple(sortTrigger);
+  await dwell(600);
+  await clickWithRipple(page.locator(".dd-option", { hasText: /Longest duration/ }));
   await dwell(900);
 
   // 1d. Expand skill pills overflow on sess-dash-002 (4 skills → +1 more)
-  const dashRow = page.locator("tbody tr", { hasText: /Audit dashboard rendering performance/ });
+  const dashRow = page.locator(".srow", { hasText: /Audit dashboard rendering performance/ });
   const moreChip = dashRow.locator("span.pill-more");
   await clickWithRipple(moreChip);
   await dwell(1300);
 
   // 1e. Hover Health strip on the high-pressure notes session
-  const notesRow = page.locator("tbody tr", { hasText: /Migrate notes storage from JSON to SQLite/ });
+  const notesRow = page.locator(".srow", { hasText: /Migrate notes storage from JSON to SQLite/ });
   const healthCell = notesRow.locator("td").last();
   await moveTo(healthCell);
   await dwell(1000);
 
   // ── Beat 2: Linked Sessions ─────────────────────────────────────
-  const implRow = page.locator("tbody tr", { hasText: /Implement: shared zod validation schema/ });
+  const implRow = page.locator(".srow", { hasText: /Implement: shared zod validation schema/ });
   await clickWithRipple(implRow);
   await page.waitForURL(/sess-impl-001/);
   await page.waitForSelector(".linked-sessions");
@@ -256,23 +262,24 @@ try {
   await page.waitForSelector("div.tool-row-standalone");
   await dwell(800);
 
-  // Read
+  // Read — still a compact expandable row; click to expand
   const readRow = page.locator("div.tool-row-standalone", { has: page.locator("span.tool-badge", { hasText: "Read" }) }).first();
   await clickWithRipple(readRow);
   await dwell(2000);
 
-  // Write
-  const writeRow = page.locator("div.tool-row-standalone", { has: page.locator("span.tool-badge", { hasText: "Write" }) }).first();
-  await clickWithRipple(writeRow);
+  // Write — now a full card (always visible with syntax-highlighted content)
+  // Hover it so the viewer's eye lands on the code body
+  const writeCard = page.locator(".event-card-write").first();
+  await moveTo(writeCard);
   await dwell(2000);
 
-  // Edit — climax of the tool-expansion beat; renders +/- diff
-  const editRow = page.locator("div.tool-row-standalone", { has: page.locator("span.tool-badge", { hasText: "Edit" }) }).first();
-  await clickWithRipple(editRow);
+  // Edit — full card showing a +/- diff preview; hover to highlight it
+  const editCard = page.locator(".event-card-edit").first();
+  await moveTo(editCard);
   await page.waitForSelector(".diff-view");
-  await dwell(2800);
+  await dwell(2800); // diff lines are the highlight of this beat
 
-  // Bash
+  // Bash — compact expandable row; click to expand
   const bashRow = page.locator("div.tool-row-standalone", { has: page.locator("span.tool-badge", { hasText: "Bash" }) }).first();
   await clickWithRipple(bashRow);
   await dwell(2000);

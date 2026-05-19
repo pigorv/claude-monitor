@@ -10,7 +10,7 @@
 // Usage: npm run demo:walkthrough  (or: node scripts/demo-walkthrough.mjs)
 
 import { spawn, execSync } from "node:child_process";
-import { mkdirSync, rmSync, existsSync, readdirSync, renameSync } from "node:fs";
+import { mkdirSync, rmSync, existsSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -38,6 +38,7 @@ console.log("→ Seeding /tmp/cm-demo-data");
 execSync("node scripts/demo-seed.mjs", { cwd: ROOT, stdio: "inherit" });
 
 console.log("→ Importing into isolated HOME");
+rmSync(HOME_DIR, { recursive: true, force: true });
 mkdirSync(HOME_DIR, { recursive: true });
 execSync(`node dist/index.js import ${DATA_DIR}`, {
   cwd: ROOT,
@@ -176,36 +177,69 @@ async function dwell(ms) {
 console.log("→ Recording walkthrough");
 
 try {
-  // Land on session list, park cursor in a neutral spot
+  // ── Beat 1: Session list — recognition-first rows + date groups ──
   await page.goto(`http://localhost:${PORT}/`);
-  await page.waitForSelector("table tbody tr");
+  await page.waitForSelector(".srow");
   await page.evaluate(() => window.__demoCursor.moveTo(700, 100));
-  await dwell(1800); // breathe — let the eye scan the list
+  await dwell(1100); // breathe — let the eye scan the layout
 
-  // Hover the project chip bar so the eye sees the filter UI
-  const projectChip = page.getByText("dashboard-ui", { exact: false }).first();
-  await moveTo(projectChip);
+  // The filter bar has three dropdowns, in order: Project, Model, Sort.
+  const projectTrigger = page.locator(".filter-bar .dd-root").nth(0).locator(".dd-trigger");
+  const modelTrigger   = page.locator(".filter-bar .dd-root").nth(1).locator(".dd-trigger");
+  const sortTrigger    = page.locator(".filter-bar .dd-root").nth(2).locator(".dd-trigger");
+
+  // ── Beat 2: Project dropdown — open, peek, close ─────────────────
+  await clickWithRipple(projectTrigger);
+  await page.waitForSelector(".filter-bar .dd-root.dd-open .dd-popover");
+  await dwell(900); // project list visible
+  await clickWithRipple(projectTrigger); // click trigger again → toggle closed
+  await dwell(450);
+
+  // ── Beat 3: Model dropdown — open, peek, close ───────────────────
+  await clickWithRipple(modelTrigger);
+  await page.waitForSelector(".filter-bar .dd-root.dd-open .dd-popover");
   await dwell(900);
+  await clickWithRipple(modelTrigger); // toggle closed
+  await dwell(450);
 
-  // Click into the agent-rich session
-  const dashRow = page.getByRole("cell", { name: /Audit dashboard rendering performance/ });
-  await clickWithRipple(dashRow);
+  // ── Beat 4: Search — type a query, then clear it ─────────────────
+  const searchInput = page.locator(".filter-bar .search-input");
+  await clickWithRipple(searchInput);
+  await searchInput.pressSequentially("audit", { delay: 95 });
+  await dwell(1200); // list narrows to the matching session
+  await searchInput.fill("");
+  await dwell(700); // full list returns
+
+  // ── Beat 5: Sort dropdown — open, choose "Most expensive" ────────
+  await clickWithRipple(sortTrigger);
+  await page.waitForSelector(".filter-bar .dd-root.dd-open .dd-popover");
+  await dwell(900); // options list visible (Latest, Longest, Most expensive…)
+  const expensiveOption = page.locator(".dd-option", { hasText: /Most expensive/ });
+  await clickWithRipple(expensiveOption);
+  await dwell(1000); // list reorders — the costliest session floats to the top
+
+  // ── Beat 6: Open the top (most expensive) session ────────────────
+  // After the cost sort the list is ungrouped; sess-dash-002 (the 5-agent
+  // "Audit dashboard rendering performance" run) is the costliest, so it's
+  // the first row.
+  const topRow = page.locator(".srow", {
+    hasText: /Audit dashboard rendering performance/,
+  });
+  await clickWithRipple(topRow);
   await page.waitForURL(/sess-dash-002/);
-  await page.waitForSelector('text="Open in Terminal"');
-  await dwell(1500); // let the header + Open-in-Terminal land
+  await page.waitForSelector(".tab-bar");
 
-  // Hover the Open-in-Terminal button
-  const terminalBtn = page.getByRole("button", { name: /Open in Terminal/ });
-  await moveTo(terminalBtn);
-  await dwell(1200);
+  // ── Beat 7: Timeline tab (default) — the event stream ────────────
+  await page.evaluate(() => window.__demoCursor.moveTo(700, 520));
+  await dwell(1900); // let the eye walk the 60-event timeline
 
-  // Switch to Context tab
+  // ── Beat 8: Context tab ──────────────────────────────────────────
   const contextTab = page.getByRole("button", { name: /^Context/ });
   await clickWithRipple(contextTab);
   await page.waitForSelector('text="Context utilization over time"');
-  await dwell(2200); // chart needs a beat to read
+  await dwell(1600); // chart needs a beat to read
 
-  // Switch to Agents tab
+  // ── Beat 9: Agents Gantt — the climax ────────────────────────────
   const agentsTab = page.getByRole("button", { name: /^Agents/ });
   await clickWithRipple(agentsTab);
   await page.waitForSelector('text="Agent concurrency"');
@@ -213,7 +247,7 @@ try {
 
   // Final beat: nudge cursor away so the last frame is calm
   await page.evaluate(() => window.__demoCursor.moveTo(1200, 60));
-  await dwell(800);
+  await dwell(700);
 } finally {
   // Closing context flushes the video file. Save its path before close.
   const videoPath = await page.video().path();
@@ -251,6 +285,6 @@ try {
   console.log("Next:");
   console.log("  1. Preview: open docs/images/hero.mp4");
   console.log("  2. Drag hero.mp4 into a draft PR comment to get a user-attachments URL.");
-  console.log("  3. Replace the <video src=\"...\"> URL in README.md hero block.");
-  console.log("  4. Update <!-- hero captured-on: --> to v0.3.2 (or current).");
+  console.log("  3. Replace the <img src=\"...\"> URL in README.md hero block.");
+  console.log("  4. Update <!-- hero captured-on: --> to the current version.");
 }
