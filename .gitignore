@@ -4,3 +4,4 @@ dist/
 *.sqlite
 .claude-monitor/
 .DS_Store
+.playwright-cli/

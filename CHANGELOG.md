@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- README hero GIF and all four feature screenshots recaptured with demo data; hero walkthrough updated to show Sort dropdown interaction and Write/Edit full-card diffs in the Timeline.
+
 - Session List rows now show a right-rail telemetry ledger: relative-start → ended clock (full timestamps on hover), model pill, duration · estimated cost, and a peak-context / input / output / cache-hit line. Peak context % is color-coded against the model's context thresholds; cache hit turns amber below 50%.
 - Session List groups rows under TODAY / YESTERDAY / THIS WEEK / date headers (with counts) when sorted by start time.
 - Sort dropdown gains "Highest/Lowest ctx %" and "Most expensive/Cheapest" options.
@@ -16,11 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Session List no longer shows a spurious "0% ⚡" cache badge on sessions where caching was never used.
+- Session Detail timeline: user messages no longer render with a double-nested box (a purple card wrapping a separate bordered inner body).
 
 ### Changed
 
 - Session List redesigned around recognition: the task intent is now the bold row title with the project name demoted to a small label; turns, sub-agents, tools, skills, and compaction count are consolidated into one muted subtitle line. The dedicated Skills, Agents, and Health columns were removed.
 - Session List filter controls consolidated into a single horizontal filter bar with Project, Model, and Sort dropdowns; result count badge pulses during loading; press `/` to focus search from anywhere on the page.
+- Session Detail timeline: user and assistant messages now use a consistent, clearly distinguishable treatment. Both show an uppercase role label (`USER` purple, `ASSISTANT` gray) and a matching rail-dot color. Each message body is a single box with matching border/radius/size: the user message is a faint purple-tinted box (and purple `USER` label + rail dot) so the human's input pops, while the assistant message is a neutral white card (gray `ASSISTANT` label + dot) — the calm baseline, since every saturated tint in the timeline is already a semantic signal (green=Write, teal=agent, orange=skill, yellow=think, red=error). No more ambiguous, near-identical message styling or double-nested boxes. Long assistant replies fade out at the clip line instead of being hard-cut, signalling there's more on click.
 - Session Detail timeline: Write and Edit tool calls now render as full cards with rationale, diff/content body, and per-card metadata (language · duration · output · cache). The rationale is sourced from the nearest preceding `thinking_summary` in the same assistant turn. User messages adopt a matching purple-accent card style; system-generated, slash-command, and skill-expansion paths are unchanged. Bodies are syntax-highlighted (Prism.js, curated grammar set) and collapse to ~10 lines by default with in-place expand.
 
 ## [0.3.5] - 2026-05-11

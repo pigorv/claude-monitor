@@ -8,9 +8,9 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
 <!-- hero:start -->
-<!-- hero captured-on: v0.3.4 -->
+<!-- hero captured-on: v0.3.5 -->
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/hero.gif" alt="claude-monitor walkthrough — session list with Skills column and command/skill pills on session names, then session detail showing structured markdown rendering in the timeline, context chart with compaction markers, and a 5-agent Gantt timeline" style="max-width: 100%;" />
+  <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/hero.gif" alt="claude-monitor walkthrough — session list with date-group headers and Sort dropdown, Timeline with Write/Edit full-cards showing code and diffs, Context chart, and 5-agent Gantt" style="max-width: 100%;" />
 </p>
 <!-- hero:end -->
 
@@ -44,17 +44,17 @@ npx @pigorv/claude-monitor start
 <!-- features:start -->
 ## Features
 
-**Session List** — Filterable, sortable table with model filter chips, a project folder filter with session counts, Sonnet→Opus multi-model pills, search, infinite scroll with a sticky header, a Health strip on every row showing context %, peak tokens against a 1M reference and compaction dots, and a Skills column showing the slash commands and skills invoked in each session (truncated to three pills with a `+N more` / Show less toggle). Sessions kicked off with `/command` or a skill show the same pill inline in the session name.
+**Session List** — Filterable, sortable table with a recognition-first row layout: task intent as the bold title, project name as a small label, and turns/sub-agents/tools/skills/compaction in a muted subtitle. Every row has a right-rail telemetry ledger showing relative-start → ended clock (full timestamps on hover), model pill, duration · estimated cost, and peak-context % color-coded against the model's threshold. Rows group under TODAY / YESTERDAY / THIS WEEK headers when sorted by start time. Single filter bar with Project, Model, and Sort dropdowns (including "Highest/Lowest ctx %" and "Most expensive/Cheapest" options); press `/` to focus search from anywhere. Sessions started with a `/command` or skill show the command/skill pill inline before the session title.
 
-<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-list.png" alt="Session list across 4 projects with project filter chips, model filter chips, /migrate and /audit command pills on session names, a Skills column showing release-readme, playwright-cli, frontend-design and code-review pills, an Opus → Sonnet multi-model pill, and Health strips with context %, peak tokens and compaction dots" width="700" />
+<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-list.png" alt="Session list with recognition-first row layout: bold session titles with project name labels, right-rail telemetry ledger showing timestamps, model pills, duration and estimated cost, color-coded peak-context %, and TODAY / YESTERDAY date-group headers" width="700" />
 
 **Context Pressure** — Interactive token chart (uPlot) with input/output/cache breakdown, model-specific thresholds, compaction markers, and drag-to-zoom.
 
 <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-context.png" alt="Session detail page with header stats and a one-click Open in Terminal button, plus a context utilization chart showing two compaction drops and warning/danger threshold zones" width="700" />
 
-**Thinking Inspection** — Expandable thinking blocks in the event timeline, with infinite scroll across long sessions. Thinking, skill expansions, and tool inputs/outputs render with structured formatting — markdown for prose, pretty-printed JSON for tool inputs, and labeled blocks for `<system-reminder>` / `<example>` tags — so you can actually read where Claude's reasoning chain took a wrong turn. The same rendering applies in the Agents tab and sub-agent groups.
+**Thinking Inspection** — Expandable thinking blocks in the event timeline with infinite scroll. User messages appear in faint purple with an uppercase `USER` label and matching rail dot; assistant messages in neutral white with an `ASSISTANT` label — visually distinct from each other and from tool-call color signals (green=Write, teal=agent, orange=skill). Write and Edit tool calls render as full cards with rationale sourced from the nearest thinking block, a syntax-highlighted diff or content body (Prism.js), and per-card metadata (language · duration · output · cache); collapsible to ~10 lines with in-place expand, with long replies fading at the clip line. Thinking, skill expansions, and tool inputs also render as structured markdown / pretty-printed JSON / labeled `<system-reminder>` blocks — the same way across the Timeline, Agents tab, and sub-agent groups.
 
-<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-timeline.png" alt="Timeline tab with a /audit command pill marking the session start, an expanded Glob tool call showing pretty-printed JSON input, an expanded thinking block, and a parent-vs-agents token budget bar" width="700" />
+<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-timeline.png" alt="Timeline tab with a purple USER card, Write full-card showing syntax-highlighted TypeScript code, Edit full-card with +/- diff lines, and a gray ASSISTANT card" width="700" />
 
 **Agent Tree** — Full sub-agent visibility with Gantt timeline, per-agent token costs, tool call breakdowns, compression ratios, and result classification. See which agents ran in parallel, which ones failed, and how much context each one consumed.
 
