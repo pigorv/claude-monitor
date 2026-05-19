@@ -1,0 +1,221 @@
+/* ═══════════════════════════════════════════
+   FILTER BAR
+   ═══════════════════════════════════════════ */
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-bar-search {
+  flex: 1 1 200px;
+  min-width: 160px;
+  position: relative;
+}
+
+.filter-bar-search .search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 36px;
+}
+
+.search-kbd {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text3);
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  padding: 2px 5px;
+  pointer-events: none;
+  line-height: 1.4;
+}
+
+/* Dropdown root */
+.dd-root {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.dd-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-card);
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--sans);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.dd-trigger:hover {
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+
+.dd-root.dd-open .dd-trigger {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dd-caret {
+  font-size: 9px;
+  opacity: 0.6;
+  margin-left: 2px;
+}
+
+/* Dropdown popover */
+.dd-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 160px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+  padding: 4px;
+}
+
+/* In-menu typeahead */
+.dd-search {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  font-size: 12px;
+  font-family: var(--sans);
+  outline: none;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.dd-search:focus {
+  border-color: var(--accent);
+}
+
+/* Dropdown options */
+.dd-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--r-xs);
+  font-size: 12px;
+  color: var(--text2);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.dd-option:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.dd-option.dd-option-selected {
+  background: var(--accent-light);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.dd-trailing {
+  margin-left: auto;
+  font-size: 11px;
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text3);
+  padding-left: 8px;
+}
+
+.dd-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+/* Result-count badge */
+.filter-bar-count {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--text3);
+  padding: 4px 8px;
+  border-radius: var(--r-pill);
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+@keyframes count-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.filter-bar-count.filter-bar-count-pulse {
+  animation: count-pulse 1.2s ease-in-out infinite;
+}
+
+/* Clear-filters button */
+.reset-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--orange);
+  background: color-mix(in srgb, var(--orange) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--orange) 45%, transparent);
+  border-radius: var(--r-pill);
+  padding: 4px 10px 4px 8px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s;
+}
+
+.reset-filters:hover {
+  background: color-mix(in srgb, var(--orange) 22%, transparent);
+  border-color: var(--orange);
+}
+
+.reset-filters .reset-x {
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 700;
+  display: inline-block;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .filter-bar {
+    flex-wrap: wrap;
+  }
+
+  .filter-bar-search {
+    flex: 1 1 100%;
+  }
+}

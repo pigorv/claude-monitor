@@ -7,7 +7,9 @@ import { Heatmap } from '../../frontend/src/components/Heatmap.js';
 import { EventCard } from '../../frontend/src/components/EventCard.js';
 import { AgentTree } from '../../frontend/src/components/AgentTree.js';
 import { groupTimelineItems } from '../../frontend/src/components/Timeline.js';
-import type { Event as SessionEvent, AgentRelationship, TokenDataPoint } from '../../src/shared/types.js';
+import { Dropdown } from '../../frontend/src/components/Dropdown.js';
+import { FilterBar } from '../../frontend/src/components/FilterBar.js';
+import type { Event as SessionEvent, AgentRelationship, TokenDataPoint, ProjectInfo } from '../../src/shared/types.js';
 
 // ─── SessionHealthStrip ─────────────────────────────────
 
@@ -705,5 +707,134 @@ describe('groupTimelineItems', () => {
     // agent_id event is skipped, leaving two non-consecutive Reads → 2 standalone events
     assert.equal(items.length, 2);
     assert.ok(items.every(i => i.type === 'event'));
+  });
+});
+
+// ─── Dropdown ───────────────────────────────────────────
+
+const dropdownOpts = [
+  { value: 'a', label: 'Option A' },
+  { value: 'b', label: 'Option B' },
+  { value: 'c', label: 'Option C', swatch: '#ff0000' },
+];
+
+describe('Dropdown', () => {
+  it('renders trigger button with label and caret', () => {
+    const out = render(html`<${Dropdown} label="Pick one" options=${dropdownOpts} value="a" onChange=${() => {}} />`);
+    assert.ok(out.includes('dd-trigger'), 'should render trigger');
+    assert.ok(out.includes('Pick one'), 'should show label');
+    assert.ok(out.includes('dd-caret'), 'should render caret');
+  });
+
+  it('does not render popover when closed by default', () => {
+    const out = render(html`<${Dropdown} label="Pick one" options=${dropdownOpts} value="a" onChange=${() => {}} />`);
+    assert.ok(!out.includes('dd-popover'), 'popover should not render when closed');
+  });
+
+  it('renders popover when defaultOpen=true', () => {
+    const out = render(html`<${Dropdown} label="Pick one" options=${dropdownOpts} value="a" onChange=${() => {}} defaultOpen=${true} />`);
+    assert.ok(out.includes('dd-popover'), 'popover should render when defaultOpen');
+    assert.ok(out.includes('Option A'), 'options should be listed');
+  });
+
+  it('marks selected option with dd-option-selected', () => {
+    const out = render(html`<${Dropdown} label="Pick one" options=${dropdownOpts} value="b" onChange=${() => {}} defaultOpen=${true} />`);
+    assert.ok(out.includes('dd-option-selected'), 'selected class should appear');
+    const selectedPos = out.indexOf('dd-option-selected');
+    const bPos = out.indexOf('Option B');
+    assert.ok(Math.abs(selectedPos - bPos) < 150, 'selected class should be near Option B');
+  });
+
+  it('renders swatch for option with swatch defined', () => {
+    const out = render(html`<${Dropdown} label="Pick one" options=${dropdownOpts} value="a" onChange=${() => {}} defaultOpen=${true} />`);
+    assert.ok(out.includes('dd-swatch'), 'swatch span should render for option with color');
+    assert.ok(out.includes('#ff0000'), 'swatch should carry the color value');
+  });
+
+  it('renders typeahead input when typeahead=true', () => {
+    const out = render(html`<${Dropdown} label="Pick one" options=${dropdownOpts} value="a" onChange=${() => {}} defaultOpen=${true} typeahead=${true} />`);
+    assert.ok(out.includes('dd-search'), 'typeahead input should render');
+  });
+
+  it('does not render typeahead input when typeahead=false', () => {
+    const out = render(html`<${Dropdown} label="Pick one" options=${dropdownOpts} value="a" onChange=${() => {}} defaultOpen=${true} typeahead=${false} />`);
+    assert.ok(!out.includes('dd-search'), 'no search input when typeahead disabled');
+  });
+});
+
+// ─── FilterBar ──────────────────────────────────────────
+
+const baseFilterBarProps = {
+  searchQuery: '',
+  onSearch: () => {},
+  projects: [] as ProjectInfo[],
+  selectedProject: null,
+  onSelectProject: () => {},
+  modelFilter: 'all',
+  onModelFilter: () => {},
+  sortCol: 'started_at',
+  sortOrder: 'desc',
+  onApplySort: () => {},
+  total: 42,
+  loading: false,
+  hasActiveFilters: false,
+  onResetFilters: () => {},
+};
+
+describe('FilterBar', () => {
+  it('renders search input', () => {
+    const out = render(html`<${FilterBar} ...${baseFilterBarProps} />`);
+    assert.ok(out.includes('search-input'), 'should render search input');
+  });
+
+  it('renders three dropdown triggers', () => {
+    const out = render(html`<${FilterBar} ...${baseFilterBarProps} />`);
+    const count = (out.match(/class="dd-trigger"/g) ?? []).length;
+    assert.equal(count, 3, 'should render project, model, and sort dropdowns');
+  });
+
+  it('shows result count badge with correct total', () => {
+    const out = render(html`<${FilterBar} ...${baseFilterBarProps} />`);
+    assert.ok(out.includes('filter-bar-count'), 'should show count badge');
+    assert.ok(out.includes('42'), 'should show total count');
+  });
+
+  it('count badge has pulse class while loading', () => {
+    const out = render(html`<${FilterBar} ...${baseFilterBarProps} loading=${true} />`);
+    assert.ok(out.includes('filter-bar-count-pulse'), 'should add pulse class while loading');
+  });
+
+  it('does not show Clear filters button when no active filters', () => {
+    const out = render(html`<${FilterBar} ...${baseFilterBarProps} hasActiveFilters=${false} />`);
+    assert.ok(!out.includes('reset-filters'), 'no clear button without active filters');
+  });
+
+  it('shows Clear filters button when filters are active', () => {
+    const out = render(html`<${FilterBar} ...${baseFilterBarProps} hasActiveFilters=${true} />`);
+    assert.ok(out.includes('reset-filters'), 'shows clear button with active filters');
+    assert.ok(out.includes('Clear filters'), 'button has correct label');
+  });
+
+  it('shows selected project name in trigger label', () => {
+    const projects: ProjectInfo[] = [
+      { project_path: '/work/foo', project_name: 'foo', session_count: 5 },
+    ];
+    const out = render(html`<${FilterBar} ...${baseFilterBarProps} projects=${projects} selectedProject="/work/foo" />`);
+    assert.ok(out.includes('foo'), 'should show selected project name in trigger');
+  });
+
+  it('reflects model filter in trigger label', () => {
+    const out = render(html`<${FilterBar} ...${baseFilterBarProps} modelFilter="opus" />`);
+    assert.ok(out.includes('Opus'), 'should show model name in trigger');
+  });
+
+  it('reflects sort selection in trigger label', () => {
+    const out = render(html`<${FilterBar} ...${baseFilterBarProps} sortCol="duration_ms" sortOrder="desc" />`);
+    assert.ok(out.includes('Longest duration'), 'should show sort label in trigger');
+  });
+
+  it('shows ellipsis placeholder in count while loading', () => {
+    const out = render(html`<${FilterBar} ...${baseFilterBarProps} loading=${true} total=${0} />`);
+    assert.ok(out.includes('…'), 'should show ellipsis while loading');
   });
 });
