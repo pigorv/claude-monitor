@@ -1,15 +1,71 @@
 /* ═══════════════════════════════════════════
-   SESSIONS LIST PAGE
+   SESSIONS LIST — recognition-first rows
    ═══════════════════════════════════════════ */
 
-/* Project name + summary two-line cell */
-.proj-name {
-  font-weight: 600;
-  color: var(--text);
+.session-list {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  /* clip keeps rounded corners while allowing sticky date headers */
+  overflow: clip;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Date-group header ───────────────────────────────────────── */
+
+.date-group {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 12px;
+  justify-content: space-between;
+  padding: 8px 18px;
+  background: var(--bg-muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text3);
+}
+
+.dg-count {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text3);
+}
+
+/* ── Row ─────────────────────────────────────────────────────── */
+
+.srow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  align-items: start;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.srow:hover {
+  background: var(--bg-hover);
+}
+
+/* Left — recognition zone (3 lines) */
+.srow-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.srow-l1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .proj-dot {
@@ -19,55 +75,53 @@
   flex-shrink: 0;
 }
 
-.proj-summary {
-  font-size: 13px;
+.srow-proj {
+  font-size: 11px;
   font-weight: 500;
-  color: var(--text);
-  margin-top: 2px;
-  max-width: 280px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.srow-title {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
-.proj-summary-text {
+.srow-title-pill {
+  flex-shrink: 0;
+}
+
+.srow-title-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
 }
 
-/* Skills column — skill name pills. */
-.skills-cell {
-  max-width: 240px;
-}
-
-.skills-cell .muted {
-  color: var(--text3);
-}
-
-.session-pills {
+.srow-sub {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.session-pills .pill-more {
-  font-size: 10px;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: var(--r-xs);
-  background: var(--bg-2);
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   color: var(--text3);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  font-family: var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.session-pills .pill-more:hover {
-  color: var(--text);
-  border-color: var(--text3);
+.srow-sub .skill-badge {
+  flex-shrink: 0;
+}
+
+.srow-sub-empty {
+  color: var(--text3);
 }
 
 /* Active session: pulsing green dot */
@@ -77,7 +131,7 @@
   border-radius: 50%;
   background: var(--green);
   display: inline-block;
-  margin-left: 6px;
+  flex-shrink: 0;
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -100,193 +154,83 @@
   font-weight: 700;
 }
 
-/* Compaction count badges */
-.cc {
-  font-size: 11px;
+/* ── Right — telemetry ledger (4 lines, mono) ────────────────── */
+
+.srow-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
   font-family: var(--mono);
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: var(--r-xs);
-  display: inline-block;
-}
-
-.cc.ok {
-  background: var(--green-bg);
-  color: var(--green);
-  border: 1px solid var(--green-border);
-}
-
-.cc.warn {
-  background: var(--orange-bg);
-  color: var(--orange);
-  border: 1px solid var(--orange-border);
-}
-
-.cc.danger {
-  background: var(--red-bg);
-  color: var(--red);
-  border: 1px solid var(--red-border);
-}
-
-/* Agent count badges */
-.ag {
   font-size: 11px;
-  font-family: var(--mono);
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: var(--r-xs);
-  display: inline-block;
-  background: var(--teal-bg);
-  color: var(--teal);
-  border: 1px solid var(--teal-border);
-}
-
-.ag.none {
-  background: var(--bg-muted);
+  /* recede while scanning; lift on row hover */
   color: var(--text3);
-  border: 1px solid var(--border);
-}
-
-/* Center-align agents column */
-.agents-cell {
-  text-align: center;
-}
-
-/* Session-health strip cell */
-td.health {
-  padding: 13px 14px;
-  vertical-align: middle;
+  flex-shrink: 0;
   white-space: nowrap;
 }
 
-.health-strip {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
+.srow:hover .srow-rail {
+  color: var(--text2);
 }
 
-.hs-bar {
-  display: inline-flex;
+.rail-time {
+  letter-spacing: -0.01em;
+}
+
+.rail-arrow {
+  opacity: 0.45;
+  margin: 0 2px;
+}
+
+.rail-model {
+  display: flex;
+}
+
+.rail-cost {
+  font-variant-numeric: tabular-nums;
+}
+
+.rail-usd {
+  color: var(--text2);
+  font-weight: 600;
+}
+
+.rail-tel {
+  display: flex;
   align-items: center;
   gap: 6px;
+  font-variant-numeric: tabular-nums;
 }
 
-.hs-track {
-  width: 60px;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--bg-muted);
-  overflow: hidden;
+.tel-sep {
+  opacity: 0.4;
 }
 
-.hs-fill {
-  height: 100%;
-  border-radius: 3px;
-  background: var(--text3);
+/* Peak-context color thresholds (model-aware, set in component) */
+.tel-ctx {
+  font-weight: 600;
 }
 
-.hs-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  min-width: 30px;
-  color: var(--text2);
+.tel-green {
+  color: var(--health-green);
 }
 
-.hs-ctx.hs-green .hs-fill { background: var(--health-green); }
-.hs-ctx.hs-amber .hs-fill { background: var(--health-amber); }
-.hs-ctx.hs-rose  .hs-fill { background: var(--health-rose); }
-
-.hs-ctx.hs-green .hs-label { color: var(--health-green); }
-.hs-ctx.hs-amber .hs-label { color: var(--health-amber); }
-.hs-ctx.hs-rose  .hs-label { color: var(--health-rose); }
-
-.hs-peak .hs-fill {
-  background: var(--health-violet);
-  opacity: 0.85;
+.tel-amber {
+  color: var(--health-amber);
 }
 
-.hs-peak .hs-label {
-  color: var(--text3);
+.tel-red {
+  color: var(--health-rose);
 }
 
-.hs-comp {
-  display: inline-flex;
-  gap: 2px;
+/* Low cache-hit ratio (< 50%) */
+.tel-cache-low {
+  color: var(--health-amber);
 }
 
-.hs-sq {
-  width: 6px;
-  height: 6px;
-  border-radius: 1px;
-  background: var(--bg-muted);
-  border: 1px solid var(--border);
-}
+/* ── Infinite-scroll sentinel ────────────────────────────────── */
 
-.hs-sq.hs-sq-on {
-  background: var(--health-rose);
-  border-color: var(--health-rose);
-}
-
-th .th-hint {
-  display: inline-block;
-  margin-left: 4px;
-  color: var(--text3);
-  font-size: 11px;
-  cursor: help;
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-th .th-hint:hover {
-  color: var(--text2);
-}
-
-/* Sortable column headers */
-th.sortable {
-  cursor: pointer;
-  user-select: none;
-  /* Keep label and sort-arrow placeholder (::after) on a single line so
-     narrow columns don't push the arrow below the text and shift the
-     label up via the now-doubled line box. */
-  white-space: nowrap;
-}
-
-th.sortable:hover {
-  color: var(--text2);
-}
-
-th.sortable::after {
-  content: "";
-  display: inline-block;
-  width: 0.6em;
-  margin-left: 4px;
-}
-
-th.sort-asc::after {
-  content: "▲";
-  font-size: 8px;
-}
-
-th.sort-desc::after {
-  content: "▼";
-  font-size: 8px;
-}
-
-/* Sticky table header for the SessionList — scoped via .sticky-head so the
-   shared .table-wrap is not affected elsewhere. `overflow: clip` keeps the
-   rounded corners while still allowing sticky positioning. */
-.table-wrap.sticky-head {
-  overflow: clip;
-}
-
-.table-wrap.sticky-head thead th {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-}
-
-/* Infinite-scroll sentinel: last row of the list, observed for visibility. */
 .infinite-sentinel {
   display: flex;
   align-items: center;
@@ -318,7 +262,8 @@ th.sort-desc::after {
   cursor: pointer;
 }
 
-/* Floating "Back to top" button — fixed to bottom-center */
+/* ── Floating "Back to top" ──────────────────────────────────── */
+
 .back-to-top {
   position: fixed;
   left: 50%;
@@ -343,7 +288,7 @@ th.sort-desc::after {
   color: var(--text);
 }
 
-/* Orange text utility */
+/* Orange text utility (stats bar) */
 .orange {
   color: var(--orange);
 }

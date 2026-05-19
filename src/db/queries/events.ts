@@ -265,6 +265,31 @@ export function getMiniTimelinesForSessions(sessionIds: string[], maxPoints: num
   return result;
 }
 
+/**
+ * Batch-fetch user-message ("turn") counts for multiple sessions in a single
+ * query. Counts main-session user messages only (agent_id IS NULL) so subagent
+ * prompts are excluded. Returns a map of sessionId → turn count (0 if none).
+ */
+export function getTurnCountsForSessions(sessionIds: string[]): Map<string, number> {
+  const result = new Map<string, number>();
+  if (sessionIds.length === 0) return result;
+
+  const db = getDb();
+  const placeholders = sessionIds.map(() => '?').join(',');
+  const rows = db.prepare(`
+    SELECT session_id, COUNT(*) as turn_count
+    FROM events
+    WHERE session_id IN (${placeholders})
+      AND event_type = 'user_message'
+      AND agent_id IS NULL
+    GROUP BY session_id
+  `).all(...sessionIds) as { session_id: string; turn_count: number }[];
+
+  for (const sid of sessionIds) result.set(sid, 0);
+  for (const row of rows) result.set(row.session_id, row.turn_count);
+  return result;
+}
+
 export function getEventCountBySession(sessionId: string): number {
   const db = getDb();
   _eventCountBySessionStmt ??= db.prepare('SELECT COUNT(*) as count FROM events WHERE session_id = ?');
