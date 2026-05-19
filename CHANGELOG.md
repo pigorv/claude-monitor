@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Session List groups rows under TODAY / YESTERDAY / THIS WEEK / date headers (with counts) when sorted by start time.
 - Sort dropdown gains "Highest/Lowest ctx %" and "Most expensive/Cheapest" options.
 
+### Fixed
+
+- Session List no longer shows a spurious "0% ⚡" cache badge on sessions where caching was never used.
+
 ### Changed
 
 - Session List redesigned around recognition: the task intent is now the bold row title with the project name demoted to a small label; turns, sub-agents, tools, skills, and compaction count are consolidated into one muted subtitle line. The dedicated Skills, Agents, and Health columns were removed.

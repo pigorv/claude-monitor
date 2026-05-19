@@ -113,8 +113,9 @@ function ctxClass(pct: number, model: string | null | undefined): string {
 }
 
 // Cache hit ratio: cache_read / (cache_read + cache_write + input). Null when
-// there is no token activity to divide by.
+// there is no token activity to divide by, or when caching was never used.
 function cacheHitPct(s: SessionSummary): number | null {
+  if (s.total_cache_read_tokens === 0 && s.total_cache_write_tokens === 0) return null;
   const denom =
     s.total_cache_read_tokens + s.total_cache_write_tokens + s.total_input_tokens;
   if (denom <= 0) return null;
