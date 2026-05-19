@@ -2,7 +2,6 @@ import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import render from 'preact-render-to-string';
 import { html } from 'htm/preact';
-import { SessionHealthStrip } from '../../frontend/src/components/SessionHealthStrip.js';
 import { Heatmap } from '../../frontend/src/components/Heatmap.js';
 import { EventCard } from '../../frontend/src/components/EventCard.js';
 import { AgentTree } from '../../frontend/src/components/AgentTree.js';
@@ -10,53 +9,6 @@ import { groupTimelineItems } from '../../frontend/src/components/Timeline.js';
 import { Dropdown } from '../../frontend/src/components/Dropdown.js';
 import { FilterBar } from '../../frontend/src/components/FilterBar.js';
 import type { Event as SessionEvent, AgentRelationship, TokenDataPoint, ProjectInfo } from '../../src/shared/types.js';
-
-// ─── SessionHealthStrip ─────────────────────────────────
-
-describe('SessionHealthStrip', () => {
-  it('renders placeholder when all signals are zero', () => {
-    const out = render(html`<${SessionHealthStrip} contextPct=${0} peakTokens=${0} compactionCount=${0} />`);
-    assert.ok(out.includes('—'), 'should render dash placeholder');
-  });
-
-  it('does not show placeholder when only one signal is non-zero', () => {
-    const out = render(html`<${SessionHealthStrip} contextPct=${0} peakTokens=${0} compactionCount=${1} />`);
-    assert.ok(out.includes('hs-comp'), 'compaction squares render even when other signals are zero');
-  });
-
-  it('renders three bars/dots groups for active sessions', () => {
-    const out = render(html`<${SessionHealthStrip} contextPct=${42} peakTokens=${250_000} compactionCount=${1} />`);
-    assert.ok(out.includes('hs-ctx'), 'has context bar');
-    assert.ok(out.includes('hs-peak'), 'has peak bar');
-    assert.ok(out.includes('hs-comp'), 'has compaction squares');
-  });
-
-  it('uses green tone below 60%', () => {
-    const out = render(html`<${SessionHealthStrip} contextPct=${59} peakTokens=${100_000} compactionCount=${0} />`);
-    assert.ok(out.includes('hs-green'), 'context <60 → green tone');
-  });
-
-  it('uses amber tone in 60-69 range', () => {
-    const out = render(html`<${SessionHealthStrip} contextPct=${60} peakTokens=${100_000} compactionCount=${0} />`);
-    assert.ok(out.includes('hs-amber'), 'context 60-69 → amber tone');
-  });
-
-  it('uses rose tone at 70% and above', () => {
-    const out = render(html`<${SessionHealthStrip} contextPct=${70} peakTokens=${100_000} compactionCount=${0} />`);
-    assert.ok(out.includes('hs-rose'), 'context >=70 → rose tone');
-  });
-
-  it('clamps compaction squares to three even when count exceeds', () => {
-    const out = render(html`<${SessionHealthStrip} contextPct=${10} peakTokens=${100_000} compactionCount=${7} />`);
-    const onMatches = out.match(/hs-sq-on/g) ?? [];
-    assert.equal(onMatches.length, 3, 'never more than three filled squares');
-  });
-
-  it('formats peak tokens label using K/M suffix', () => {
-    const out = render(html`<${SessionHealthStrip} contextPct=${10} peakTokens=${612_000} compactionCount=${0} />`);
-    assert.ok(out.includes('612K'), 'should render 612K label');
-  });
-});
 
 // ─── Heatmap ────────────────────────────────────────────
 
