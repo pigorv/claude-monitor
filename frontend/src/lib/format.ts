@@ -1,3 +1,15 @@
+export function projectColor(name: string): string {
+  const colors = [
+    "var(--purple)", "var(--accent)", "var(--teal)",
+    "var(--orange)", "var(--green)", "var(--yellow)",
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
 export function formatTokenCount(n: number | null | undefined): string | null {
   if (n == null || n < 100) return null;
 

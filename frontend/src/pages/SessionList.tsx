@@ -3,10 +3,12 @@ import { html } from "htm/preact";
 import { fetchSessions, fetchApi, fetchProjects } from "../api/client";
 import { SessionHealthStrip } from "../components/SessionHealthStrip";
 import { BackToTop } from "../components/BackToTop";
+import { FilterBar } from "../components/FilterBar";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { updateParams } from "../lib/url-state";
 import { migrateProjectFilterKey } from "../lib/migrate-project-filter";
+import { projectColor } from "../lib/format";
 import type { SessionSummary, ProjectInfo, Invocation } from "../../../src/shared/types";
 import "../styles/pills.css";
 import "../styles/session-list.css";
@@ -61,18 +63,6 @@ function isLargeContext(model: string | null | undefined): boolean {
   return m.includes("opus");
 }
 
-function projectColor(name: string): string {
-  const colors = [
-    "var(--purple)", "var(--accent)", "var(--teal)",
-    "var(--orange)", "var(--green)", "var(--yellow)",
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
-  }
-  return colors[Math.abs(hash) % colors.length];
-}
-
 // ── Pills row for skills ────────────────────────────────────────────
 
 const PILLS_VISIBLE_LIMIT = 3;
@@ -117,13 +107,11 @@ const VALID_SORT_COLS: SortColumn[] = [
 const VALID_CHIPS: ChipFilter[] = ["all", "opus", "sonnet", "haiku"];
 
 const PAGE_SIZE = 25;
-const MAX_VISIBLE_PROJECTS = 5;
 
 // localStorage keys (Tier 2 cross-session preferences)
 const LS_CHIP = "cm.sessionList.chipFilter";
 const LS_PROJECT = "cm.sessionList.project";
 const LS_SORT = "cm.sessionList.sort";
-const LS_PROJECTS_EXPANDED = "cm.sessionList.projectsExpanded";
 
 // One-shot migration from the previous `cm:projectFilter` key. Runs once at
 // module load so usePersistentState sees the new value on first mount.
@@ -157,10 +145,9 @@ interface StatsData {
 
 export function SessionList({ params }: { params: URLSearchParams }) {
   // Tier 2 preferences (localStorage)
-  const [chipPref, setChipPref] = usePersistentState<ChipFilter>(LS_CHIP, "all");
+  const [modelPref, setModelPref] = usePersistentState<ChipFilter>(LS_CHIP, "all");
   const [projectPref, setProjectPref] = usePersistentState<string | null>(LS_PROJECT, null);
   const [sortPref, setSortPref] = usePersistentState<SortPref>(LS_SORT, DEFAULT_SORT);
-  const [projectsExpanded, setProjectsExpanded] = usePersistentState<boolean>(LS_PROJECTS_EXPANDED, false);
 
   // Effective values: URL (Tier 1) overrides localStorage; otherwise pref wins.
   const urlModel = params.get("model");
@@ -171,7 +158,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
 
   const chipFilter: ChipFilter = (urlModel && VALID_CHIPS.includes(urlModel as ChipFilter))
     ? (urlModel as ChipFilter)
-    : chipPref;
+    : modelPref;
   const selectedProject: string | null = urlProject ?? projectPref;
   const sortCol: SortColumn = (urlSort && VALID_SORT_COLS.includes(urlSort as SortColumn))
     ? (urlSort as SortColumn)
@@ -202,6 +189,20 @@ export function SessionList({ params }: { params: URLSearchParams }) {
   const [retryNonce, setRetryNonce] = useState(0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  // Search input ref + global "/" shortcut
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const t = e.target as HTMLElement;
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
   // Debounced URL write for search
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleSearch = useCallback((e: Event) => {
@@ -214,7 +215,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
   }, []);
 
   function setChipFilter(next: ChipFilter) {
-    setChipPref(next);
+    setModelPref(next);
     updateParams({ model: next === "all" ? null : next }, "replace");
   }
 
@@ -231,7 +232,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
   function resetFilters() {
     if (timerRef.current) clearTimeout(timerRef.current);
     setSearchQuery("");
-    setChipPref("all");
+    setModelPref("all");
     setProjectPref(null);
     setSortPref(DEFAULT_SORT);
     updateParams(
@@ -239,6 +240,10 @@ export function SessionList({ params }: { params: URLSearchParams }) {
       "replace",
     );
   }
+
+  // Adapter functions — bridge FilterBar's string types to typed enums
+  function handleModelFilter(v: string) { setChipFilter(v as ChipFilter); }
+  function handleApplySort(col: string, order: string) { applySort(col as SortColumn, order as SortOrder); }
 
   // Load stats
   useEffect(() => {
@@ -371,10 +376,6 @@ export function SessionList({ params }: { params: URLSearchParams }) {
     ? projects.length
     : new Set(sessions.map((s: SessionSummary) => s.project_name)).size;
 
-  // Visible project chips (with overflow)
-  const visibleProjects = projectsExpanded ? projects : projects.slice(0, MAX_VISIBLE_PROJECTS);
-  const hasOverflow = projects.length > MAX_VISIBLE_PROJECTS;
-
   // Show Clear filters whenever the effective view differs from factory
   // defaults — URL params and localStorage prefs both count as "active".
   const hasActiveFilters = chipFilter !== "all"
@@ -412,66 +413,23 @@ export function SessionList({ params }: { params: URLSearchParams }) {
         </div>
       </div>
 
-      <!-- Controls: search + chip filters -->
-      <div class="controls">
-        <input
-          class="search-input"
-          placeholder="Search sessions..."
-          value=${searchQuery}
-          onInput=${handleSearch}
-        />
-        <div class="filter-chips">
-          ${(["all", "opus", "sonnet", "haiku"] as const).map(
-            (f) => html`
-              <div
-                class=${`chip ${chipFilter === f ? "active" : ""}`}
-                onClick=${() => setChipFilter(f as ChipFilter)}
-              >
-                ${f.charAt(0).toUpperCase() + f.slice(1)}
-              </div>
-            `
-          )}
-        </div>
-        ${hasActiveFilters && html`
-          <button class="reset-filters" onClick=${resetFilters} title="Clear filters and saved defaults">
-            <span class="reset-x" aria-hidden="true">×</span>
-            Clear filters
-          </button>
-        `}
-        <span class="sort-label">Sort: Latest first</span>
-
-        ${projects.length > 1 && html`
-          <div class="project-chips">
-            <div
-              class=${`chip ${!selectedProject ? "active" : ""}`}
-              onClick=${() => selectProject(null)}
-            >
-              All Projects
-            </div>
-            ${visibleProjects.map(
-              (p: ProjectInfo) => html`
-                <div
-                  class=${`chip project-chip ${selectedProject === p.project_path ? "active" : ""}`}
-                  title=${p.project_path}
-                  onClick=${() => selectProject(p.project_path)}
-                >
-                  <span class="chip-dot" style=${`background:${projectColor(p.project_name || "default")}`}></span>
-                  ${(p.project_name || "unknown").length > 20 ? (p.project_name || "unknown").slice(0, 20) + "..." : (p.project_name || "unknown")}
-                  <span class="chip-count">${p.session_count}</span>
-                </div>
-              `
-            )}
-            ${hasOverflow && html`
-              <div
-                class="chip overflow-chip"
-                onClick=${() => setProjectsExpanded(!projectsExpanded)}
-              >
-                ${projectsExpanded ? "Show less" : `+${projects.length - MAX_VISIBLE_PROJECTS} more`}
-              </div>
-            `}
-          </div>
-        `}
-      </div>
+      <${FilterBar}
+        searchRef=${searchInputRef}
+        searchQuery=${searchQuery}
+        onSearch=${handleSearch}
+        projects=${projects}
+        selectedProject=${selectedProject}
+        onSelectProject=${selectProject}
+        modelFilter=${chipFilter}
+        onModelFilter=${handleModelFilter}
+        sortCol=${sortCol}
+        sortOrder=${sortOrder}
+        onApplySort=${handleApplySort}
+        total=${total}
+        loading=${loading}
+        hasActiveFilters=${hasActiveFilters}
+        onResetFilters=${resetFilters}
+      />
 
       ${loading && sessions.length === 0 && html`<div class="status-text">Loading sessions...</div>`}
       ${loadError && sessions.length === 0 && html`<div class="error-text">${loadError}</div>`}
