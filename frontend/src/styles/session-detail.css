@@ -510,6 +510,14 @@
 .pill-gray { background: var(--bg-muted); color: var(--text3); }
 .pill-tool { background: var(--bg-muted); color: var(--text2); }
 
+/* Role labels (USER / ASSISTANT) — uppercase, slightly heavier so they
+   read as conversation turn markers, consistent across both roles. */
+.event-pill.pill-role {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
 /* Tool-specific badge colors — defined in globals.css */
 
 /* Permission status badges */
@@ -1053,14 +1061,41 @@
   max-height: 800px;
 }
 
-/* Colored left borders for event body types */
+/* User message — single faint purple-tinted box. The role label and
+   timestamp sit in the header above the box, not inside it. */
 .event-body.event-body-user {
-  border-left: 3px solid var(--blue, #2563eb);
+  background: var(--purple-bg);
+  border: 1px solid var(--purple-border);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  color: var(--text);
 }
 
+/* Assistant message — neutral white card (same border/radius/size as the
+   user box). Every saturated tint in the timeline is already a semantic
+   signal (green=Write, teal=agent, orange=skill, yellow=think, red=error,
+   purple=user), so the assistant stays the calm baseline; the purple user
+   box is what pops. */
 .event-body.event-body-assistant {
-  border-left: 3px solid var(--accent);
-  padding: 10px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  color: var(--text);
+}
+/* Soft fade-out at the clip line so truncated replies don't look hard-cut.
+   Pseudo-element survives dangerouslySetInnerHTML (not part of innerHTML).
+   Fades to the box background and stays inside the rounded corners. */
+.event-body.event-body-assistant.has-fade::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background: linear-gradient(transparent, var(--bg-card));
+  border-radius: 0 0 var(--r-sm) var(--r-sm);
+  pointer-events: none;
 }
 
 .event-body .fade {
@@ -2918,13 +2953,6 @@
 .event-card.event-user-message:not(.event-system-tagged):not(.event-skill-expansion):not(.event-cmd) {
   padding: 3px 0 3px 20px;
   margin: 6px 0;
-}
-.event-card.event-user-message:not(.event-system-tagged):not(.event-skill-expansion):not(.event-cmd) > .event-content {
-  background: var(--bg-card);
-  border: 1px solid var(--purple-border);
-  border-left: 3px solid var(--purple);
-  border-radius: var(--r-sm);
-  padding: 8px 12px;
 }
 
 /* ═══════════════════════════════════════════

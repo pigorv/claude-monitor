@@ -29,6 +29,22 @@ const M_SONNET_1M = "claude-sonnet-4-7-1m";
 const M_OPUS = "claude-opus-4-7";
 const M_HAIKU = "claude-haiku-4-5-20251001";
 
+// Shared plan body for the planning ↔ implementation linked pair. The
+// session-linker matches the first 200 chars of this against the
+// "Implement the following plan: …" prefix in the implementation session's
+// first user message — keep it well over 200 chars so the LIKE match is
+// unambiguous, and keep both sites referring to PLAN_BODY verbatim.
+const PLAN_BODY = [
+  "Refactor request validation to share a base zod schema across all REST routes.",
+  "",
+  "Steps:",
+  "1. Extract the common fields (id, createdAt, updatedAt, deletedAt) into BaseSchema in src/middleware/base-schema.ts.",
+  "2. Update src/middleware/validate.ts to compose route schemas from BaseSchema via .extend().",
+  "3. Migrate src/routes/users.ts to the new composed schema and remove its inline duplicates.",
+  "4. Add unit tests in test/middleware/validate.test.ts covering: required-field rejection, optional-field passthrough, and the BaseSchema.extend() composition.",
+  "5. Run the existing suite and confirm no regression.",
+].join("\n");
+
 // Anchor the synthetic time range to "yesterday" so the dashboard
 // sorts everything together at the top.
 const baseDay = new Date();
@@ -440,6 +456,47 @@ sessions.push(buildSession({
   ],
 }));
 
+// 2b. Planning ↔ Implementation linked pair (same cwd, plan body shared
+// verbatim so src/ingestion/session-linker.ts matches them).
+sessions.push(buildSession({
+  sessionId: "sess-plan-001",
+  title: "Plan: shared zod validation schema",
+  cwd: PROJECTS.api,
+  startMs: 2 * 60 * 60_000,
+  primaryModel: M_SONNET,
+  steps: [
+    { kind: "tool", toolName: "Read", toolInput: { file_path: "src/middleware/validate.ts" }, toolOutput: "// existing validation middleware, 280 lines, lots of duplicated z.object({ id, createdAt, ... }) blocks across schemas...", deltaInput: 9_000, deltaCache: 14_000 },
+    { kind: "tool", toolName: "Grep", toolInput: { pattern: "z\\.object", glob: "src/**/*.ts" }, toolOutput: "Found 23 matches across 9 route files.", deltaInput: 6_000, deltaCache: 10_000 },
+    { kind: "text", text: "I see a clear duplication pattern: every route schema re-declares the same audit fields. A BaseSchema in src/middleware/base-schema.ts plus .extend() at call sites cleans it up. Proposing a plan now.", deltaInput: 3_000, deltaCache: 4_000 },
+    { kind: "tool", toolName: "ExitPlanMode", toolInput: { plan: PLAN_BODY }, toolOutput: "User has approved your plan.", deltaInput: 2_000, deltaCache: 3_000 },
+  ],
+}));
+
+sessions.push(buildSession({
+  sessionId: "sess-impl-001",
+  title: "Implement: shared zod validation schema",
+  cwd: PROJECTS.api,
+  startMs: 2.5 * 60 * 60_000,
+  primaryModel: M_SONNET,
+  firstUserText: "Implement the following plan:\n" + PLAN_BODY,
+  steps: [
+    { kind: "tool", toolName: "Read", toolInput: { file_path: "src/middleware/validate.ts" }, toolOutput: "// 280 lines of validation logic with repeated audit-field blocks", deltaInput: 8_000, deltaCache: 12_000 },
+    { kind: "tool", toolName: "Write", toolInput: { file_path: "src/middleware/base-schema.ts", content: "import { z } from \"zod\";\n\nexport const BaseSchema = z.object({\n  id: z.string().uuid(),\n  createdAt: z.string().datetime(),\n  updatedAt: z.string().datetime(),\n  deletedAt: z.string().datetime().nullable().optional(),\n});\n\nexport type Base = z.infer<typeof BaseSchema>;\n" }, toolOutput: "File created successfully at src/middleware/base-schema.ts", deltaInput: 5_000, deltaCache: 8_000 },
+    {
+      kind: "tool", toolName: "Edit",
+      toolInput: {
+        file_path: "src/routes/users.ts",
+        old_string: "const UserSchema = z.object({\n  id: z.string().uuid(),\n  createdAt: z.string().datetime(),\n  updatedAt: z.string().datetime(),\n  deletedAt: z.string().datetime().nullable().optional(),\n  email: z.string().email(),\n  name: z.string().min(1),\n});",
+        new_string: "import { BaseSchema } from \"../middleware/base-schema\";\n\nconst UserSchema = BaseSchema.extend({\n  email: z.string().email(),\n  name: z.string().min(1),\n});",
+      },
+      toolOutput: "The file src/routes/users.ts has been updated successfully.",
+      deltaInput: 9_000, deltaCache: 14_000,
+    },
+    { kind: "tool", toolName: "Bash", toolInput: { command: "npm test -- middleware routes/users" }, toolOutput: "✓ 34 tests passing (validate.ts: 18, users.ts: 16)\n\nTest Suites: 2 passed, 2 total\nTests: 34 passed, 34 total\nTime: 2.41s", deltaInput: 7_000, deltaCache: 10_000 },
+    { kind: "text", text: "Plan complete: BaseSchema extracted, src/routes/users.ts now composes from it, and the 34-test suite passes. Reduced duplicated schema lines by 71%.", deltaInput: 3_000, deltaCache: 6_000 },
+  ],
+}));
+
 // 3. dashboard-ui: HEAVY Opus 1M session with subagents — agents screenshot target
 const SESS_AGENTS_ID = "sess-dash-002";
 sessions.push(buildSession({
@@ -457,6 +514,8 @@ sessions.push(buildSession({
   trailingSkillExpansions: [
     "/Users/demo/.claude/skills/frontend-design/",
     "/Users/demo/.claude/skills/code-review/",
+    "/Users/demo/.claude/skills/playwright-cli/",
+    "/Users/demo/.claude/skills/release-readme/",
   ],
   steps: [
     { kind: "tool", toolName: "Glob", toolInput: { pattern: "frontend/src/**/*.tsx" }, toolOutput: "Found 24 files", deltaInput: 12_000, deltaCache: 18_000 },
