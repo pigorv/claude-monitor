@@ -317,6 +317,13 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
   // discards the selection (issue #47).
   const toggleExpand = () => { if (!hasTextSelection()) setExpanded((v) => !v); };
 
+  // Swallow clicks inside an expanded detail pane so they never reach the
+  // card's expand/collapse toggle. The selection-guard alone isn't enough:
+  // the leading single-click of a double/triple-click word-select fires
+  // before any selection exists. Collapse stays available via the header
+  // chevron, which lives outside these panes (issue #47).
+  const stopToggle = (e: globalThis.Event) => e.stopPropagation();
+
   // Header row for an expanded detail section: the label plus a hover-revealed
   // Copy button that puts the full, untruncated raw text on the clipboard.
   const sectionHeader = (labelText: string, copyText: string | null | undefined) => html`
@@ -368,7 +375,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
             <span class="sys-expand">${expanded ? '▾' : '›'}</span>
           </div>
           ${expanded && !contextData && html`
-            <div class="sys-expanded">
+            <div class="sys-expanded" onClick=${stopToggle}>
               ${StructuredContent({ text: event.input_data || event.input_preview, hint: "markdown" })}
             </div>
           `}
@@ -419,7 +426,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
             </div>
           </div>
           ${expanded && html`
-            <div class="event-detail">
+            <div class="event-detail" onClick=${stopToggle}>
               ${event.input_data && html`
                 <div class="detail-section">
                   ${sectionHeader("Input", event.input_data)}
@@ -629,7 +636,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
             <span class="tool-row-expand">${expanded ? "▾" : "›"}</span>
           </div>
           ${expanded && html`
-            <div class="event-detail">
+            <div class="event-detail" onClick=${stopToggle}>
               ${event.tool_name === "Edit" && (() => {
                 const input = tryParseJson(event.input_data);
                 if (!input?.old_string) return null;
@@ -776,7 +783,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
       `}
 
       ${expanded && html`
-        <div class="event-detail">
+        <div class="event-detail" onClick=${stopToggle}>
           ${event.thinking_text && html`
             <div class="detail-section">
               ${sectionHeader("Thinking", event.thinking_text)}
