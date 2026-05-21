@@ -3,6 +3,7 @@ import { html } from "htm/preact";
 import type { Event } from "../../../src/shared/types";
 import { renderMarkdown } from "../lib/markdown";
 import { StructuredContent } from "./StructuredContent";
+import { CopyButton } from "./CopyButton";
 import { computeLineDiff, type DiffLine } from "../lib/diff";
 import { formatTokenMeta, formatTokenCount } from "../lib/format";
 import { highlight } from "../lib/syntax";
@@ -34,6 +35,13 @@ function formatTokens(n: number): string {
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max) + "…";
+}
+
+// True when the user has an active text selection. Used to suppress the
+// expand/collapse toggle so a drag-select's trailing `click` doesn't collapse
+// the block out from under the selection (issue #47).
+function hasTextSelection(): boolean {
+  return (window.getSelection()?.toString() ?? "").length > 0;
 }
 
 // Try to parse JSON safely
@@ -303,6 +311,21 @@ function isToolErrorEvent(event: Event): boolean {
 
 export function EventCard({ event, sessionStart, groupIndex, rationale }: EventCardProps) {
   const [expanded, setExpanded] = useState(false);
+
+  // Toggle expand/collapse, but skip it when the user has a text selection —
+  // otherwise the trailing `click` of a drag-select collapses the block and
+  // discards the selection (issue #47).
+  const toggleExpand = () => { if (!hasTextSelection()) setExpanded((v) => !v); };
+
+  // Header row for an expanded detail section: the label plus a hover-revealed
+  // Copy button that puts the full, untruncated raw text on the clipboard.
+  const sectionHeader = (labelText: string, copyText: string | null | undefined) => html`
+    <div class="detail-section-header">
+      ${copyText && html`<${CopyButton} text=${copyText} />`}
+      <div class="detail-label">${labelText}</div>
+    </div>
+  `;
+
   const isToolEvent = event.event_type === "tool_call_start" || event.event_type === "tool_call_end";
   const label = TYPE_LABELS[event.event_type] || event.event_type;
   const isRoleMsg = event.event_type === "user_message" || event.event_type === "assistant_message";
@@ -339,7 +362,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
       <div class="event-card event-user-message">
         <div class="event-dot dot-sys"></div>
         <div class="event-content">
-          <div class="sys-row" onClick=${() => setExpanded(!expanded)}>
+          <div class="sys-row" onClick=${toggleExpand}>
             <span class="sys-label">system</span>
             <span class="sys-text">${contextData ? 'Context usage output' : truncate(event.input_preview || '[system message]', 80)}</span>
             <span class="sys-expand">${expanded ? '▾' : '›'}</span>
@@ -381,7 +404,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
 
     return html`
       <div class=${"event-card event-user-message event-cmd" + (hasExpandable ? " expandable" : "")}
-        onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
+        onClick=${hasExpandable ? toggleExpand : undefined}
       >
         <div class="event-dot dot-cmd"></div>
         <div class="event-content">
@@ -399,7 +422,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
             <div class="event-detail">
               ${event.input_data && html`
                 <div class="detail-section">
-                  <div class="detail-label">Input</div>
+                  ${sectionHeader("Input", event.input_data)}
                   ${StructuredContent({ text: event.input_data, hint: "markdown" })}
                 </div>
               `}
@@ -483,6 +506,9 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
     const editPreview = !isWrite ? previewDiff(editDiff, PREVIEW_LINES, EDIT_LEADING_CONTEXT) : { lines: [], hidden: 0 };
     const hidden = isWrite ? writeHidden : editPreview.hidden;
 
+    // Copy target: full file content for Write, the new text for Edit.
+    const mutatingCopyText = isWrite ? writeContent : String(input.new_string ?? "");
+
     // Rationale: truncate to 240 chars; track separate expand state.
     const RAT_MAX = 240;
     const ratLong = rationale != null && rationale.length > RAT_MAX;
@@ -504,6 +530,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               ${isErr && !isRejected && html`<span class="err-badge">error</span>`}
             </div>
             <div class="event-card-meta-pill">${metaParts.join(" · ")}</div>
+            ${mutatingCopyText && html`<${CopyButton} text=${mutatingCopyText} />`}
           </div>
 
           ${rationale && html`
@@ -580,7 +607,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
 
     return html`
       <div class=${"tool-row-standalone" + (isErr ? " tool-row-standalone-error" : "")}
-        onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
+        onClick=${hasExpandable ? toggleExpand : undefined}
       >
         <div class=${"event-dot dot-tool" + (isErr ? " dot-tool-err" : "")}></div>
         <div class="tool-row-content">
@@ -609,7 +636,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
                 const diffLines = computeLineDiff(String(input.old_string), String(input.new_string || ""));
                 return html`
                   <div class="detail-section">
-                    <div class="detail-label">Edit: ${input.file_path || ""}</div>
+                    ${sectionHeader(`Edit: ${input.file_path || ""}`, String(input.new_string ?? ""))}
                     <div class="diff-view">
                       ${diffLines.map((line) => html`
                         <div class=${"diff-line diff-line-" + line.type}>
@@ -623,13 +650,13 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               })()}
               ${event.tool_name !== "Edit" && event.input_data && html`
                 <div class="detail-section">
-                  <div class="detail-label">Input</div>
+                  ${sectionHeader("Input", event.input_data)}
                   ${StructuredContent({ text: event.input_data, hint: "json" })}
                 </div>
               `}
               ${(event.output_preview || event.output_data) && !(event.tool_name === "Edit" && /has been (updated|created) successfully/.test(event.output_preview || "")) && html`
                 <div class="detail-section">
-                  <div class="detail-label">Output</div>
+                  ${sectionHeader("Output", event.output_data || event.output_preview)}
                   ${StructuredContent({ text: event.output_data || event.output_preview })}
                 </div>
               `}
@@ -705,7 +732,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
         return html`
           <div class=${"event-body event-body-assistant markdown-content" + (truncated ? " has-fade" : "")}
             dangerouslySetInnerHTML=${{ __html: renderMarkdown(op) }}
-            onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}
+            onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}
           />
         `;
       })()}
@@ -752,19 +779,19 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
         <div class="event-detail">
           ${event.thinking_text && html`
             <div class="detail-section">
-              <div class="detail-label">Thinking</div>
+              ${sectionHeader("Thinking", event.thinking_text)}
               ${StructuredContent({ text: event.thinking_text, hint: "markdown" })}
             </div>
           `}
           ${event.input_preview && html`
             <div class="detail-section">
-              <div class="detail-label">Input</div>
+              ${sectionHeader("Input", event.input_data || event.input_preview)}
               ${StructuredContent({ text: event.input_data || event.input_preview })}
             </div>
           `}
           ${event.output_preview && event.event_type === "assistant_message" && html`
             <div class="detail-section">
-              <div class="detail-label">Output</div>
+              ${sectionHeader("Output", event.output_data || event.output_preview)}
               <div class="detail-content markdown-content"
                 dangerouslySetInnerHTML=${{ __html: renderMarkdown(event.output_data || event.output_preview) }}
               />
@@ -772,7 +799,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
           `}
           ${event.output_preview && event.event_type !== "assistant_message" && html`
             <div class="detail-section">
-              <div class="detail-label">Output</div>
+              ${sectionHeader("Output", event.output_data || event.output_preview)}
               ${StructuredContent({ text: event.output_data || event.output_preview })}
             </div>
           `}

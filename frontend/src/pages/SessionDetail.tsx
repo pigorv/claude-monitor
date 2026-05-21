@@ -5,6 +5,7 @@ import { Timeline } from "../components/Timeline";
 import { TokenChart } from "../components/TokenChart";
 import { AgentTree } from "../components/AgentTree";
 import { BackToTop } from "../components/BackToTop";
+import { CopyButton } from "../components/CopyButton";
 import { updateParams } from "../lib/url-state";
 import type { SessionDetailResponse } from "../../../src/shared/types";
 import { resolveThresholds } from "../lib/chart-config";
@@ -88,26 +89,6 @@ const VALID_TABS: readonly Tab[] = ["timeline", "context", "agents"];
 
 function isTab(v: string | null | undefined): v is Tab {
   return v != null && (VALID_TABS as readonly string[]).includes(v);
-}
-
-function CopyButton({ text, label }: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  };
-
-  return html`
-    <button class="copy-btn" onClick=${handleCopy} title="Copy to clipboard">
-      ${copied ? "Copied!" : html`
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.1"/><path d="M8 4V2.5A1.5 1.5 0 006.5 1H2.5A1.5 1.5 0 001 2.5v4A1.5 1.5 0 002.5 8H4" stroke="currentColor" stroke-width="1.1"/></svg>
-        ${label || "Copy"}
-      `}
-    </button>
-  `;
 }
 
 function OpenInTerminalButton({ sessionId, projectPath }: { sessionId: string; projectPath?: string }) {
