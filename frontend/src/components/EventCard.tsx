@@ -324,6 +324,13 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
   // chevron, which lives outside these panes (issue #47).
   const stopToggle = (e: globalThis.Event) => e.stopPropagation();
 
+  // Explicit collapse control rendered at the foot of each expanded pane.
+  // Since clicks inside the pane no longer collapse it (so selection works),
+  // this is the discoverable way back — the header chevron also still works.
+  const collapseFooter = html`
+    <div class="event-card-more-lines detail-collapse" onClick=${() => setExpanded(false)}>[▾ collapse]</div>
+  `;
+
   // Header row for an expanded detail section: the label plus a hover-revealed
   // Copy button that puts the full, untruncated raw text on the clipboard.
   const sectionHeader = (labelText: string, copyText: string | null | undefined) => html`
@@ -377,6 +384,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
           ${expanded && !contextData && html`
             <div class="sys-expanded" onClick=${stopToggle}>
               ${StructuredContent({ text: event.input_data || event.input_preview, hint: "markdown" })}
+              ${collapseFooter}
             </div>
           `}
           ${contextData && html`
@@ -433,6 +441,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
                   ${StructuredContent({ text: event.input_data, hint: "markdown" })}
                 </div>
               `}
+              ${collapseFooter}
             </div>
           `}
         </div>
@@ -675,6 +684,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
                   </div>
                 ` : null;
               })()}
+              ${collapseFooter}
             </div>
           `}
         </div>
@@ -818,6 +828,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               </div>
             ` : null;
           })()}
+          ${collapseFooter}
         </div>
       `}
       </div>

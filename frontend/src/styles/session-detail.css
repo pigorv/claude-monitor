@@ -2958,6 +2958,12 @@
   background: var(--accent-tint);
 }
 
+/* Explicit collapse control at the foot of an expanded detail pane. The pane
+   is a flex column, so keep the button content-width and left-aligned. */
+.detail-collapse {
+  align-self: flex-start;
+}
+
 /* Write cards: soft green tint behind the code body so the card reads
    as "all-new content". */
 .event-card-write .diff-view {
