@@ -97,6 +97,8 @@ export interface AgentRelationship {
   duration_ms: number | null;
   input_tokens_total: number | null;
   output_tokens_total: number | null;
+  initial_context_tokens: number | null;
+  total_tokens_consumed: number | null;
   tool_call_count: number;
   status: string;
   internal_tool_calls?: InternalToolCall[];
@@ -182,6 +184,9 @@ export interface TokenDataPoint {
   output_tokens: number;
   cache_read_tokens: number;
   cache_write_tokens: number;
+  // input + cache_read + cache_write: matches the prompt size the model
+  // actually saw (the "effective context") for that turn.
+  effective_context_tokens: number;
   context_pct: number;
   event_type: string;
   is_compaction: boolean;

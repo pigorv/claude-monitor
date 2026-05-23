@@ -9,6 +9,10 @@ stats.get('/api/stats', (c) => {
   const dbStats = getDbStats();
   const db = getDb();
 
+  // Parent-session-only token totals. These represent the parent transcripts
+  // alone; per-agent contributions are exposed separately in
+  // total_agent_input_tokens / total_agent_output_tokens so callers don't
+  // mix raw per-turn parent throughput with messageId-deduped agent sums.
   const tokenRow = db.prepare(`
     SELECT
       COALESCE(SUM(total_input_tokens), 0) as total_input_tokens,
@@ -23,7 +27,21 @@ stats.get('/api/stats', (c) => {
     FROM sessions
   `).get() as Record<string, number>;
 
-  // Compute total cost estimate by model
+  // Agent contribution: only count agents whose parent has a known model,
+  // matching the cost rollup below so the three numbers stay reconcilable.
+  const agentRow = db.prepare(`
+    SELECT
+      COALESCE(SUM(COALESCE(ar.initial_context_tokens, 0)), 0) as total_agent_input_tokens,
+      COALESCE(SUM(COALESCE(ar.total_tokens_consumed, 0)), 0) as total_agent_output_tokens
+    FROM agent_relationships ar
+    WHERE EXISTS (
+      SELECT 1 FROM sessions s WHERE s.id = ar.parent_session_id AND s.model IS NOT NULL
+    )
+  `).get() as Record<string, number>;
+
+  // Per-model parent-session token totals. Agent contributions are added
+  // below from a separate query (LEFT JOIN would double-count sessions
+  // with multiple agents).
   const modelRows = db.prepare(`
     SELECT
       model,
@@ -34,6 +52,24 @@ stats.get('/api/stats', (c) => {
     GROUP BY model
   `).all() as { model: string; input_tokens: number; output_tokens: number }[];
 
+  // Per-model agent contribution: approximated by initial_context_tokens
+  // (first-turn baseline — captures cache-creation pricing once) +
+  // total_tokens_consumed (messageId-deduped output).
+  const modelAgentRows = db.prepare(`
+    SELECT
+      s.model as model,
+      COALESCE(SUM(COALESCE(ar.initial_context_tokens, 0)), 0) as agent_input_tokens,
+      COALESCE(SUM(COALESCE(ar.total_tokens_consumed, 0)), 0) as agent_output_tokens
+    FROM sessions s
+    JOIN agent_relationships ar ON ar.parent_session_id = s.id
+    WHERE s.model IS NOT NULL
+    GROUP BY s.model
+  `).all() as { model: string; agent_input_tokens: number; agent_output_tokens: number }[];
+  const agentByModel = new Map<string, { input: number; output: number }>();
+  for (const r of modelAgentRows) {
+    agentByModel.set(r.model, { input: r.agent_input_tokens, output: r.agent_output_tokens });
+  }
+
   let totalCostEstimate = 0;
   for (const row of modelRows) {
     const lower = row.model.toLowerCase();
@@ -43,8 +79,11 @@ stats.get('/api/stats', (c) => {
     }
     if (pricingKey) {
       const pricing = MODEL_PRICING[pricingKey];
-      totalCostEstimate += (row.input_tokens / 1_000_000) * pricing.input_per_mtok
-        + (row.output_tokens / 1_000_000) * pricing.output_per_mtok;
+      const agentExtra = agentByModel.get(row.model);
+      const inputForCost = row.input_tokens + (agentExtra?.input ?? 0);
+      const outputForCost = row.output_tokens + (agentExtra?.output ?? 0);
+      totalCostEstimate += (inputForCost / 1_000_000) * pricing.input_per_mtok
+        + (outputForCost / 1_000_000) * pricing.output_per_mtok;
     }
   }
   totalCostEstimate = Math.round(totalCostEstimate * 1_000_000) / 1_000_000;
@@ -61,6 +100,8 @@ stats.get('/api/stats', (c) => {
     newest_session: dbStats.newestSession,
     total_input_tokens: tokenRow.total_input_tokens,
     total_output_tokens: tokenRow.total_output_tokens,
+    total_agent_input_tokens: agentRow.total_agent_input_tokens,
+    total_agent_output_tokens: agentRow.total_agent_output_tokens,
     total_cache_read_tokens: tokenRow.total_cache_read_tokens,
     total_cache_write_tokens: tokenRow.total_cache_write_tokens,
     avg_duration_ms: Math.round(tokenRow.avg_duration_ms),

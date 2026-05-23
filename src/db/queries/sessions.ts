@@ -18,13 +18,14 @@ let _getLinkedTargetStmt: Database.Statement | null = null;
 let _agentToolCallsStmt: Database.Statement | null = null;
 let _allAgentToolCallsStmt: Database.Statement | null = null;
 let _listProjectsStmt: Database.Statement | null = null;
+let _getAgentTokenSumsStmt: Database.Statement | null = null;
 
 onDbClose(() => {
   _insertSessionStmt = _upsertSessionStmt = _getSessionStmt = _deleteSessionStmt =
     _sessionExistsStmt = _getAgentRelStmt = _agentTokenTimelineStmt =
     _allAgentTokenTimelinesStmt = _insertSessionLinkStmt = _getLinkedSourceStmt =
     _getLinkedTargetStmt = _agentToolCallsStmt = _allAgentToolCallsStmt =
-    _listProjectsStmt = null;
+    _listProjectsStmt = _getAgentTokenSumsStmt = null;
 });
 
 export function insertSession(session: Session): void {
@@ -117,11 +118,14 @@ const ALLOWED_SORT_COLUMNS = new Set([
  * SQL expression that mirrors estimateCost() (server route) so the list can be
  * ordered by estimated cost server-side. Built from trusted MODEL_PRICING
  * constants only — no user input is interpolated, so this is injection-safe.
+ *
+ * Includes agent contribution (initial_context_tokens + total_tokens_consumed)
+ * so the sort order matches the cost shown in each row.
  */
 const COST_SORT_EXPR = `CASE ${Object.entries(MODEL_PRICING)
   .map(
     ([key, p]) =>
-      `WHEN lower(model) LIKE '%${key}%' THEN total_input_tokens / 1000000.0 * ${p.input_per_mtok} + total_output_tokens / 1000000.0 * ${p.output_per_mtok}`,
+      `WHEN lower(model) LIKE '%${key}%' THEN (total_input_tokens + COALESCE((SELECT SUM(COALESCE(initial_context_tokens, 0)) FROM agent_relationships WHERE parent_session_id = sessions.id), 0)) / 1000000.0 * ${p.input_per_mtok} + (total_output_tokens + COALESCE((SELECT SUM(COALESCE(total_tokens_consumed, 0)) FROM agent_relationships WHERE parent_session_id = sessions.id), 0)) / 1000000.0 * ${p.output_per_mtok}`,
   )
   .join(' ')} ELSE 0 END`;
 
@@ -238,6 +242,7 @@ export function getAgentRelationships(sessionId: string): AgentRelationship[] {
       prompt_preview, result_preview, prompt_data, result_data,
       started_at, ended_at,
       duration_ms, input_tokens_total, output_tokens_total,
+      initial_context_tokens, total_tokens_consumed,
       tool_call_count, status, prompt_tokens, result_tokens,
       peak_context_tokens, compression_ratio, agent_compaction_count,
       parent_headroom_at_return, parent_impact_pct, result_classification,
@@ -246,6 +251,46 @@ export function getAgentRelationships(sessionId: string): AgentRelationship[] {
     FROM agent_relationships WHERE parent_session_id = ?
   `);
   return _getAgentRelStmt.all(sessionId) as AgentRelationship[];
+}
+
+export interface AgentTokenSums {
+  initial_context_tokens: number;
+  total_tokens_consumed: number;
+}
+
+/**
+ * Returns deduped agent token sums per parent session. Uses json_each so the
+ * SQL string stays constant across calls and the prepared statement can be
+ * cached — avoids re-preparing on every list page. Empty input returns an
+ * empty Map (json_each([]) yields no rows, but we short-circuit for clarity).
+ */
+export function getAgentTokenSumsBySession(
+  parentSessionIds: string[],
+): Map<string, AgentTokenSums> {
+  const map = new Map<string, AgentTokenSums>();
+  if (parentSessionIds.length === 0) return map;
+  const db = getDb();
+  _getAgentTokenSumsStmt ??= db.prepare(`
+    SELECT
+      parent_session_id,
+      COALESCE(SUM(COALESCE(initial_context_tokens, 0)), 0) as initial_context_tokens,
+      COALESCE(SUM(COALESCE(total_tokens_consumed, 0)), 0) as total_tokens_consumed
+    FROM agent_relationships
+    WHERE parent_session_id IN (SELECT value FROM json_each(?))
+    GROUP BY parent_session_id
+  `);
+  const rows = _getAgentTokenSumsStmt.all(JSON.stringify(parentSessionIds)) as {
+    parent_session_id: string;
+    initial_context_tokens: number;
+    total_tokens_consumed: number;
+  }[];
+  for (const row of rows) {
+    map.set(row.parent_session_id, {
+      initial_context_tokens: row.initial_context_tokens,
+      total_tokens_consumed: row.total_tokens_consumed,
+    });
+  }
+  return map;
 }
 
 export interface AgentToolCallRow {
@@ -288,6 +333,9 @@ export function getAgentTokenTimeline(sessionId: string, agentId: string): Token
       COALESCE(input_tokens, 0) as input_tokens,
       COALESCE(output_tokens, 0) as output_tokens,
       COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
+      COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)
+        as effective_context_tokens,
       COALESCE(context_pct, 0) as context_pct,
       event_type,
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
@@ -307,6 +355,9 @@ export function getAllAgentTokenTimelines(sessionId: string): Map<string, TokenD
       COALESCE(input_tokens, 0) as input_tokens,
       COALESCE(output_tokens, 0) as output_tokens,
       COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
+      COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)
+        as effective_context_tokens,
       COALESCE(context_pct, 0) as context_pct,
       event_type,
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Sub-agent rows in the Agents tab now show a four-stat breakdown: **↓ Prompt** (tokens in the spawn prompt), **Initial ctx** (full first-turn context: system prompt + tools + prompt), **↑ Result** (tokens in the returned text), and **Consumed** (messageId-deduped total output across all the agent's turns). The Output token budget bar above the Timeline now shows parent vs. each sub-agent's *output* contribution, with a tooltip explaining why output is the right unit to sum (input/context windows are isolated and don't compose).
+- `/api/stats` exposes new `total_agent_input_tokens` / `total_agent_output_tokens` fields so dashboards can see sub-agent contribution separately from parent-only throughput.
+
+### Changed
+
+- Estimated cost per session now includes sub-agent contribution, approximated as `initial_context_tokens` (first-turn baseline, captures cache-creation pricing once) + `total_tokens_consumed` (deduped output). Sessions with heavy sub-agent use will show meaningfully different cost numbers; old numbers were a mix of inflated parent throughput and missing agent attribution. The Session List "Cost" sort now matches the displayed value.
+- Sub-agent peak context and compression ratio are now computed against the *effective* context the model saw each turn (input + cache_read + cache_write), not just the fresh-input slice — so an agent reusing 100K cached tokens no longer looks like it had a 5K context.
+
+### Fixed
+
+- Sub-agent peak context and compression ratio are now correctly populated for newly imported sessions (the second-pass efficiency loop ran before sub-agent transcripts were ingested, so it only saw the synthetic parent-side tool_call_start row).
+- Parent session `total_input_tokens` / `total_output_tokens` now stay parent-only; an old "inflation hack" added sub-agent totals on top of the parent's own throughput, double-counting cached tokens in cost displays.
+
 ## [0.4.0] - 2026-05-19
 
 ### Added

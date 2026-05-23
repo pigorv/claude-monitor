@@ -8,7 +8,7 @@ import type {
   InternalToolCall,
   Invocation,
 } from '../../shared/types.js';
-import { getSession, listSessions, listProjects, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions } from '../../db/queries/sessions.js';
+import { getSession, listSessions, listProjects, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions, getAgentTokenSumsBySession, type AgentTokenSums } from '../../db/queries/sessions.js';
 import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getTurnCountsForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
 import { getSessionStats, getToolFrequency, getFileActivity, getPeakParentTokens, getPeakParentTokensForSessions } from '../../db/queries/stats.js';
 import type { SessionFilters } from '../../db/queries/sessions.js';
@@ -66,7 +66,14 @@ function sessionToSummary(
   miniTimeline?: import('../../shared/types.js').MiniTimelinePoint[],
   peakTokens?: number,
   turnCount?: number,
+  agentSums?: AgentTokenSums,
 ): SessionSummary {
+  // Agent input is approximated by initial_context_tokens (the first-turn
+  // baseline) rather than raw input_tokens_total — the latter sums
+  // per-turn input across an agent's run and double-counts cached context.
+  // total_tokens_consumed is the messageId-deduped agent output sum.
+  const agentInput = agentSums?.initial_context_tokens ?? 0;
+  const agentOutput = agentSums?.total_tokens_consumed ?? 0;
   return {
     id: session.id,
     project_name: session.project_name ?? 'unknown',
@@ -87,7 +94,11 @@ function sessionToSummary(
     subagent_count: session.subagent_count,
     turn_count: turnCount ?? 0,
     summary: session.summary ?? '',
-    cost_estimate_usd: estimateCost(session.model, session.total_input_tokens, session.total_output_tokens),
+    cost_estimate_usd: estimateCost(
+      session.model,
+      session.total_input_tokens + agentInput,
+      session.total_output_tokens + agentOutput,
+    ),
     mini_timeline: miniTimeline ?? [],
     invocations: parseInvocations(session.invocations),
     started_with: parseStartedWith(session.started_with),
@@ -128,9 +139,18 @@ sessions.get('/api/sessions', (c) => {
   const miniTimelines = getMiniTimelinesForSessions(sessionIds);
   const peakTokensBySession = getPeakParentTokensForSessions(sessionIds);
   const turnCountsBySession = getTurnCountsForSessions(sessionIds);
+  const agentSumsBySession = getAgentTokenSumsBySession(sessionIds);
 
   const response: SessionListResponse = {
-    sessions: rows.map((s) => sessionToSummary(s, miniTimelines.get(s.id), peakTokensBySession.get(s.id), turnCountsBySession.get(s.id))),
+    sessions: rows.map((s) =>
+      sessionToSummary(
+        s,
+        miniTimelines.get(s.id),
+        peakTokensBySession.get(s.id),
+        turnCountsBySession.get(s.id),
+        agentSumsBySession.get(s.id),
+      ),
+    ),
     total,
     limit: filters.limit ?? 50,
     offset: filters.offset ?? 0,

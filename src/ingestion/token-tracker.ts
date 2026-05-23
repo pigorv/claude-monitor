@@ -191,6 +191,7 @@ export function snapshotsToDataPoints(snapshots: TokenSnapshot[]): TokenDataPoin
     output_tokens: s.output_tokens,
     cache_read_tokens: s.cache_read_tokens,
     cache_write_tokens: s.cache_write_tokens,
+    effective_context_tokens: s.input_tokens + s.cache_read_tokens + s.cache_write_tokens,
     context_pct: s.context_pct,
     event_type: s.is_compaction ? 'compaction' : 'assistant_message',
     is_compaction: s.is_compaction,

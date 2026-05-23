@@ -333,7 +333,7 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
 
       <div class="tab-content">
         ${tab === "timeline" && html`
-          <${Timeline} sessionId=${id} sessionStart=${s.started_at} agents=${data.agents} parentInputTokens=${s.total_input_tokens} parentOutputTokens=${s.total_output_tokens} params=${params} />
+          <${Timeline} sessionId=${id} sessionStart=${s.started_at} agents=${data.agents} parentOutputTokens=${s.total_output_tokens} params=${params} />
         `}
         ${tab === "context" && html`
           <${TokenChart}

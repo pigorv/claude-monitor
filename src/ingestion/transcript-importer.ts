@@ -198,6 +198,12 @@ export async function importTranscript(
     }
   })();
 
+  // Discover and import subagent transcripts BEFORE the efficiency loop —
+  // otherwise getAllAgentTokenTimelines below only sees the synthetic
+  // tool_call_start row in the parent transcript, not the agent's actual
+  // turn-by-turn events, and peak_context_tokens / compression_ratio collapse.
+  const subagentEventCount = await importSubagentTranscripts(sessionId, filePath);
+
     // Compute agent efficiency metrics (second pass, after all data is inserted)
     if (agentInfos.length > 0) {
       const agents = agentInfos.map((a) => ({
@@ -265,26 +271,10 @@ export async function importTranscript(
       }
     }
 
-  // After importing the parent, discover and import subagent transcripts
-  const subagentEventCount = await importSubagentTranscripts(sessionId, filePath);
-
-  // Update session totals to include agent tokens so that
-  // parentTokens = sessionTotal - agentTotal yields a correct positive value
-  if (subagentEventCount > 0) {
-    const agentTotals = db.prepare(`
-      SELECT COALESCE(SUM(input_tokens_total), 0) as agent_input,
-             COALESCE(SUM(output_tokens_total), 0) as agent_output
-      FROM agent_relationships
-      WHERE parent_session_id = ? AND input_tokens_total IS NOT NULL
-    `).get(sessionId) as { agent_input: number; agent_output: number };
-
-    db.prepare(`
-      UPDATE sessions SET
-        total_input_tokens = total_input_tokens + ?,
-        total_output_tokens = total_output_tokens + ?
-      WHERE id = ?
-    `).run(agentTotals.agent_input, agentTotals.agent_output, sessionId);
-  }
+  // (Subagent import + inflation-hack removal: subagents are now imported
+  // above the efficiency loop, and parent sessions.total_input/output_tokens
+  // are kept parent-only. Agent contributions are exposed separately via
+  // agent_relationships.initial_context_tokens / total_tokens_consumed.)
 
   // Detect and link plan↔implementation session pairs
   const firstUserMsg = messages.find((m) => m.type === 'user');
@@ -444,7 +434,7 @@ async function importSubagentFile(
   // Count tool calls in the subagent
   const toolCallCount = parsedEvents.filter((e) => e.event_type === 'tool_call_start').length;
 
-  // Compute token totals
+  // Legacy raw totals (kept for backward compat with downstream session math).
   let totalInput = 0;
   let totalOutput = 0;
   for (const msg of messages) {
@@ -452,6 +442,33 @@ async function importSubagentFile(
       totalInput += msg.usage.input_tokens;
       totalOutput += msg.usage.output_tokens;
     }
+  }
+
+  // Two distinct, accurate numbers the UI labels separately:
+  //   initial_context_tokens — full input loaded into the agent on its very
+  //     first turn (input + cache_creation + cache_read), i.e. system prompt
+  //     + tools + the prompt the parent sent.
+  //   total_tokens_consumed — sum of output_tokens across the agent's run,
+  //     i.e. the work it did (thinking, tool decisions, final text) to
+  //     produce the result returned to the parent. Deduped by messageId so
+  //     multi-block API responses (text + tool_use, or several parallel
+  //     tool_use blocks stored as separate JSONL rows that share one usage
+  //     object) aren't counted multiple times.
+  let initialContextTokens: number | null = null;
+  let totalTokensConsumed = 0;
+  const seenMessageIds = new Set<string>();
+  for (const msg of messages) {
+    if (msg.type !== 'assistant' || !msg.usage) continue;
+    // Skip rows without a messageId — they cannot be deduped, and a single API
+    // turn can produce several such rows that share one usage object.
+    if (!msg.messageId || seenMessageIds.has(msg.messageId)) continue;
+    seenMessageIds.add(msg.messageId);
+    const cacheRead = msg.usage.cache_read_input_tokens ?? 0;
+    const cacheWrite = msg.usage.cache_creation_input_tokens ?? 0;
+    if (initialContextTokens === null) {
+      initialContextTokens = msg.usage.input_tokens + cacheRead + cacheWrite;
+    }
+    totalTokensConsumed += msg.usage.output_tokens;
   }
 
   // Timestamps
@@ -501,6 +518,8 @@ async function importSubagentFile(
         tool_call_count = ?,
         input_tokens_total = ?,
         output_tokens_total = ?,
+        initial_context_tokens = ?,
+        total_tokens_consumed = ?,
         prompt_preview = COALESCE(?, prompt_preview),
         result_preview = COALESCE(?, result_preview),
         prompt_data = COALESCE(?, prompt_data),
@@ -514,6 +533,8 @@ async function importSubagentFile(
         toolCallCount,
         totalInput,
         totalOutput,
+        initialContextTokens,
+        totalTokensConsumed,
         promptText ? promptText.slice(0, 200) : null,
         resultText ? resultText.slice(0, 200) : null,
         promptText,
@@ -528,8 +549,10 @@ async function importSubagentFile(
         parent_session_id, child_agent_id, child_transcript_path,
         prompt_preview, result_preview, prompt_data, result_data,
         started_at, ended_at, duration_ms,
-        input_tokens_total, output_tokens_total, tool_call_count, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        input_tokens_total, output_tokens_total,
+        initial_context_tokens, total_tokens_consumed,
+        tool_call_count, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         parentSessionId,
         agentId,
         filePath,
@@ -542,6 +565,8 @@ async function importSubagentFile(
         durationMs && durationMs > 0 ? durationMs : null,
         totalInput,
         totalOutput,
+        initialContextTokens,
+        totalTokensConsumed,
         toolCallCount,
         'completed',
       );

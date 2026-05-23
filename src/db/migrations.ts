@@ -15,6 +15,13 @@ function tableHasColumn(db: Database.Database, table: string, column: string): b
   return rows.some((r) => r.name === column);
 }
 
+function tableExists(db: Database.Database, table: string): boolean {
+  const row = db.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
+  ).get(table);
+  return row !== undefined;
+}
+
 const MIGRATION_002_AGENT_EFFICIENCY = `
 ALTER TABLE agent_relationships ADD COLUMN prompt_tokens INTEGER;
 ALTER TABLE agent_relationships ADD COLUMN result_tokens INTEGER;
@@ -191,6 +198,19 @@ function migration011DropRiskScore(db: Database.Database): void {
   }
 }
 
+function migration012AgentTokenBreakdown(db: Database.Database): void {
+  // Some test fixtures pre-create only the sessions table and then run
+  // migrations to add later columns; tolerate that by skipping when the
+  // target table is absent. Real DBs always have it (created in migration 1).
+  if (!tableExists(db, 'agent_relationships')) return;
+  if (!tableHasColumn(db, 'agent_relationships', 'initial_context_tokens')) {
+    db.exec('ALTER TABLE agent_relationships ADD COLUMN initial_context_tokens INTEGER');
+  }
+  if (!tableHasColumn(db, 'agent_relationships', 'total_tokens_consumed')) {
+    db.exec('ALTER TABLE agent_relationships ADD COLUMN total_tokens_consumed INTEGER');
+  }
+}
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -203,6 +223,7 @@ const MIGRATIONS: Migration[] = [
   { id: 9, name: '009-models-used', sql: MIGRATION_009_MODELS_USED },
   { id: 10, name: '010-session-pills', run: migration010SessionPills },
   { id: 11, name: '011-drop-risk-score', run: migration011DropRiskScore },
+  { id: 12, name: '012-agent-token-breakdown', run: migration012AgentTokenBreakdown },
 ];
 
 export function runMigrations(db: Database.Database): void {

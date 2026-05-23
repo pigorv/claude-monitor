@@ -13,7 +13,6 @@ interface TimelineProps {
   sessionId: string;
   sessionStart?: string;
   agents?: AgentRelationship[];
-  parentInputTokens?: number;
   parentOutputTokens?: number;
   params?: URLSearchParams;
 }
@@ -246,7 +245,7 @@ export function groupTimelineItems(events: Event[], agents?: AgentRelationship[]
   return items;
 }
 
-export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, parentOutputTokens, params }: TimelineProps) {
+export function Timeline({ sessionId, sessionStart, agents, parentOutputTokens, params }: TimelineProps) {
   const [events, setEvents] = useState<Event[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -357,24 +356,22 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
     return map;
   }, [events]);
 
-  // Token budget bar data
+  // Output-token consumption breakdown: parent's output sum vs each agent's
+  // messageId-deduped output sum. These all measure the same thing (work
+  // done) and sum naturally — unlike input tokens, which represent isolated
+  // context windows that don't compose.
   const budgetData = useMemo(() => {
     if (!agents || agents.length === 0) return null;
     const agentItems = agents
-      .filter((a) => (a.input_tokens_total || 0) + (a.output_tokens_total || 0) > 0)
+      .filter((a) => (a.total_tokens_consumed ?? a.output_tokens_total ?? 0) > 0)
       .map((a) => ({
         agentId: a.child_agent_id,
-        description: a.prompt_preview || a.child_agent_id.slice(0, 12),
-        tokens: (a.input_tokens_total || 0) + (a.output_tokens_total || 0),
+        tokens: a.total_tokens_consumed ?? a.output_tokens_total ?? 0,
       }));
     if (agentItems.length === 0) return null;
 
-    const agentTotal = agentItems.reduce((sum, a) => sum + a.tokens, 0);
-    const sessionTotal = (parentInputTokens || 0) + (parentOutputTokens || 0);
-    const parentTokens = Math.max(0, sessionTotal - agentTotal);
-
-    return { parentTokens, agents: agentItems };
-  }, [agents, parentInputTokens, parentOutputTokens]);
+    return { parentTokens: parentOutputTokens || 0, agents: agentItems };
+  }, [agents, parentOutputTokens]);
 
   return html`
     <div class="timeline">

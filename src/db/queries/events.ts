@@ -137,6 +137,8 @@ export function getTokenTimeline(sessionId: string): TokenDataPoint[] {
       MAX(COALESCE(output_tokens, 0)) as output_tokens,
       MAX(COALESCE(cache_read_tokens, 0)) as cache_read_tokens,
       MAX(COALESCE(cache_write_tokens, 0)) as cache_write_tokens,
+      MAX(COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0))
+        as effective_context_tokens,
       MAX(COALESCE(context_pct, 0)) as context_pct,
       CASE WHEN MAX(CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END) = 1
            THEN 'compaction' ELSE 'assistant_message' END as event_type,

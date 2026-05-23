@@ -103,8 +103,10 @@ export function computeAgentEfficiency(
   if (agentTokenTimeline.length > 0) {
     peakContextTokens = 0;
     for (const point of agentTokenTimeline) {
-      if (point.input_tokens > peakContextTokens) {
-        peakContextTokens = point.input_tokens;
+      // Use effective_context (input + cache_read + cache_write) — matches the
+      // prompt size the model actually saw, not just the fresh-input slice.
+      if (point.effective_context_tokens > peakContextTokens) {
+        peakContextTokens = point.effective_context_tokens;
       }
       if (point.is_compaction) {
         agentCompactionCount++;

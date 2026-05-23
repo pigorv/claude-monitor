@@ -237,11 +237,25 @@ function AgentDetailPanel({
       <div class="agent-detail-stats">
         <div class="stat">Started <strong>${formatOffset(agent.started_at, sessionStart)}</strong></div>
         <div class="stat">Duration <strong>${formatDuration(agent.duration_ms)}</strong></div>
-        ${agent.input_tokens_total != null && html`
-          <div class="stat">Prompt <strong style="color:var(--teal)">${formatTokens(agent.input_tokens_total)}</strong></div>
+        ${(agent.prompt_tokens != null || agent.input_tokens_total != null) && html`
+          <div class="stat" title="Tokens in the prompt the parent sent to spawn this agent (chars/4 estimate)">
+            ↓ Prompt <strong style="color:var(--teal)">${formatTokens(agent.prompt_tokens ?? agent.input_tokens_total)}</strong>
+          </div>
         `}
-        ${agent.output_tokens_total != null && html`
-          <div class="stat">Result <strong style="color:var(--accent)">${formatTokens(agent.output_tokens_total)}</strong></div>
+        ${agent.initial_context_tokens != null && html`
+          <div class="stat" title="Full context loaded on the agent's first turn: system prompt + tools + the prompt above">
+            Initial ctx <strong>${formatTokens(agent.initial_context_tokens)}</strong>
+          </div>
+        `}
+        ${(agent.result_tokens != null || agent.output_tokens_total != null) && html`
+          <div class="stat" title="Tokens in the final text returned to the parent (chars/4 estimate)">
+            ↑ Result <strong style="color:var(--accent)">${formatTokens(agent.result_tokens ?? agent.output_tokens_total)}</strong>
+          </div>
+        `}
+        ${agent.total_tokens_consumed != null && html`
+          <div class="stat" title="Total output tokens the agent generated across all its turns (thinking, tool decisions, final text) to produce the result">
+            Consumed <strong>${formatTokens(agent.total_tokens_consumed)}</strong>
+          </div>
         `}
         <div class="stat"><strong>${agent.tool_call_count}</strong> tool calls</div>
       </div>
@@ -374,7 +388,13 @@ export function AgentTree({ agents, sessionStart, agentEfficiency, params }: Age
 
   const completed = sorted.filter((a) => a.status === "completed").length;
   const failed = sorted.filter((a) => a.status === "error" || a.status === "failed").length;
-  const totalTokens = sorted.reduce((sum, a) => sum + (a.input_tokens_total || 0) + (a.output_tokens_total || 0), 0);
+  // Output-side sum (messageId-deduped where available, falls back to legacy
+  // raw output sum). Matches the "Output token consumption" framing used in
+  // TokenBudgetBar and the AgentGroup header.
+  const totalTokens = sorted.reduce(
+    (sum, a) => sum + (a.total_tokens_consumed ?? a.output_tokens_total ?? 0),
+    0,
+  );
   const totalTools = sorted.reduce((sum, a) => sum + a.tool_call_count, 0);
 
   const gantt = computeGantt(sorted, sessionStart);
@@ -404,7 +424,7 @@ export function AgentTree({ agents, sessionStart, agentEfficiency, params }: Age
         `}
         ${totalTokens > 0 && html`
           <span class="sep">\u00b7</span>
-          <strong>${formatTokens(totalTokens)}</strong> tokens
+          <strong>${formatTokens(totalTokens)}</strong> tokens consumed
         `}
         ${totalTools > 0 && html`
           <span class="sep">\u00b7</span>
@@ -465,10 +485,10 @@ export function AgentTree({ agents, sessionStart, agentEfficiency, params }: Age
                 </div>
               </div>
               <div class="gantt-stats">
-                <div class="gantt-stat">
+                <div class="gantt-stat" title="↓ Prompt sent · ↑ Result returned (chars/4 estimate, falls back to raw totals)">
                   <div class="tf">
-                    <span class="in">${formatTokens(agent.input_tokens_total)}</span>
-                    <span class="out">${formatTokens(agent.output_tokens_total)}</span>
+                    <span class="in">${formatTokens(agent.prompt_tokens ?? agent.input_tokens_total)}</span>
+                    <span class="out">${formatTokens(agent.result_tokens ?? agent.output_tokens_total)}</span>
                   </div>
                 </div>
                 <div class="gantt-stat">${agent.tool_call_count}</div>

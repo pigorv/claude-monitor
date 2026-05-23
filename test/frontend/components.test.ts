@@ -8,6 +8,8 @@ import { AgentTree } from '../../frontend/src/components/AgentTree.js';
 import { groupTimelineItems } from '../../frontend/src/components/Timeline.js';
 import { Dropdown } from '../../frontend/src/components/Dropdown.js';
 import { FilterBar } from '../../frontend/src/components/FilterBar.js';
+import { TokenBudgetBar } from '../../frontend/src/components/TokenBudgetBar.js';
+import { AgentGroup } from '../../frontend/src/components/AgentGroup.js';
 import type { Event as SessionEvent, AgentRelationship, TokenDataPoint, ProjectInfo } from '../../src/shared/types.js';
 
 // ─── Heatmap ────────────────────────────────────────────
@@ -348,6 +350,8 @@ describe('AgentTree', () => {
       duration_ms: 180000,
       input_tokens_total: 50000,
       output_tokens_total: 20000,
+      initial_context_tokens: null,
+      total_tokens_consumed: null,
       tool_call_count: 8,
       status: 'completed',
       internal_tool_calls: [],
@@ -398,11 +402,25 @@ describe('AgentTree', () => {
   });
 
   it('renders summary with token totals', () => {
+    // Output-side sum only: total_tokens_consumed when present, else
+    // output_tokens_total. Fixture has total_tokens_consumed=null, so falls
+    // back to output_tokens_total=20000.
     const agents = [makeAgent()];
     const out = render(html`<${AgentTree} agents=${agents} />`);
-    assert.ok(out.includes('70.0K'), 'should show combined tokens');
-    assert.ok(out.includes('tokens'), 'should label tokens');
+    assert.ok(out.includes('20.0K'), 'should show output-side total');
+    assert.ok(out.includes('tokens consumed'), 'should label as consumed');
     assert.ok(out.includes('8'), 'should show tool call count');
+  });
+
+  it('prefers messageId-deduped total_tokens_consumed when present', () => {
+    const agents = [makeAgent({
+      input_tokens_total: 50000,
+      output_tokens_total: 20000,
+      total_tokens_consumed: 7000,
+    })];
+    const out = render(html`<${AgentTree} agents=${agents} />`);
+    assert.ok(out.includes('7.0K'), 'should show deduped consumed total, not the raw output sum');
+    assert.ok(!out.includes('70.0K'), 'must not show the old input+output combined total');
   });
 
   it('renders token info in gantt stats', () => {
@@ -443,6 +461,94 @@ describe('AgentTree', () => {
     const earlyIdx = out.indexOf('agent-early');
     const lateIdx = out.indexOf('agent-late');
     assert.ok(earlyIdx < lateIdx, 'earlier agent should appear first');
+  });
+});
+
+// ─── TokenBudgetBar ─────────────────────────────────────
+
+describe('TokenBudgetBar', () => {
+  it('renders parent + agent output split with "Output token consumption" framing', () => {
+    const out = render(html`<${TokenBudgetBar}
+      parentTokens=${4000}
+      agents=${[{ agentId: 'a-1', tokens: 1000 }]}
+    />`);
+    assert.ok(out.includes('Output token consumption'), 'should use output-token framing in title');
+    assert.ok(out.includes('total output'), 'should describe the total as "total output"');
+    // parent + agent = 5000 total
+    assert.ok(out.includes('5.0K'), 'total should be parent + agents');
+    // Parent segment magnitude = 4.0K (NOT 4000 + the agent total — bar is
+    // purely output-side now).
+    assert.ok(out.includes('Parent 4.0K'), 'parent segment should equal parentOutputTokens, not parent+agents');
+    assert.ok(out.includes('Agents 1.0K'), 'agent segment should equal agent total');
+  });
+
+  it('returns null when there are no tokens to show', () => {
+    const out = render(html`<${TokenBudgetBar} parentTokens=${0} agents=${[]} />`);
+    assert.equal(out, '', 'should render nothing for empty input');
+  });
+});
+
+// ─── AgentGroup header token math ───────────────────────
+
+describe('AgentGroup header tokens', () => {
+  function makeAgentRel(overrides: Partial<AgentRelationship> = {}): AgentRelationship {
+    return {
+      id: 1,
+      parent_session_id: 'sess-1',
+      child_agent_id: 'agent-xyz',
+      child_transcript_path: null,
+      prompt_preview: 'do a thing',
+      result_preview: 'done',
+      prompt_data: null,
+      result_data: null,
+      started_at: '2026-01-15T10:00:00Z',
+      ended_at: '2026-01-15T10:05:00Z',
+      duration_ms: 300000,
+      input_tokens_total: 50000,
+      output_tokens_total: 20000,
+      initial_context_tokens: null,
+      total_tokens_consumed: null,
+      tool_call_count: 3,
+      status: 'completed',
+      internal_tool_calls: [],
+      prompt_tokens: null,
+      result_tokens: null,
+      peak_context_tokens: null,
+      compression_ratio: null,
+      agent_compaction_count: 0,
+      parent_headroom_at_return: null,
+      parent_impact_pct: null,
+      result_classification: null,
+      execution_mode: null,
+      files_read_count: 0,
+      files_total_tokens: 0,
+      spawn_timestamp: null,
+      complete_timestamp: null,
+      ...overrides,
+    };
+  }
+
+  it('uses messageId-deduped total_tokens_consumed when available', () => {
+    const agent = makeAgentRel({
+      input_tokens_total: 50000,
+      output_tokens_total: 20000,
+      total_tokens_consumed: 7000,
+    });
+    const out = render(html`<${AgentGroup} agentId="agent-xyz" sessionId="sess-1" agent=${agent} />`);
+    assert.ok(out.includes('7.0K'), 'header should show deduped total, not the old combined sum');
+    assert.ok(!out.includes('70.0K'), 'must not show input+output combined total');
+  });
+
+  it('falls back to legacy output_tokens_total when total_tokens_consumed is null', () => {
+    // Pre-reimport sessions have null new fields — the header should still
+    // show a meaningful number rather than 0.
+    const agent = makeAgentRel({
+      input_tokens_total: 50000,
+      output_tokens_total: 20000,
+      total_tokens_consumed: null,
+    });
+    const out = render(html`<${AgentGroup} agentId="agent-xyz" sessionId="sess-1" agent=${agent} />`);
+    assert.ok(out.includes('20.0K'), 'header should fall back to raw output sum');
   });
 });
 

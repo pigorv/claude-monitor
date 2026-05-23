@@ -80,7 +80,12 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
 
     // When we have agent relationship data, use it directly for the header
     if (agent) {
-      const totalTokens = (agent.input_tokens_total || 0) + (agent.output_tokens_total || 0);
+      // Prefer messageId-deduped output sum; fall back to legacy raw output
+      // (or raw input+output if even that's null) so pre-reimport sessions
+      // still show a number instead of "0".
+      const totalTokens = agent.total_tokens_consumed
+        ?? agent.output_tokens_total
+        ?? ((agent.input_tokens_total || 0) + (agent.output_tokens_total || 0));
       const durationMs = agent.duration_ms || 0;
       const status = (agent.status === "completed" ? "completed" : agent.status === "failed" ? "failed" : "running") as "completed" | "running" | "failed";
 
@@ -118,7 +123,9 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
 
     let lastAssistantId: number | null = null;
     for (const evt of events) {
-      totalTokens += (evt.input_tokens || 0) + (evt.output_tokens || 0);
+      // Output-side total only: matches the agent-relationship branch above
+      // and the "Output token consumption" framing used in the budget bar.
+      totalTokens += (evt.output_tokens || 0);
       if (evt.event_type === "subagent_end") status = "completed";
       if (evt.event_type === "tool_call_start" && evt.tool_name === "Read") {
         totalReadOutputTokens += (evt.output_tokens || 0);

@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { importTranscript, importTranscripts } from '../../src/ingestion/transcript-importer.js';
 import { getDb, closeDb } from '../../src/db/connection.js';
-import { getSession, sessionExists } from '../../src/db/queries/sessions.js';
+import { getSession, sessionExists, getAgentRelationships } from '../../src/db/queries/sessions.js';
 import { listEventsBySession, getTokenTimeline } from '../../src/db/queries/events.js';
 
 const TEST_DIR = join(tmpdir(), `claude-monitor-test-${Date.now()}`);
@@ -466,5 +466,199 @@ describe('importTranscript invocations aggregation', () => {
       type: 'skill',
       name: 'triage-issue',
     });
+  });
+});
+
+describe('importTranscript subagent token breakdown', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  // Helpers: write a parent transcript that spawns a subagent via Task, and a
+  // subagent file with two assistant turns sharing one messageId in part. The
+  // path layout matches discoverSubagentFiles(): {parentDir}/{base}/subagents/{agentId}.jsonl
+  function writeParentWithSubagent(opts: {
+    parentSessionId: string;
+    // Bare agent id, without the `agent-` prefix. assignAgentIds() prefixes it,
+    // so the subagent file lands at .../subagents/agent-{bareAgentId}.jsonl.
+    bareAgentId: string;
+    parentInputTokens: number;
+    parentOutputTokens: number;
+    subagent: {
+      messages: Array<{
+        messageId?: string;
+        input: number;
+        output: number;
+        cacheRead?: number;
+        cacheWrite?: number;
+      }>;
+    };
+  }): string {
+    const parentPath = join(TEST_DIR, `${opts.parentSessionId}.jsonl`);
+    const parentJsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/p', sessionId: opts.parentSessionId, version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Please research this topic.' },
+        timestamp: '2026-02-01T00:00:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/p', sessionId: opts.parentSessionId, version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [
+            { type: 'text', text: 'Spawning research agent.' },
+            { type: 'tool_use', id: 'tool-task-1', name: 'Task',
+              input: { description: 'Research', prompt: 'Look into X', subagent_type: 'Explore' } },
+          ],
+          usage: { input_tokens: opts.parentInputTokens, output_tokens: opts.parentOutputTokens, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-02-01T00:00:01.000Z', uuid: 'a-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'a-1', cwd: '/tmp/p', sessionId: opts.parentSessionId, version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [
+          { type: 'tool_result', tool_use_id: 'tool-task-1', agentId: opts.bareAgentId, content: 'done' },
+        ] },
+        timestamp: '2026-02-01T00:00:30.000Z', uuid: 'u-2',
+      }),
+    ].join('\n');
+    writeFileSync(parentPath, parentJsonl);
+
+    const subagentDir = join(TEST_DIR, opts.parentSessionId, 'subagents');
+    mkdirSync(subagentDir, { recursive: true });
+    const subagentPath = join(subagentDir, `agent-${opts.bareAgentId}.jsonl`);
+
+    const lines: string[] = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/p', sessionId: `agent-${opts.bareAgentId}`, version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Look into X' },
+        timestamp: '2026-02-01T00:00:02.000Z', uuid: 'su-1',
+      }),
+    ];
+    for (let i = 0; i < opts.subagent.messages.length; i++) {
+      const m = opts.subagent.messages[i];
+      lines.push(JSON.stringify({
+        parentUuid: i === 0 ? 'su-1' : `sa-${i}`,
+        cwd: '/tmp/p', sessionId: opts.agentId, version: '2.1.0',
+        type: 'assistant',
+        ...(m.messageId ? { message: {
+          id: m.messageId,
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: `step ${i}` }],
+          usage: {
+            input_tokens: m.input,
+            output_tokens: m.output,
+            cache_read_input_tokens: m.cacheRead ?? 0,
+            cache_creation_input_tokens: m.cacheWrite ?? 0,
+          },
+        } } : { message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: `step ${i}` }],
+          usage: {
+            input_tokens: m.input,
+            output_tokens: m.output,
+            cache_read_input_tokens: m.cacheRead ?? 0,
+            cache_creation_input_tokens: m.cacheWrite ?? 0,
+          },
+        } }),
+        timestamp: `2026-02-01T00:00:${10 + i}.000Z`,
+        uuid: `sa-${i + 1}`,
+      }));
+    }
+    writeFileSync(subagentPath, lines.join('\n'));
+    return parentPath;
+  }
+
+  it('keeps parent total_input/output_tokens parent-only (no inflation hack)', async () => {
+    const parentPath = writeParentWithSubagent({
+      parentSessionId: 'parent-deflate-1',
+      bareAgentId: 'deflate-1',
+      parentInputTokens: 1234,
+      parentOutputTokens: 56,
+      subagent: { messages: [
+        { messageId: 'msg-a', input: 9000, output: 800, cacheRead: 500, cacheWrite: 100 },
+        { messageId: 'msg-b', input: 9100, output: 900, cacheRead: 600, cacheWrite: 0 },
+      ] },
+    });
+    await importTranscript(parentPath);
+
+    const parent = getSession('parent-deflate-1');
+    assert.ok(parent, 'parent session imported');
+    // Parent-only: should equal what the parent transcript reported, with no
+    // agent inflation added on top.
+    assert.equal(parent.total_input_tokens, 1234, 'parent total_input_tokens stays parent-only');
+    assert.equal(parent.total_output_tokens, 56, 'parent total_output_tokens stays parent-only');
+
+    const rels = getAgentRelationships('parent-deflate-1');
+    assert.equal(rels.length, 1, 'exactly one agent relationship row');
+    // initial_context_tokens = first turn's input + cache_read + cache_write = 9000 + 500 + 100
+    assert.equal(rels[0].initial_context_tokens, 9600, 'initial_context_tokens equals first-turn input+cache');
+    // total_tokens_consumed = sum of output across deduped messageIds = 800 + 900
+    assert.equal(rels[0].total_tokens_consumed, 1700, 'total_tokens_consumed is deduped output sum');
+  });
+
+  it('populates peak_context_tokens and compression_ratio (subagents imported before efficiency loop)', async () => {
+    const parentPath = writeParentWithSubagent({
+      parentSessionId: 'parent-peak-1',
+      bareAgentId: 'peak-1',
+      parentInputTokens: 1000,
+      parentOutputTokens: 100,
+      subagent: { messages: [
+        { messageId: 'mp-a', input: 5000, output: 200, cacheRead: 1000, cacheWrite: 500 },
+        { messageId: 'mp-b', input: 8000, output: 300, cacheRead: 3000, cacheWrite: 0 },
+        { messageId: 'mp-c', input: 6000, output: 400, cacheRead: 2000, cacheWrite: 0 },
+      ] },
+    });
+    await importTranscript(parentPath);
+
+    const rels = getAgentRelationships('parent-peak-1');
+    assert.equal(rels.length, 1);
+    assert.ok(
+      rels[0].peak_context_tokens != null && rels[0].peak_context_tokens > 0,
+      'peak_context_tokens must be populated (regression: if subagents are imported AFTER the efficiency loop, this is null/0)',
+    );
+    // Peak effective context across the three turns:
+    //   turn 1: 5000 + 1000 + 500 = 6500
+    //   turn 2: 8000 + 3000 + 0  = 11000  <-- peak
+    //   turn 3: 6000 + 2000 + 0  = 8000
+    assert.equal(rels[0].peak_context_tokens, 11000, 'peak should be max effective context across turns');
+    assert.ok(
+      rels[0].compression_ratio != null && rels[0].compression_ratio > 0,
+      'compression_ratio must be populated when both peak_context and result_tokens are non-zero',
+    );
+  });
+
+  it('dedupes by messageId — rows sharing one messageId are counted once', async () => {
+    const parentPath = writeParentWithSubagent({
+      parentSessionId: 'parent-dedup-1',
+      bareAgentId: 'dedup-1',
+      parentInputTokens: 100,
+      parentOutputTokens: 10,
+      // Two rows with the same messageId — same API turn, multiple blocks
+      // serialized as separate JSONL rows. Should be counted once.
+      subagent: { messages: [
+        { messageId: 'mdedup', input: 4000, output: 500, cacheRead: 200, cacheWrite: 0 },
+        { messageId: 'mdedup', input: 4000, output: 500, cacheRead: 200, cacheWrite: 0 },
+        { messageId: 'mother', input: 4500, output: 50,  cacheRead: 300, cacheWrite: 0 },
+      ] },
+    });
+    await importTranscript(parentPath);
+
+    const rels = getAgentRelationships('parent-dedup-1');
+    assert.equal(rels.length, 1);
+    // First seen messageId = 'mdedup' first row → 4000 + 200 + 0
+    assert.equal(rels[0].initial_context_tokens, 4200, 'initial_context_tokens uses first deduped turn');
+    // Output: 500 (mdedup) + 50 (mother) = 550, not 500+500+50 = 1050
+    assert.equal(rels[0].total_tokens_consumed, 550, 'output is deduped — duplicate row not counted twice');
   });
 });
