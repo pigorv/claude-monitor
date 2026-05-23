@@ -524,8 +524,11 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
     const editPreview = !isWrite ? previewDiff(editDiff, PREVIEW_LINES, EDIT_LEADING_CONTEXT) : { lines: [], hidden: 0 };
     const hidden = isWrite ? writeHidden : editPreview.hidden;
 
-    // Copy target: full file content for Write, the new text for Edit.
-    const mutatingCopyText = isWrite ? writeContent : String(input.new_string ?? "");
+    // Copy target: full file content for Write, the new text for Edit
+    // (falling back to old_string so pure-deletion Edits still expose a Copy button).
+    const mutatingCopyText = isWrite
+      ? writeContent
+      : (String(input.new_string ?? "") || String(input.old_string ?? ""));
 
     // Rationale: truncate to 240 chars; track separate expand state.
     const RAT_MAX = 240;
@@ -701,7 +704,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
   return html`
     <div
       class=${typeClass + (hasExpandable ? " expandable" : "") + extraClass + taskClass + permissionClass}
-      onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
+      onClick=${hasExpandable ? toggleExpand : undefined}
     >
       <div class=${isTaskOutput ? "event-dot event-dot-task" : "event-dot"} style=${getDotStyle(event.event_type, !!isSystemGenerated, !!isSkillExpansion)}></div>
       <div class="event-content">
@@ -732,7 +735,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
       </div>
 
       ${!expanded && event.event_type === "thinking" && event.thinking_summary && html`
-        <div class="event-body event-body-thinking" onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}>
+        <div class="event-body event-body-thinking" onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}>
           ${event.thinking_summary}
           <div class="fade"></div>
         </div>
@@ -753,19 +756,19 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
       })()}
 
       ${!expanded && event.event_type === "user_message" && !isSkillExpansion && !isSystemGenerated && event.input_preview && html`
-        <div class="event-body event-body-user" onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}>
+        <div class="event-body event-body-user" onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}>
           ${event.input_preview}
         </div>
       `}
 
       ${!expanded && event.event_type === "user_message" && isSkillExpansion && html`
-        <div class="event-body skill-expansion-body" onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}>
+        <div class="event-body skill-expansion-body" onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}>
           <span class="skill-expansion-label">${event.input_preview ? truncate(event.input_preview, 120) : "[skill expansion content]"}</span>
         </div>
       `}
 
       ${!expanded && event.event_type === "user_message" && isSystemGenerated && html`
-        <div class="event-body event-body-system" onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}>
+        <div class="event-body event-body-system" onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}>
           <span class="system-tag-preview">${event.input_preview}</span>
         </div>
       `}
