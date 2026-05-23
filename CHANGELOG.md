@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Session Detail timeline: each expanded message and tool body has a hover-revealed Copy button that puts the full, untruncated text on the clipboard.
+- Session Detail timeline: each expanded message and tool body — and every Write/Edit card, including empty-content writes — has a hover-revealed Copy button that puts the full, untruncated text on the clipboard.
 
 ### Changed
 

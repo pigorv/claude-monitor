@@ -303,6 +303,11 @@ describe('EventCard Write/Edit cards', () => {
     assert.ok(!out.includes('event-card-more-lines'), 'no rationale chip either');
   });
 
+  it('always renders the Copy button on Write cards, even when content is empty', () => {
+    const out = render(html`<${EventCard} event=${makeWrite('')} />`);
+    assert.ok(out.includes('copy-btn'), 'empty Write should still expose Copy button');
+  });
+
   it('applies mutating-error class when the tool result is an error', () => {
     const evt = makeWrite('x', {
       metadata: JSON.stringify({ tool_error: true }),

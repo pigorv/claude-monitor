@@ -553,7 +553,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               ${isErr && !isRejected && html`<span class="err-badge">error</span>`}
             </div>
             <div class="event-card-meta-pill">${metaParts.join(" · ")}</div>
-            ${mutatingCopyText && html`<${CopyButton} text=${mutatingCopyText} />`}
+            <${CopyButton} text=${mutatingCopyText} />
           </div>
 
           ${rationale && html`
