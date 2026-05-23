@@ -6,6 +6,7 @@ import { StructuredContent } from "./StructuredContent";
 import { CopyButton } from "./CopyButton";
 import { computeLineDiff, type DiffLine } from "../lib/diff";
 import { formatTokenMeta, formatTokenCount } from "../lib/format";
+import { hasNonEmptySelection } from "../lib/selection";
 import { highlight } from "../lib/syntax";
 
 interface EventCardProps {
@@ -39,9 +40,10 @@ function truncate(s: string, max: number): string {
 
 // True when the user has an active text selection. Used to suppress the
 // expand/collapse toggle so a drag-select's trailing `click` doesn't collapse
-// the block out from under the selection (issue #47).
+// the block out from under the selection (issue #47). The decision logic is
+// in lib/selection.ts so it can be unit-tested without a DOM environment.
 function hasTextSelection(): boolean {
-  return (window.getSelection()?.toString() ?? "").length > 0;
+  return hasNonEmptySelection(window.getSelection()?.toString());
 }
 
 // Try to parse JSON safely
