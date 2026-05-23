@@ -290,20 +290,17 @@ describe('EventCard Write/Edit cards', () => {
   it('renders expand chip when content exceeds the 10-line preview cap', () => {
     const longContent = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`).join('\n');
     const out = render(html`<${EventCard} event=${makeWrite(longContent)} />`);
-    assert.ok(out.includes('event-card-more-lines'), 'should show expand chip');
-    assert.ok(out.includes('10 more lines'), 'should report 10 hidden lines');
-    // Body and rationale chips share the .event-card-more-lines class.
-    // No rationale prop is passed here, so only the body chip should render.
-    assert.equal(
-      out.match(/event-card-more-lines/g)?.length,
-      1,
-      'only the body chip should render — no second chip from the rationale row',
-    );
+    assert.ok(out.includes('expand-btn'), 'should show expand button');
+    assert.ok(out.includes('Show 10 more lines'), 'should report 10 hidden lines');
+    // The body uses the unified .expand-btn; the rationale row uses .event-card-more-lines.
+    // No rationale prop is passed here, so the rationale chip should not render.
+    assert.ok(!out.includes('event-card-more-lines'), 'no rationale chip when no rationale prop');
   });
 
   it('does not render expand chip when content fits the preview', () => {
     const out = render(html`<${EventCard} event=${makeWrite('a\nb\nc\n')} />`);
-    assert.ok(!out.includes('event-card-more-lines'), 'no chip when nothing is hidden');
+    assert.ok(!out.includes('expand-btn'), 'no body expand button when nothing is hidden');
+    assert.ok(!out.includes('event-card-more-lines'), 'no rationale chip either');
   });
 
   it('applies mutating-error class when the tool result is an error', () => {
