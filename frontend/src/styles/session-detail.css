@@ -2489,6 +2489,98 @@
   flex-shrink: 0;
 }
 
+/* AskUserQuestion card */
+.ask-card .ask-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 10px 10px 10px;
+}
+.ask-question {
+  background: var(--bg-card);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ask-question-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ask-question-text { flex: 1; }
+.ask-multi-pill {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-family: var(--mono);
+}
+.ask-options {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ask-option {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text2);
+  padding: 2px 6px;
+  border-radius: var(--r-xs);
+}
+.ask-option-mark {
+  font-family: var(--mono);
+  width: 12px;
+  color: var(--text3);
+  flex-shrink: 0;
+}
+.ask-option-label {
+  font-family: var(--mono);
+  color: var(--text);
+}
+.ask-option-desc { color: var(--text3); }
+.ask-option-selected { background: var(--accent-tint); }
+.ask-option-selected .ask-option-mark,
+.ask-option-selected .ask-option-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+.ask-option-custom { background: var(--yellow-tint); }
+.ask-option-custom .ask-option-mark,
+.ask-option-custom .ask-option-label {
+  color: var(--yellow);
+  font-weight: 600;
+}
+.ask-pending {
+  font-size: 11px;
+  color: var(--text3);
+  font-style: italic;
+  padding: 2px 4px;
+}
+.ask-note {
+  font-size: 11px;
+  color: var(--text2);
+  padding: 2px 4px 2px 8px;
+  border-left: 2px solid var(--border);
+  margin-top: 2px;
+}
+.ask-empty {
+  font-size: 12px;
+  color: var(--text3);
+  font-style: italic;
+}
+
 /* Gap 5 & 6: Structured tool detail panel */
 .tool-expanded {
   background: var(--bg-card);

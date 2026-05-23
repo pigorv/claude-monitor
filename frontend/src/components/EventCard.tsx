@@ -101,6 +101,13 @@ function getToolSummary(event: Event): string | null {
       return input.query ? String(input.query) : (input.tool_name ? String(input.tool_name) : null);
     case "WebFetch":
       return input.url ? truncate(String(input.url), 60) : null;
+    case "AskUserQuestion": {
+      const qs = Array.isArray(input.questions) ? input.questions : [];
+      const first = qs[0] && typeof qs[0] === "object" ? (qs[0] as Record<string, unknown>) : null;
+      const text = first && typeof first.question === "string" ? first.question : null;
+      if (!text) return null;
+      return qs.length > 1 ? `${truncate(text, 50)} (+${qs.length - 1})` : truncate(text, 60);
+    }
     default:
       return (input.file_path ? shortenPath(String(input.file_path)) : null)
         || (input.command ? truncate(String(input.command), 60) : null)
@@ -214,6 +221,7 @@ const TOOL_BADGE_CLASS: Record<string, string> = {
   Agent: "tool-agent",
   Grep: "tool-grep",
   Glob: "tool-glob",
+  AskUserQuestion: "tool-ask",
 };
 
 // Dot color per event type for the timeline rail
@@ -288,6 +296,54 @@ function previewDiff(
   const start = firstChange < 0 ? 0 : Math.max(0, firstChange - leadingContext);
   const slice = diff.slice(start, start + maxLines);
   return { lines: slice, hidden: Math.max(0, diff.length - slice.length) };
+}
+
+// AskUserQuestion shape
+interface AskQuestion {
+  question: string;
+  header?: string;
+  multiSelect?: boolean;
+  options?: Array<{ label: string; description?: string }>;
+}
+interface AskAnswers {
+  answers: Record<string, string | string[]>;
+  annotations?: Record<string, { notes?: string } | undefined>;
+}
+
+// Parse the tool_result content for AskUserQuestion. The SDK may store it as a
+// direct `{answers, annotations}` JSON object, or wrapped as a stringified
+// content-block array `[{type:"text", text:"<json>"}]`. Never throws.
+function parseAskOutput(raw: string | null): AskAnswers | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { return null; }
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const obj = parsed as Record<string, unknown>;
+    if (obj.answers && typeof obj.answers === "object") return obj as unknown as AskAnswers;
+    return null;
+  }
+  if (Array.isArray(parsed)) {
+    for (const block of parsed) {
+      if (block && typeof block === "object" && (block as Record<string, unknown>).type === "text") {
+        const txt = (block as Record<string, unknown>).text;
+        if (typeof txt === "string") {
+          const inner = tryParseJson(txt);
+          if (inner && "answers" in inner && inner.answers && typeof inner.answers === "object") {
+            return inner as unknown as AskAnswers;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Normalize an answer cell to an array of strings.
+function normalizeAnswerValues(raw: unknown): string[] {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) return raw.filter((v) => typeof v === "string") as string[];
+  if (typeof raw === "string") return [raw];
+  return [];
 }
 
 // Check if a tool event has an error (works for all tool types)
@@ -568,6 +624,99 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               </div>
             `}
           </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // AskUserQuestion — dedicated card showing questions, options, and selected answers.
+  if (event.event_type === "tool_call_start" && event.tool_name === "AskUserQuestion") {
+    const isErr = isToolErrorEvent(event);
+    const askInput = tryParseJson(event.input_data) ?? {};
+    const rawQuestions = Array.isArray(askInput.questions) ? askInput.questions : [];
+    const questions: AskQuestion[] = rawQuestions.filter(
+      (q): q is AskQuestion => !!q && typeof q === "object" && typeof (q as AskQuestion).question === "string",
+    );
+    const askOutput = parseAskOutput(event.output_data);
+    const answers = askOutput?.answers ?? {};
+    const annotations = askOutput?.annotations ?? {};
+    const headerText = questions[0]?.question ?? "AskUserQuestion";
+
+    return html`
+      <div class=${"tool-row-standalone ask-card" + (isErr ? " tool-row-standalone-error" : "")}
+        onClick=${() => setExpanded(!expanded)}
+      >
+        <div class=${"event-dot dot-tool" + (isErr ? " dot-tool-err" : "")}></div>
+        <div class="tool-row-content">
+          <div class=${"tool-row" + (isErr ? " tool-row-error" : "")}>
+            ${groupIndex != null && html`<span class="tg-item-badge">#${groupIndex}</span>`}
+            <span class=${"tool-badge " + toolBadgeClass}>AskUserQuestion</span>
+            ${isErr && html`<span class="err-badge">error</span>`}
+            <span class="tool-name">${truncate(headerText, 80)}${questions.length > 1 ? ` (+${questions.length - 1})` : ""}</span>
+            <span class="tool-dur">${formatDuration(event.duration_ms)}</span>
+            <span class="tool-row-expand">${expanded ? "▾" : "›"}</span>
+          </div>
+          ${expanded && html`
+            <div class="event-detail ask-detail">
+              ${questions.length === 0 && html`
+                <div class="ask-empty">(no questions in input)</div>
+              `}
+              ${questions.map((q) => {
+                const optList = Array.isArray(q.options) ? q.options : [];
+                const rawAnswer = (answers as Record<string, unknown>)[q.question];
+                const hasAnswer = rawAnswer != null && rawAnswer !== "";
+                const answerValues = normalizeAnswerValues(rawAnswer);
+                const selectedSet = new Set<string>();
+                if (q.multiSelect && answerValues.length === 1 && answerValues[0].includes(",")) {
+                  answerValues[0].split(",").map(s => s.trim()).filter(Boolean).forEach(s => selectedSet.add(s));
+                } else {
+                  answerValues.forEach(v => selectedSet.add(v));
+                }
+                const optionLabels = new Set(optList.map(o => o.label));
+                const customAnswers = [...selectedSet].filter(v => !optionLabels.has(v));
+                const note = annotations[q.question]?.notes;
+
+                return html`
+                  <div class="ask-question">
+                    <div class="ask-question-header">
+                      <span class="ask-question-text">${q.question}</span>
+                      ${q.multiSelect === true && html`<span class="ask-multi-pill">multi-select</span>`}
+                    </div>
+                    ${optList.length > 0 && html`
+                      <div class="ask-options">
+                        ${optList.map((opt) => {
+                          const isSelected = selectedSet.has(opt.label);
+                          return html`
+                            <div class=${"ask-option" + (isSelected ? " ask-option-selected" : "")}>
+                              <span class="ask-option-mark">${isSelected ? "✓" : "·"}</span>
+                              <span class="ask-option-label">${opt.label}</span>
+                              ${opt.description && html`<span class="ask-option-desc">— ${opt.description}</span>`}
+                            </div>
+                          `;
+                        })}
+                      </div>
+                    `}
+                    ${customAnswers.map((txt) => html`
+                      <div class="ask-option ask-option-custom">
+                        <span class="ask-option-mark">✓</span>
+                        <span class="ask-option-label">Custom answer:</span>
+                        <span class="ask-option-desc">${txt}</span>
+                      </div>
+                    `)}
+                    ${note && html`
+                      <div class="ask-note">Note: ${note}</div>
+                    `}
+                    ${!hasAnswer && !isErr && html`
+                      <div class="ask-pending">(not yet answered)</div>
+                    `}
+                    ${!hasAnswer && isErr && html`
+                      <div class="ask-pending">(no response)</div>
+                    `}
+                  </div>
+                `;
+              })}
+            </div>
+          `}
         </div>
       </div>
     `;
