@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Session Detail timeline: `AskUserQuestion` tool calls now render as a dedicated card. The collapsed row shows the first question text and a purple `AskUserQuestion` badge; expanding reveals each question with its options listed inline, the user's selected option(s) highlighted in accent color with a checkmark, a `multi-select` pill when applicable, and free-text "Custom answer" rows for unmatched answers. Falls back gracefully to `(not yet answered)` or `(no response)` when the tool result is missing or errored.
+- Session Detail timeline: `AskUserQuestion` tool calls now render as a dedicated card. The collapsed row shows the first question text and a muted `AskUserQuestion` badge; expanding reveals each question with its options listed inline, the user's selected option(s) highlighted in accent color with a checkmark, a `multi-select` tag when applicable, and free-text "Custom answer" rows for unmatched answers. Falls back gracefully to `(not yet answered)` or `(no response)` when the tool result is missing or errored.
 
 ## [0.4.0] - 2026-05-19
 
