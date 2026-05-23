@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Session Detail timeline: each expanded message and tool body has a hover-revealed Copy button that puts the full, untruncated text on the clipboard.
 
+### Changed
+
+- Session Detail timeline: every expanded block — tool groups, system groups, and individual event panes — now has a consistent full-width "Collapse" button at its foot, replacing the small left-aligned text link. Write/Edit cards use the same full-width style for the "Show N more lines" expand control.
+
 ### Fixed
 
 - Session Detail timeline: selecting text inside an expanded block no longer collapses it when you release the mouse.

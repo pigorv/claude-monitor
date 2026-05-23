@@ -328,7 +328,9 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
   // Since clicks inside the pane no longer collapse it (so selection works),
   // this is the discoverable way back — the header chevron also still works.
   const collapseFooter = html`
-    <div class="event-card-more-lines detail-collapse" onClick=${() => setExpanded(false)}>[▾ collapse]</div>
+    <button type="button" class="collapse-btn" onClick=${() => setExpanded(false)}>
+      <span class="collapse-btn-icon">▴</span> Collapse
+    </button>
   `;
 
   // Header row for an expanded detail section: the label plus a hover-revealed
@@ -601,15 +603,11 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
                 </div>
               `}
             ${!expanded && hidden > 0 && html`
-              <div class="event-card-more-lines" onClick=${() => setExpanded(true)}>
-                … ${hidden} more lines  [▸ expand]
-              </div>
+              <button type="button" class="expand-btn" onClick=${() => setExpanded(true)}>
+                <span class="collapse-btn-icon">▾</span> Show ${hidden} more lines
+              </button>
             `}
-            ${expanded && hidden > 0 && html`
-              <div class="event-card-more-lines" onClick=${() => setExpanded(false)}>
-                [▾ collapse]
-              </div>
-            `}
+            ${expanded && hidden > 0 && collapseFooter}
           </div>
         </div>
       </div>

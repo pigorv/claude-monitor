@@ -470,6 +470,9 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
                               rationale=${rationaleMap.get(evt.id)}
                             />
                           `)}
+                          <button type="button" class="collapse-btn" onClick=${() => toggleToolGroup(item.groupKey)}>
+                            <span class="collapse-btn-icon">▴</span> Collapse
+                          </button>
                         </div>
                       `}
                     </div>
@@ -496,6 +499,9 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
                             ${item.events.map(evt => html`
                               <${EventCard} key=${evt.id} event=${evt} sessionStart=${sessionStart} rationale=${rationaleMap.get(evt.id)} />
                             `)}
+                            <button type="button" class="collapse-btn" onClick=${() => toggleToolGroup(groupKey)}>
+                              <span class="collapse-btn-icon">▴</span> Collapse
+                            </button>
                           </div>
                         `}
                       </div>
