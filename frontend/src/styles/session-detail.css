@@ -1229,6 +1229,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Make selection intent unambiguous inside expanded panes (issue #47). */
+  user-select: text;
 }
 
 .detail-section {
@@ -1237,11 +1239,33 @@
   gap: 4px;
 }
 
+/* Hover-revealed Copy button + label row */
+.detail-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
 .detail-label {
   font-size: 11px;
   color: var(--text3);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* Copy button stays out of the way until the section (or card) is hovered;
+   keyboard focus also reveals it so it remains reachable without a mouse. */
+.detail-section-header .copy-btn,
+.event-card-mutating-header .copy-btn {
+  opacity: 0;
+  transition: opacity 0.12s, background 0.15s, color 0.15s;
+}
+
+.detail-section:hover .detail-section-header .copy-btn,
+.event-card-mutating-header:hover .copy-btn,
+.detail-section-header .copy-btn:focus-visible,
+.event-card-mutating-header .copy-btn:focus-visible {
+  opacity: 1;
 }
 
 .detail-content {
@@ -1257,6 +1281,7 @@
   word-break: break-word;
   max-height: 400px;
   overflow-y: auto;
+  user-select: text;
 }
 
 /* ── Structured content renderers ────────────────────────────────── */
@@ -2931,6 +2956,46 @@
 }
 .event-card-more-lines:hover {
   background: var(--accent-tint);
+}
+
+/* Shared full-width expand/collapse control. The collapse variant sits at the
+   foot of any expanded block (tool groups, system groups, event detail panes);
+   the expand variant replaces the "… N more lines" link in Write/Edit cards.
+   Replaces the older small left-aligned text-links. */
+.collapse-btn,
+.expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text3);
+  background: var(--bg-muted);
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.collapse-btn:hover,
+.expand-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text2);
+}
+.collapse-btn-icon {
+  font-size: 9px;
+}
+/* Inside a tool-group card the button sits flush at the bottom edge: no
+   outer margin, square corners, separated by a top border. */
+.tool-group-card .collapse-btn {
+  margin-top: 0;
+  border-top: 0.5px solid var(--border);
+  border-radius: 0;
 }
 
 /* Write cards: soft green tint behind the code body so the card reads

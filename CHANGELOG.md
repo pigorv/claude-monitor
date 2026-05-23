@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Session Detail timeline: each expanded message and tool body — and every Write/Edit card, including empty-content writes — has a hover-revealed Copy button that puts the full, untruncated text on the clipboard.
+
+### Changed
+
+- Session Detail timeline: every expanded block — tool groups, system groups, and individual event panes — now has a consistent full-width "Collapse" button at its foot, replacing the small left-aligned text link. Write/Edit cards use the same full-width style for the "Show N more lines" expand control.
+
+### Fixed
+
+- Session Detail timeline: selecting text inside an expanded block no longer collapses it when you release the mouse. Drag-select-then-collapse fix now applies uniformly to thinking, assistant, user, system, and skill-expansion cards, and Copy buttons surface a "Failed" state instead of silently doing nothing when the clipboard API rejects (e.g. on non-secure origins).
+
 ## [0.4.0] - 2026-05-19
 
 ### Added
