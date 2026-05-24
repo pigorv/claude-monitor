@@ -1257,17 +1257,17 @@
    keyboard focus also reveals it so it remains reachable without a mouse. */
 .detail-section-header .copy-btn,
 .event-card-mutating-header .copy-btn,
-.ask-question-header .copy-btn {
+.ask-q-header .copy-btn {
   opacity: 0;
   transition: opacity 0.12s, background 0.15s, color 0.15s;
 }
 
 .detail-section:hover .detail-section-header .copy-btn,
 .event-card-mutating-header:hover .copy-btn,
-.ask-question:hover .ask-question-header .copy-btn,
+.ask-q-block:hover .ask-q-header .copy-btn,
 .detail-section-header .copy-btn:focus-visible,
 .event-card-mutating-header .copy-btn:focus-visible,
-.ask-question-header .copy-btn:focus-visible {
+.ask-q-header .copy-btn:focus-visible {
   opacity: 1;
 }
 
@@ -2517,36 +2517,85 @@
   flex-shrink: 0;
 }
 
-/* AskUserQuestion card */
+/* ── AskUserQuestion card ─────────────────────────────────────────── */
+
+/* "N questions" chip in the collapsed row — sits next to the badge. */
+.ask-questions-count {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+/* Status pill (Answered/Partial/Skipped/Free-form) — push to the right edge
+   of the row, between the question preview and the duration. */
+.tool-row .ask-status-pill {
+  margin-left: auto;
+}
+
 .ask-card .ask-detail {
+  padding: 0;
+}
+.ask-card .ask-detail .ask-empty {
+  font-size: 12px;
+  color: var(--text3);
+  font-style: italic;
+  padding: 10px 14px;
+}
+
+/* Expanded body: accent left-rail signals this is the AskUserQuestion's
+   own pane (matches the mockup's full-review variant). */
+.ask-card-expanded {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 8px 10px 10px 10px;
+  padding: 8px 14px 8px 16px;
 }
-.ask-question {
-  background: var(--bg-card);
-  border: 0.5px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.ask-card-expanded::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  opacity: 0.7;
 }
-.ask-question-header {
+
+.ask-q-block {
+  padding: 12px 0;
+}
+.ask-q-block + .ask-q-block {
+  border-top: 0.5px dashed var(--border);
+}
+
+.ask-q-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.ask-q-counter {
+  font-size: 10px;
   font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-muted);
+  color: var(--text3);
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+.ask-q-prompt {
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text);
+  line-height: 1.45;
+  flex: 1;
+  min-width: 0;
 }
-.ask-question-text { }
-/* Push the hover-revealed Copy button to the right edge of the header. */
-.ask-question-header .copy-btn {
-  margin-left: auto;
-}
-.ask-multi-pill {
+.ask-q-multi {
   font-size: 10px;
   font-weight: 400;
   padding: 1px 6px;
@@ -2554,58 +2603,137 @@
   background: var(--bg-muted);
   color: var(--text3);
   font-family: var(--mono);
-}
-.ask-options {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.ask-option {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text2);
-  padding: 2px 6px;
-  border-radius: var(--r-xs);
-}
-.ask-option-mark {
-  font-family: var(--mono);
-  width: 12px;
-  color: var(--text3);
   flex-shrink: 0;
 }
-.ask-option-label {
+.ask-q-status-pill {
+  flex-shrink: 0;
+}
+/* Copy button sits to the right of the status pill; hover-reveal handled
+   by the shared rule near .detail-section-header. */
+.ask-q-header .copy-btn {
+  flex-shrink: 0;
+}
+
+/* Options grid — two columns, key | rationale. Selected option gets the
+   accent rail + tint + check; others mute to text3. */
+.ask-options-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ask-option {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr auto;
+  gap: 14px;
+  padding: 8px 10px 8px 12px;
+  border-radius: var(--r-sm);
+  align-items: start;
+  position: relative;
+}
+.ask-option-key {
   font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
   color: var(--text);
 }
-.ask-option-desc { color: var(--text3); }
-.ask-option-selected,
-.ask-option-custom { background: var(--accent-tint); }
-.ask-option-selected .ask-option-mark,
-.ask-option-selected .ask-option-label,
-.ask-option-custom .ask-option-mark,
-.ask-option-custom .ask-option-label {
+.ask-option-rationale {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text2);
+  min-width: 0;
+}
+.ask-option-check {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+  flex-shrink: 0;
+  justify-self: end;
+  margin-top: 2px;
+}
+
+.ask-option.is-selected {
+  background: var(--accent-tint);
+}
+.ask-option.is-selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.ask-option.is-selected .ask-option-key {
   color: var(--accent);
   font-weight: 600;
 }
-.ask-pending {
-  font-size: 11px;
+.ask-option.is-selected .ask-option-rationale {
+  color: var(--accent);
+}
+
+.ask-option.is-muted .ask-option-key,
+.ask-option.is-muted .ask-option-rationale {
+  color: var(--text3);
+}
+
+/* Skipped state */
+.ask-skipped-note {
+  padding: 10px 12px;
+  background: var(--bg-muted);
+  border-radius: var(--r-sm);
+  font-size: 12px;
   color: var(--text3);
   font-style: italic;
-  padding: 2px 4px;
 }
+
+/* Free-form (typed-text) answer */
+.ask-freeform {
+  position: relative;
+  padding: 10px 12px 10px 14px;
+  background: var(--accent-tint);
+  border-radius: var(--r-sm);
+}
+.ask-freeform::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.ask-freeform-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.75;
+  margin-bottom: 4px;
+}
+.ask-freeform-text {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--accent);
+  line-height: 1.5;
+}
+.ask-freeform-footnote {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text3);
+  padding: 0 4px;
+}
+
+/* Per-question note (legacy `annotations.notes`) */
 .ask-note {
+  margin-top: 6px;
   font-size: 11px;
   color: var(--text2);
   padding: 2px 4px 2px 8px;
   border-left: 2px solid var(--border);
-  margin-top: 2px;
-}
-.ask-empty {
-  font-size: 12px;
-  color: var(--text3);
-  font-style: italic;
 }
 
 /* Gap 5 & 6: Structured tool detail panel */

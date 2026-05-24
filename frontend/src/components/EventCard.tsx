@@ -309,76 +309,193 @@ function previewDiff(
 }
 
 // AskUserQuestion shape
-interface AskQuestion {
+export interface AskQuestion {
   question: string;
   header?: string;
   multiSelect?: boolean;
   options?: Array<{ label: string; description?: string }>;
 }
-interface AskAnswers {
-  answers: Record<string, string | string[]>;
+export type AskAnswerValue = string | string[];
+export interface AskAnswers {
+  answers: Record<string, AskAnswerValue>;
   annotations?: Record<string, { notes?: string } | undefined>;
 }
+export type AskQuestionStatus = "answered" | "skipped" | "freeform";
+export type AskCardStatus = "answered" | "partial" | "skipped" | "freeform" | "error";
 
-// Parse the tool_result content for AskUserQuestion. The SDK may store it as a
-// direct `{answers, annotations}` JSON object, or wrapped as a stringified
-// content-block array `[{type:"text", text:"<json>"}]`. Never throws.
-function parseAskOutput(raw: string | null): AskAnswers | null {
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Parse the tool_result body for AskUserQuestion. The SDK emits answers in
+// several distinct shapes; we anchor on the known input questions so unescaped
+// quotes/commas inside answers don't break the scan. Never throws.
+//
+// Shapes handled (first match wins):
+//   1. Direct {answers, annotations} JSON object
+//   2. Stringified content-block array [{type:"text", text:"<json>"}]
+//   3. "User has answered your questions: "Q"="A", …" / "Your questions have
+//      been answered: …" — the common ~98% case
+//   4. "The user doesn't want to proceed… Questions asked:\n- "Q"\n  Answer: A"
+//   5. Tool errors (<tool_use_error>, Tool permission…) — returns null so the
+//      existing `isErr` render path handles it
+export function parseAskOutput(raw: string | null, questions: AskQuestion[]): AskAnswers | null {
   if (!raw) return null;
-  let parsed: unknown;
-  try { parsed = JSON.parse(raw); } catch { return null; }
-  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-    const obj = parsed as Record<string, unknown>;
-    if (obj.answers && typeof obj.answers === "object") return obj as unknown as AskAnswers;
-    return null;
-  }
-  if (Array.isArray(parsed)) {
-    for (const block of parsed) {
-      if (block && typeof block === "object" && (block as Record<string, unknown>).type === "text") {
-        const txt = (block as Record<string, unknown>).text;
-        if (typeof txt === "string") {
-          const inner = tryParseJson(txt);
-          if (inner && "answers" in inner && inner.answers && typeof inner.answers === "object") {
-            return inner as unknown as AskAnswers;
+
+  if (raw.startsWith("{") || raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const obj = parsed as Record<string, unknown>;
+        if (obj.answers && typeof obj.answers === "object") return obj as unknown as AskAnswers;
+      } else if (Array.isArray(parsed)) {
+        for (const block of parsed) {
+          if (block && typeof block === "object" && (block as Record<string, unknown>).type === "text") {
+            const txt = (block as Record<string, unknown>).text;
+            if (typeof txt === "string") {
+              const inner = tryParseJson(txt);
+              if (inner && "answers" in inner && inner.answers && typeof inner.answers === "object") {
+                return inner as unknown as AskAnswers;
+              }
+            }
           }
         }
       }
-    }
+    } catch { /* not JSON; fall through */ }
   }
+
+  if (raw.startsWith("<tool_use_error>") || raw.startsWith("Tool permission")) return null;
+
+  if (raw.startsWith("User has answered your questions:")
+      || raw.startsWith("Your questions have been answered:")) {
+    return parseAnsweredForm(raw, questions);
+  }
+
+  if (raw.startsWith("The user doesn't want to proceed") || raw.includes("Questions asked:")) {
+    return parseRejectedForm(raw, questions);
+  }
+
   return null;
 }
 
+function parseAnsweredForm(raw: string, questions: AskQuestion[]): AskAnswers | null {
+  const answers: Record<string, AskAnswerValue> = {};
+  for (const q of questions) {
+    const escQ = escapeRegex(q.question);
+    const startMatch = new RegExp(`"${escQ}"\\s*=\\s*"`).exec(raw);
+    if (!startMatch) continue;
+    const answerStart = startMatch.index + startMatch[0].length;
+
+    // Earliest terminator wins: another known question's "Q"=, the
+    // " selected preview:" free-text block, or the trailing ". You can now…"
+    const terminators: number[] = [];
+    for (const other of questions) {
+      if (other.question === q.question) continue;
+      const pos = raw.indexOf(`"${other.question}"=`, answerStart);
+      if (pos >= 0) terminators.push(pos);
+    }
+    const preview = raw.indexOf(" selected preview:", answerStart);
+    if (preview >= 0) terminators.push(preview);
+    const cont = raw.indexOf(". You can now continue", answerStart);
+    if (cont >= 0) terminators.push(cont);
+    const end = terminators.length > 0 ? Math.min(...terminators) : raw.length;
+
+    // Walk back through trailing `,`/whitespace to the closing `"` of the answer.
+    let answerEnd = end;
+    while (answerEnd > answerStart && raw[answerEnd - 1] !== '"') answerEnd--;
+    if (answerEnd > answerStart) answerEnd--;
+
+    const ans = raw.substring(answerStart, answerEnd).trim();
+    if (!ans) continue;
+
+    if (q.multiSelect && ans.includes(",")) {
+      answers[q.question] = ans.split(",").map(s => s.trim()).filter(Boolean);
+    } else {
+      answers[q.question] = ans;
+    }
+  }
+  return Object.keys(answers).length > 0 ? { answers } : null;
+}
+
+function parseRejectedForm(raw: string, questions: AskQuestion[]): AskAnswers | null {
+  const answers: Record<string, AskAnswerValue> = {};
+  for (const q of questions) {
+    const escQ = escapeRegex(q.question);
+    const pattern = new RegExp(
+      `-\\s*"${escQ}"\\s*\\n\\s*(?:Answer:\\s*(.+)|\\(No answer provided\\))`,
+    );
+    const match = pattern.exec(raw);
+    if (!match) continue;
+    if (!match[1]) continue; // (No answer provided) → omit, classifies as skipped
+    const ans = match[1].trim();
+    if (!ans) continue;
+    if (q.multiSelect && ans.includes(",")) {
+      answers[q.question] = ans.split(",").map(s => s.trim()).filter(Boolean);
+    } else {
+      answers[q.question] = ans;
+    }
+  }
+  return Object.keys(answers).length > 0 ? { answers } : null;
+}
+
 // Normalize an answer cell to an array of strings.
-function normalizeAnswerValues(raw: unknown): string[] {
+export function normalizeAnswerValues(raw: unknown): string[] {
   if (raw == null) return [];
   if (Array.isArray(raw)) return raw.filter((v) => typeof v === "string") as string[];
   if (typeof raw === "string") return [raw];
   return [];
 }
 
+// Classify a single question's outcome. "freeform" when the user typed an
+// answer that doesn't match any offered option.
+export function classifyAskQuestion(
+  parsedAnswer: AskAnswerValue | undefined,
+  optionLabels: Set<string>,
+): AskQuestionStatus {
+  const values = normalizeAnswerValues(parsedAnswer).filter(v => v.length > 0);
+  if (values.length === 0) return "skipped";
+  return values.some(v => !optionLabels.has(v)) ? "freeform" : "answered";
+}
+
+// Aggregate per-question statuses into a card-level status. Mixed → "partial".
+export function classifyAskCard(
+  perQuestion: AskQuestionStatus[],
+  isToolError: boolean,
+): AskCardStatus {
+  if (isToolError) return "error";
+  if (perQuestion.length === 0) return "skipped";
+  const unique = new Set(perQuestion);
+  if (unique.size === 1) return [...unique][0] as AskCardStatus;
+  return "partial";
+}
+
 // Format a single AskUserQuestion entry as plain text for clipboard copy.
-// Mirrors what the user sees in the expanded card: question, all options
-// (with the chosen one marked), any custom free-text answer, and the note.
+// Mirrors what the user sees in the expanded card.
 function formatAskQuestionForCopy(
   q: AskQuestion,
-  options: Array<{ label: string; description?: string }>,
-  selected: string[],
-  customAnswers: string[],
+  status: AskQuestionStatus,
+  values: string[],
+  customValues: string[],
   note: string | undefined,
 ): string {
   const lines: string[] = [];
   lines.push(`Q: ${q.question}${q.multiSelect ? " (multi-select)" : ""}`);
+  const options = Array.isArray(q.options) ? q.options : [];
   if (options.length > 0) {
     lines.push("Options:");
     for (const opt of options) {
-      const mark = selected.includes(opt.label) ? "✓" : "·";
+      const mark = values.includes(opt.label) ? "✓" : "·";
       const desc = opt.description ? ` — ${opt.description}` : "";
       lines.push(`  ${mark} ${opt.label}${desc}`);
     }
   }
-  const pickedFromOptions = selected.filter((s) => options.some((o) => o.label === s));
-  const allPicked = [...pickedFromOptions, ...customAnswers.map((c) => `Custom: ${c}`)];
-  lines.push(`A: ${allPicked.length > 0 ? allPicked.join(", ") : "(no response)"}`);
+  if (status === "skipped") {
+    lines.push("A: (skipped)");
+  } else {
+    const pickedFromOptions = values.filter(v => options.some(o => o.label === v));
+    const allPicked = [...pickedFromOptions, ...customValues.map(c => `Custom: ${c}`)];
+    lines.push(`A: ${allPicked.length > 0 ? allPicked.join(", ") : "(no response)"}`);
+  }
   if (note) lines.push(`Note: ${note}`);
   return lines.join("\n");
 }
@@ -704,19 +821,52 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
 
   // AskUserQuestion — dedicated card showing questions, options, and selected answers.
   if (event.event_type === "tool_call_start" && event.tool_name === "AskUserQuestion") {
-    const isErr = isToolErrorEvent(event);
     const askInput = tryParseJson(event.input_data) ?? {};
     const rawQuestions = Array.isArray(askInput.questions) ? askInput.questions : [];
     const questions: AskQuestion[] = rawQuestions.filter(
       (q): q is AskQuestion => !!q && typeof q === "object" && typeof (q as AskQuestion).question === "string",
     );
-    const askOutput = parseAskOutput(event.output_data);
+    const askOutput = parseAskOutput(event.output_data, questions);
     const answers = askOutput?.answers ?? {};
     const annotations = askOutput?.annotations ?? {};
     const headerText = questions[0]?.question ?? "AskUserQuestion";
 
+    // "Rejected with clarification" surfaces with permission_status=rejected
+    // AND a body that contains partial answers (the SDK preserves the user's
+    // picks before they reject). That's not an error in the review sense —
+    // it's a Partial. Only treat as error when nothing was extractable.
+    const eventIsErr = isToolErrorEvent(event);
+    const hasAnyAnswer = Object.keys(answers).length > 0;
+    const isErr = eventIsErr && !hasAnyAnswer;
+
+    // Per-question status + selected/custom split, computed once.
+    const perQ = questions.map((q) => {
+      const optList = Array.isArray(q.options) ? q.options : [];
+      const optionLabels = new Set(optList.map(o => o.label));
+      const rawAnswer = (answers as Record<string, AskAnswerValue>)[q.question];
+      const values = normalizeAnswerValues(rawAnswer);
+      const selectedFromOptions = values.filter(v => optionLabels.has(v));
+      const customValues = values.filter(v => !optionLabels.has(v));
+      const status = classifyAskQuestion(rawAnswer, optionLabels);
+      const note = annotations[q.question]?.notes;
+      return { q, optList, optionLabels, values, selectedFromOptions, customValues, status, note };
+    });
+    const cardStatus = classifyAskCard(perQ.map(p => p.status), isErr);
+
+    const statusPillClass = (s: AskCardStatus | AskQuestionStatus): string =>
+      s === "answered" || s === "freeform" ? "pill-green"
+      : s === "partial" ? "pill-orange"
+      : s === "skipped" ? "pill-gray"
+      : "pill-gray";
+    const statusPillLabel = (s: AskCardStatus | AskQuestionStatus): string =>
+      s === "answered" ? "Answered"
+      : s === "freeform" ? "Free-form"
+      : s === "partial" ? "Partial"
+      : s === "skipped" ? "Skipped"
+      : "";
+
     return html`
-      <div class=${"tool-row-standalone ask-card" + (isErr ? " tool-row-standalone-error" : "")}
+      <div class=${"tool-row-standalone ask-card" + (expanded ? " ask-card-open" : "") + (isErr ? " tool-row-standalone-error" : "")}
         onClick=${toggleExpand}
       >
         <div class=${"event-dot dot-tool" + (isErr ? " dot-tool-err" : "")}></div>
@@ -724,8 +874,12 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
           <div class=${"tool-row" + (isErr ? " tool-row-error" : "")}>
             ${groupIndex != null && html`<span class="tg-item-badge">#${groupIndex}</span>`}
             <span class=${"tool-badge " + toolBadgeClass}>AskUserQuestion</span>
-            ${isErr && html`<span class="err-badge">error</span>`}
-            <span class="tool-name">${truncate(headerText, 80)}${questions.length > 1 ? ` (+${questions.length - 1})` : ""}</span>
+            ${questions.length > 1 && html`<span class="ask-questions-count">${questions.length} questions</span>`}
+            <span class="tool-name">${truncate(headerText, 80)}</span>
+            ${isErr
+              ? html`<span class="err-badge">error</span>`
+              : questions.length > 0 && html`<span class=${"event-pill " + statusPillClass(cardStatus) + " ask-status-pill"}>${statusPillLabel(cardStatus)}</span>`
+            }
             <span class="tool-dur">${formatDuration(event.duration_ms)}</span>
             <span class="tool-row-expand">${expanded ? "▾" : "›"}</span>
           </div>
@@ -734,62 +888,74 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               ${questions.length === 0 && html`
                 <div class="ask-empty">(no questions in input)</div>
               `}
-              ${questions.map((q) => {
-                const optList = Array.isArray(q.options) ? q.options : [];
-                const rawAnswer = (answers as Record<string, unknown>)[q.question];
-                const hasAnswer = rawAnswer != null && rawAnswer !== "";
-                const answerValues = normalizeAnswerValues(rawAnswer);
-                const selectedSet = new Set<string>();
-                if (q.multiSelect && answerValues.length === 1 && answerValues[0].includes(",")) {
-                  answerValues[0].split(",").map(s => s.trim()).filter(Boolean).forEach(s => selectedSet.add(s));
-                } else {
-                  answerValues.forEach(v => selectedSet.add(v));
-                }
-                const optionLabels = new Set(optList.map(o => o.label));
-                const customAnswers = [...selectedSet].filter(v => !optionLabels.has(v));
-                const note = annotations[q.question]?.notes;
-                const copyText = formatAskQuestionForCopy(q, optList, [...selectedSet], customAnswers, note);
+              <div class="ask-card-expanded">
+                ${perQ.map(({ q, optList, selectedFromOptions, customValues, status, note }, idx) => {
+                  const copyText = formatAskQuestionForCopy(q, status, [...selectedFromOptions, ...customValues], customValues, note);
+                  const showCounter = questions.length > 1;
+                  const showOptionsGrid = status === "answered"
+                    || (status === "freeform" && selectedFromOptions.length > 0);
+                  return html`
+                    <div class="ask-q-block">
+                      <div class="ask-q-header">
+                        ${showCounter && html`<span class="ask-q-counter">Q${idx + 1}</span>`}
+                        <span class="ask-q-prompt">${q.question}</span>
+                        ${q.multiSelect === true && html`<span class="ask-q-multi">multi-select</span>`}
+                        ${!isErr && html`<span class=${"event-pill " + statusPillClass(status) + " ask-q-status-pill"}>${statusPillLabel(status)}</span>`}
+                        <${CopyButton} text=${copyText} />
+                      </div>
 
-                return html`
-                  <div class="ask-question">
-                    <div class="ask-question-header">
-                      <span class="ask-question-text">${q.question}</span>
-                      ${q.multiSelect === true && html`<span class="ask-multi-pill">multi-select</span>`}
-                      <${CopyButton} text=${copyText} />
+                      ${showOptionsGrid && optList.length > 0 && html`
+                        <div class="ask-options-grid">
+                          ${optList.map((opt) => {
+                            const isSelected = selectedFromOptions.includes(opt.label);
+                            return html`
+                              <div class=${"ask-option " + (isSelected ? "is-selected" : "is-muted")}>
+                                <div class="ask-option-key">${opt.label}</div>
+                                ${opt.description
+                                  ? html`<div class="ask-option-rationale">${opt.description}</div>`
+                                  : html`<div class="ask-option-rationale"></div>`
+                                }
+                                ${isSelected && html`
+                                  <svg class="ask-option-check" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="m8 12 3 3 5-6" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                                  </svg>
+                                `}
+                              </div>
+                            `;
+                          })}
+                        </div>
+                      `}
+
+                      ${status === "freeform" && customValues.length > 0 && html`
+                        <div class="ask-freeform">
+                          <div class="ask-freeform-label">Custom answer</div>
+                          <div class="ask-freeform-text">${customValues.join(", ")}</div>
+                        </div>
+                        ${!showOptionsGrid && optList.length > 0 && html`
+                          <div class="ask-freeform-footnote">
+                            Original options offered: ${optList.map(o => o.label).join(" · ")}
+                          </div>
+                        `}
+                      `}
+
+                      ${status === "skipped" && !isErr && html`
+                        <div class="ask-skipped-note">
+                          User declined to answer · agent will proceed with the default
+                        </div>
+                      `}
+
+                      ${status === "skipped" && isErr && html`
+                        <div class="ask-skipped-note">
+                          (no response)
+                        </div>
+                      `}
+
+                      ${note && html`<div class="ask-note">Note: ${note}</div>`}
                     </div>
-                    ${optList.length > 0 && html`
-                      <div class="ask-options">
-                        ${optList.map((opt) => {
-                          const isSelected = selectedSet.has(opt.label);
-                          return html`
-                            <div class=${"ask-option" + (isSelected ? " ask-option-selected" : "")}>
-                              <span class="ask-option-mark">${isSelected ? "✓" : "·"}</span>
-                              <span class="ask-option-label">${opt.label}</span>
-                              ${opt.description && html`<span class="ask-option-desc">— ${opt.description}</span>`}
-                            </div>
-                          `;
-                        })}
-                      </div>
-                    `}
-                    ${customAnswers.map((txt) => html`
-                      <div class="ask-option ask-option-custom">
-                        <span class="ask-option-mark">✓</span>
-                        <span class="ask-option-label">Custom answer:</span>
-                        <span class="ask-option-desc">${txt}</span>
-                      </div>
-                    `)}
-                    ${note && html`
-                      <div class="ask-note">Note: ${note}</div>
-                    `}
-                    ${!hasAnswer && !isErr && html`
-                      <div class="ask-pending">(not yet answered)</div>
-                    `}
-                    ${!hasAnswer && isErr && html`
-                      <div class="ask-pending">(no response)</div>
-                    `}
-                  </div>
-                `;
-              })}
+                  `;
+                })}
+              </div>
               ${collapseFooter}
             </div>
           `}
