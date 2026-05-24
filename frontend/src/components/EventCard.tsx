@@ -375,6 +375,43 @@ export function parseAskOutput(raw: string | null, questions: AskQuestion[]): As
   return null;
 }
 
+// Split a multi-select answer string into its constituent picks. When the
+// question's option list is known, greedy-match the longest labels first so
+// labels that legitimately contain `,` (e.g. "enhancement, frontend, ux")
+// survive intact instead of being shredded by a naive comma split. Unmatched
+// remainders are still comma-split — those are the user's custom values.
+export function splitMultiSelectAnswer(ans: string, q: AskQuestion): string[] {
+  const optList = Array.isArray(q.options) ? q.options : [];
+  if (optList.length === 0) {
+    return ans.split(",").map(s => s.trim()).filter(Boolean);
+  }
+  const labels = optList.map(o => o.label).sort((a, b) => b.length - a.length);
+  const result: string[] = [];
+  let remaining = ans.trim();
+  while (remaining.length > 0) {
+    let matched = false;
+    for (const label of labels) {
+      if (remaining === label || remaining.startsWith(label + ",")) {
+        result.push(label);
+        remaining = remaining.slice(label.length).replace(/^,\s*/, "");
+        matched = true;
+        break;
+      }
+    }
+    if (matched) continue;
+    const comma = remaining.indexOf(",");
+    if (comma < 0) {
+      const tail = remaining.trim();
+      if (tail) result.push(tail);
+      break;
+    }
+    const frag = remaining.slice(0, comma).trim();
+    if (frag) result.push(frag);
+    remaining = remaining.slice(comma + 1).trimStart();
+  }
+  return result;
+}
+
 function parseAnsweredForm(raw: string, questions: AskQuestion[]): AskAnswers | null {
   const answers: Record<string, AskAnswerValue> = {};
   for (const q of questions) {
@@ -406,7 +443,7 @@ function parseAnsweredForm(raw: string, questions: AskQuestion[]): AskAnswers | 
     if (!ans) continue;
 
     if (q.multiSelect && ans.includes(",")) {
-      answers[q.question] = ans.split(",").map(s => s.trim()).filter(Boolean);
+      answers[q.question] = splitMultiSelectAnswer(ans, q);
     } else {
       answers[q.question] = ans;
     }
@@ -418,8 +455,11 @@ function parseRejectedForm(raw: string, questions: AskQuestion[]): AskAnswers | 
   const answers: Record<string, AskAnswerValue> = {};
   for (const q of questions) {
     const escQ = escapeRegex(q.question);
+    // Answer body runs until the next bullet (`\n- "`), a blank line, or end
+    // of input. `[\s\S]+?` lets it span newlines — needed when the user types
+    // a multi-line free-form answer via "Other" and then rejects.
     const pattern = new RegExp(
-      `-\\s*"${escQ}"\\s*\\n\\s*(?:Answer:\\s*(.+)|\\(No answer provided\\))`,
+      `-\\s*"${escQ}"\\s*\\n\\s*(?:Answer:\\s*([\\s\\S]+?)(?=\\n\\s*-\\s*"|\\n\\s*\\n|$)|\\(No answer provided\\))`,
     );
     const match = pattern.exec(raw);
     if (!match) continue;
@@ -427,7 +467,7 @@ function parseRejectedForm(raw: string, questions: AskQuestion[]): AskAnswers | 
     const ans = match[1].trim();
     if (!ans) continue;
     if (q.multiSelect && ans.includes(",")) {
-      answers[q.question] = ans.split(",").map(s => s.trim()).filter(Boolean);
+      answers[q.question] = splitMultiSelectAnswer(ans, q);
     } else {
       answers[q.question] = ans;
     }
@@ -912,6 +952,13 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
                       </div>
                     `;
                   })}
+                </div>
+              `}
+              ${(wasToolError || wasRejected || (questions.length > 0 && !askOutput))
+                && (event.output_data || event.output_preview) && html`
+                <div class="detail-section">
+                  ${sectionHeader("Output", event.output_data || event.output_preview)}
+                  ${StructuredContent({ text: event.output_data || event.output_preview })}
                 </div>
               `}
               ${collapseFooter}

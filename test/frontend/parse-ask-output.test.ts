@@ -108,6 +108,44 @@ describe('parseAskOutput — "User has answered…" form (real common case)', ()
     const out = parseAskOutput(raw, [{ question: 'Q1' }]);
     assert.deepEqual(out?.answers, { Q1: 'a, b, and c' });
   });
+
+  it('preserves a multi-select option label that contains commas', () => {
+    // Real-data case: option labels like "enhancement, frontend, ux" must
+    // survive intact instead of being shredded into three custom values.
+    const raw = 'User has answered your questions: "Tag?"="enhancement, frontend, ux". You can now continue.';
+    const out = parseAskOutput(raw, [{
+      question: 'Tag?',
+      multiSelect: true,
+      options: [{ label: 'enhancement, frontend, ux' }, { label: 'bug' }],
+    }]);
+    assert.deepEqual(out?.answers, { 'Tag?': ['enhancement, frontend, ux'] });
+  });
+
+  it('greedy-matches the longest comma-bearing label then continues with clean labels and custom values', () => {
+    const raw = 'User has answered your questions: "Areas?"="Agent control: hooks wiring, call_cap, loop_breaker, goal_pin, simple, my custom". You can now continue.';
+    const out = parseAskOutput(raw, [{
+      question: 'Areas?',
+      multiSelect: true,
+      options: [
+        { label: 'Agent control: hooks wiring, call_cap, loop_breaker, goal_pin' },
+        { label: 'simple' },
+      ],
+    }]);
+    assert.deepEqual(out?.answers, {
+      'Areas?': [
+        'Agent control: hooks wiring, call_cap, loop_breaker, goal_pin',
+        'simple',
+        'my custom',
+      ],
+    });
+  });
+
+  it('falls back to naive comma split when q.options is absent', () => {
+    // Locks in the existing behavior for callers that pass no options.
+    const raw = 'User has answered your questions: "Features?"="A,B,C". You can now continue.';
+    const out = parseAskOutput(raw, [{ question: 'Features?', multiSelect: true }]);
+    assert.deepEqual(out?.answers, { 'Features?': ['A', 'B', 'C'] });
+  });
 });
 
 describe('parseAskOutput — rejection / clarify form', () => {
@@ -142,6 +180,50 @@ describe('parseAskOutput — rejection / clarify form', () => {
       "  Answer: expand\n";
     const out = parseAskOutput(raw, [{ question: 'How should "all" map?' }]);
     assert.deepEqual(out?.answers, { 'How should "all" map?': 'expand' });
+  });
+
+  it('captures a multi-line Answer body up to the next bullet', () => {
+    // "Other" free-form answers can wrap across lines. The Answer body runs
+    // until the next `- "Q"` bullet (or a blank line / EOF).
+    const raw =
+      "The user doesn't want to proceed with this tool use.\n\n" +
+      "    Questions asked:\n" +
+      "- \"Q1\"\n" +
+      "  Answer: line one\n" +
+      "  line two\n" +
+      "  line three\n" +
+      "- \"Q2\"\n" +
+      "  Answer: just one\n";
+    const out = parseAskOutput(raw, [{ question: 'Q1' }, { question: 'Q2' }]);
+    assert.deepEqual(out?.answers, {
+      Q1: 'line one\n  line two\n  line three',
+      Q2: 'just one',
+    });
+  });
+
+  it('captures a multi-line Answer body that ends at EOF', () => {
+    const raw =
+      "The user doesn't want to proceed with this tool use.\n\n" +
+      "    Questions asked:\n" +
+      "- \"Q1\"\n" +
+      "  Answer: first\n" +
+      "  second";
+    const out = parseAskOutput(raw, [{ question: 'Q1' }]);
+    assert.deepEqual(out?.answers, { Q1: 'first\n  second' });
+  });
+
+  it('preserves a comma-bearing multi-select label in the rejected form too', () => {
+    const raw =
+      "The user doesn't want to proceed with this tool use.\n\n" +
+      "    Questions asked:\n" +
+      "- \"Tag?\"\n" +
+      "  Answer: enhancement, frontend, ux\n";
+    const out = parseAskOutput(raw, [{
+      question: 'Tag?',
+      multiSelect: true,
+      options: [{ label: 'enhancement, frontend, ux' }, { label: 'bug' }],
+    }]);
+    assert.deepEqual(out?.answers, { 'Tag?': ['enhancement, frontend, ux'] });
   });
 });
 
