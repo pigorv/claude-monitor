@@ -3,8 +3,10 @@ import { html } from "htm/preact";
 import type { Event } from "../../../src/shared/types";
 import { renderMarkdown } from "../lib/markdown";
 import { StructuredContent } from "./StructuredContent";
+import { CopyButton } from "./CopyButton";
 import { computeLineDiff, type DiffLine } from "../lib/diff";
 import { formatTokenMeta, formatTokenCount } from "../lib/format";
+import { hasNonEmptySelection } from "../lib/selection";
 import { highlight } from "../lib/syntax";
 
 interface EventCardProps {
@@ -34,6 +36,14 @@ function formatTokens(n: number): string {
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max) + "…";
+}
+
+// True when the user has an active text selection. Used to suppress the
+// expand/collapse toggle so a drag-select's trailing `click` doesn't collapse
+// the block out from under the selection (issue #47). The decision logic is
+// in lib/selection.ts so it can be unit-tested without a DOM environment.
+function hasTextSelection(): boolean {
+  return hasNonEmptySelection(window.getSelection()?.toString());
 }
 
 // Try to parse JSON safely
@@ -346,6 +356,33 @@ function normalizeAnswerValues(raw: unknown): string[] {
   return [];
 }
 
+// Format a single AskUserQuestion entry as plain text for clipboard copy.
+// Mirrors what the user sees in the expanded card: question, all options
+// (with the chosen one marked), any custom free-text answer, and the note.
+function formatAskQuestionForCopy(
+  q: AskQuestion,
+  options: Array<{ label: string; description?: string }>,
+  selected: string[],
+  customAnswers: string[],
+  note: string | undefined,
+): string {
+  const lines: string[] = [];
+  lines.push(`Q: ${q.question}${q.multiSelect ? " (multi-select)" : ""}`);
+  if (options.length > 0) {
+    lines.push("Options:");
+    for (const opt of options) {
+      const mark = selected.includes(opt.label) ? "✓" : "·";
+      const desc = opt.description ? ` — ${opt.description}` : "";
+      lines.push(`  ${mark} ${opt.label}${desc}`);
+    }
+  }
+  const pickedFromOptions = selected.filter((s) => options.some((o) => o.label === s));
+  const allPicked = [...pickedFromOptions, ...customAnswers.map((c) => `Custom: ${c}`)];
+  lines.push(`A: ${allPicked.length > 0 ? allPicked.join(", ") : "(no response)"}`);
+  if (note) lines.push(`Note: ${note}`);
+  return lines.join("\n");
+}
+
 // Check if a tool event has an error (works for all tool types)
 function isToolErrorEvent(event: Event): boolean {
   const meta = parseMetadata(event);
@@ -359,6 +396,37 @@ function isToolErrorEvent(event: Event): boolean {
 
 export function EventCard({ event, sessionStart, groupIndex, rationale }: EventCardProps) {
   const [expanded, setExpanded] = useState(false);
+
+  // Toggle expand/collapse, but skip it when the user has a text selection —
+  // otherwise the trailing `click` of a drag-select collapses the block and
+  // discards the selection (issue #47).
+  const toggleExpand = () => { if (!hasTextSelection()) setExpanded((v) => !v); };
+
+  // Swallow clicks inside an expanded detail pane so they never reach the
+  // card's expand/collapse toggle. The selection-guard alone isn't enough:
+  // the leading single-click of a double/triple-click word-select fires
+  // before any selection exists. Collapse stays available via the header
+  // chevron, which lives outside these panes (issue #47).
+  const stopToggle = (e: globalThis.Event) => e.stopPropagation();
+
+  // Explicit collapse control rendered at the foot of each expanded pane.
+  // Since clicks inside the pane no longer collapse it (so selection works),
+  // this is the discoverable way back — the header chevron also still works.
+  const collapseFooter = html`
+    <button type="button" class="collapse-btn" onClick=${() => setExpanded(false)}>
+      <span class="collapse-btn-icon">▴</span> Collapse
+    </button>
+  `;
+
+  // Header row for an expanded detail section: the label plus a hover-revealed
+  // Copy button that puts the full, untruncated raw text on the clipboard.
+  const sectionHeader = (labelText: string, copyText: string | null | undefined) => html`
+    <div class="detail-section-header">
+      ${copyText && html`<${CopyButton} text=${copyText} />`}
+      <div class="detail-label">${labelText}</div>
+    </div>
+  `;
+
   const isToolEvent = event.event_type === "tool_call_start" || event.event_type === "tool_call_end";
   const label = TYPE_LABELS[event.event_type] || event.event_type;
   const isRoleMsg = event.event_type === "user_message" || event.event_type === "assistant_message";
@@ -395,14 +463,15 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
       <div class="event-card event-user-message">
         <div class="event-dot dot-sys"></div>
         <div class="event-content">
-          <div class="sys-row" onClick=${() => setExpanded(!expanded)}>
+          <div class="sys-row" onClick=${toggleExpand}>
             <span class="sys-label">system</span>
             <span class="sys-text">${contextData ? 'Context usage output' : truncate(event.input_preview || '[system message]', 80)}</span>
             <span class="sys-expand">${expanded ? '▾' : '›'}</span>
           </div>
           ${expanded && !contextData && html`
-            <div class="sys-expanded">
+            <div class="sys-expanded" onClick=${stopToggle}>
               ${StructuredContent({ text: event.input_data || event.input_preview, hint: "markdown" })}
+              ${collapseFooter}
             </div>
           `}
           ${contextData && html`
@@ -437,7 +506,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
 
     return html`
       <div class=${"event-card event-user-message event-cmd" + (hasExpandable ? " expandable" : "")}
-        onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
+        onClick=${hasExpandable ? toggleExpand : undefined}
       >
         <div class="event-dot dot-cmd"></div>
         <div class="event-content">
@@ -452,13 +521,14 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
             </div>
           </div>
           ${expanded && html`
-            <div class="event-detail">
+            <div class="event-detail" onClick=${stopToggle}>
               ${event.input_data && html`
                 <div class="detail-section">
-                  <div class="detail-label">Input</div>
+                  ${sectionHeader("Input", event.input_data)}
                   ${StructuredContent({ text: event.input_data, hint: "markdown" })}
                 </div>
               `}
+              ${collapseFooter}
             </div>
           `}
         </div>
@@ -539,6 +609,12 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
     const editPreview = !isWrite ? previewDiff(editDiff, PREVIEW_LINES, EDIT_LEADING_CONTEXT) : { lines: [], hidden: 0 };
     const hidden = isWrite ? writeHidden : editPreview.hidden;
 
+    // Copy target: full file content for Write, the new text for Edit
+    // (falling back to old_string so pure-deletion Edits still expose a Copy button).
+    const mutatingCopyText = isWrite
+      ? writeContent
+      : (String(input.new_string ?? "") || String(input.old_string ?? ""));
+
     // Rationale: truncate to 240 chars; track separate expand state.
     const RAT_MAX = 240;
     const ratLong = rationale != null && rationale.length > RAT_MAX;
@@ -560,6 +636,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               ${isErr && !isRejected && html`<span class="err-badge">error</span>`}
             </div>
             <div class="event-card-meta-pill">${metaParts.join(" · ")}</div>
+            <${CopyButton} text=${mutatingCopyText} />
           </div>
 
           ${rationale && html`
@@ -614,15 +691,11 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
                 </div>
               `}
             ${!expanded && hidden > 0 && html`
-              <div class="event-card-more-lines" onClick=${() => setExpanded(true)}>
-                … ${hidden} more lines  [▸ expand]
-              </div>
+              <button type="button" class="expand-btn" onClick=${() => setExpanded(true)}>
+                <span class="collapse-btn-icon">▾</span> Show ${hidden} more lines
+              </button>
             `}
-            ${expanded && hidden > 0 && html`
-              <div class="event-card-more-lines" onClick=${() => setExpanded(false)}>
-                [▾ collapse]
-              </div>
-            `}
+            ${expanded && hidden > 0 && collapseFooter}
           </div>
         </div>
       </div>
@@ -644,7 +717,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
 
     return html`
       <div class=${"tool-row-standalone ask-card" + (isErr ? " tool-row-standalone-error" : "")}
-        onClick=${() => setExpanded(!expanded)}
+        onClick=${toggleExpand}
       >
         <div class=${"event-dot dot-tool" + (isErr ? " dot-tool-err" : "")}></div>
         <div class="tool-row-content">
@@ -657,7 +730,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
             <span class="tool-row-expand">${expanded ? "▾" : "›"}</span>
           </div>
           ${expanded && html`
-            <div class="event-detail ask-detail">
+            <div class="event-detail ask-detail" onClick=${stopToggle}>
               ${questions.length === 0 && html`
                 <div class="ask-empty">(no questions in input)</div>
               `}
@@ -675,12 +748,14 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
                 const optionLabels = new Set(optList.map(o => o.label));
                 const customAnswers = [...selectedSet].filter(v => !optionLabels.has(v));
                 const note = annotations[q.question]?.notes;
+                const copyText = formatAskQuestionForCopy(q, optList, [...selectedSet], customAnswers, note);
 
                 return html`
                   <div class="ask-question">
                     <div class="ask-question-header">
                       <span class="ask-question-text">${q.question}</span>
                       ${q.multiSelect === true && html`<span class="ask-multi-pill">multi-select</span>`}
+                      <${CopyButton} text=${copyText} />
                     </div>
                     ${optList.length > 0 && html`
                       <div class="ask-options">
@@ -715,6 +790,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
                   </div>
                 `;
               })}
+              ${collapseFooter}
             </div>
           `}
         </div>
@@ -729,7 +805,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
 
     return html`
       <div class=${"tool-row-standalone" + (isErr ? " tool-row-standalone-error" : "")}
-        onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
+        onClick=${hasExpandable ? toggleExpand : undefined}
       >
         <div class=${"event-dot dot-tool" + (isErr ? " dot-tool-err" : "")}></div>
         <div class="tool-row-content">
@@ -751,14 +827,14 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
             <span class="tool-row-expand">${expanded ? "▾" : "›"}</span>
           </div>
           ${expanded && html`
-            <div class="event-detail">
+            <div class="event-detail" onClick=${stopToggle}>
               ${event.tool_name === "Edit" && (() => {
                 const input = tryParseJson(event.input_data);
                 if (!input?.old_string) return null;
                 const diffLines = computeLineDiff(String(input.old_string), String(input.new_string || ""));
                 return html`
                   <div class="detail-section">
-                    <div class="detail-label">Edit: ${input.file_path || ""}</div>
+                    ${sectionHeader(`Edit: ${input.file_path || ""}`, String(input.new_string ?? ""))}
                     <div class="diff-view">
                       ${diffLines.map((line) => html`
                         <div class=${"diff-line diff-line-" + line.type}>
@@ -772,13 +848,13 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               })()}
               ${event.tool_name !== "Edit" && event.input_data && html`
                 <div class="detail-section">
-                  <div class="detail-label">Input</div>
+                  ${sectionHeader("Input", event.input_data)}
                   ${StructuredContent({ text: event.input_data, hint: "json" })}
                 </div>
               `}
               ${(event.output_preview || event.output_data) && !(event.tool_name === "Edit" && /has been (updated|created) successfully/.test(event.output_preview || "")) && html`
                 <div class="detail-section">
-                  <div class="detail-label">Output</div>
+                  ${sectionHeader("Output", event.output_data || event.output_preview)}
                   ${StructuredContent({ text: event.output_data || event.output_preview })}
                 </div>
               `}
@@ -790,6 +866,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
                   </div>
                 ` : null;
               })()}
+              ${collapseFooter}
             </div>
           `}
         </div>
@@ -808,7 +885,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
   return html`
     <div
       class=${typeClass + (hasExpandable ? " expandable" : "") + extraClass + taskClass + permissionClass}
-      onClick=${hasExpandable ? () => setExpanded(!expanded) : undefined}
+      onClick=${hasExpandable ? toggleExpand : undefined}
     >
       <div class=${isTaskOutput ? "event-dot event-dot-task" : "event-dot"} style=${getDotStyle(event.event_type, !!isSystemGenerated, !!isSkillExpansion)}></div>
       <div class="event-content">
@@ -839,7 +916,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
       </div>
 
       ${!expanded && event.event_type === "thinking" && event.thinking_summary && html`
-        <div class="event-body event-body-thinking" onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}>
+        <div class="event-body event-body-thinking" onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}>
           ${event.thinking_summary}
           <div class="fade"></div>
         </div>
@@ -854,25 +931,25 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
         return html`
           <div class=${"event-body event-body-assistant markdown-content" + (truncated ? " has-fade" : "")}
             dangerouslySetInnerHTML=${{ __html: renderMarkdown(op) }}
-            onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}
+            onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}
           />
         `;
       })()}
 
       ${!expanded && event.event_type === "user_message" && !isSkillExpansion && !isSystemGenerated && event.input_preview && html`
-        <div class="event-body event-body-user" onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}>
+        <div class="event-body event-body-user" onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}>
           ${event.input_preview}
         </div>
       `}
 
       ${!expanded && event.event_type === "user_message" && isSkillExpansion && html`
-        <div class="event-body skill-expansion-body" onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}>
+        <div class="event-body skill-expansion-body" onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}>
           <span class="skill-expansion-label">${event.input_preview ? truncate(event.input_preview, 120) : "[skill expansion content]"}</span>
         </div>
       `}
 
       ${!expanded && event.event_type === "user_message" && isSystemGenerated && html`
-        <div class="event-body event-body-system" onClick=${(e: globalThis.Event) => { e.stopPropagation(); setExpanded(!expanded); }}>
+        <div class="event-body event-body-system" onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}>
           <span class="system-tag-preview">${event.input_preview}</span>
         </div>
       `}
@@ -898,22 +975,22 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
       `}
 
       ${expanded && html`
-        <div class="event-detail">
+        <div class="event-detail" onClick=${stopToggle}>
           ${event.thinking_text && html`
             <div class="detail-section">
-              <div class="detail-label">Thinking</div>
+              ${sectionHeader("Thinking", event.thinking_text)}
               ${StructuredContent({ text: event.thinking_text, hint: "markdown" })}
             </div>
           `}
           ${event.input_preview && html`
             <div class="detail-section">
-              <div class="detail-label">Input</div>
+              ${sectionHeader("Input", event.input_data || event.input_preview)}
               ${StructuredContent({ text: event.input_data || event.input_preview })}
             </div>
           `}
           ${event.output_preview && event.event_type === "assistant_message" && html`
             <div class="detail-section">
-              <div class="detail-label">Output</div>
+              ${sectionHeader("Output", event.output_data || event.output_preview)}
               <div class="detail-content markdown-content"
                 dangerouslySetInnerHTML=${{ __html: renderMarkdown(event.output_data || event.output_preview) }}
               />
@@ -921,7 +998,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
           `}
           ${event.output_preview && event.event_type !== "assistant_message" && html`
             <div class="detail-section">
-              <div class="detail-label">Output</div>
+              ${sectionHeader("Output", event.output_data || event.output_preview)}
               ${StructuredContent({ text: event.output_data || event.output_preview })}
             </div>
           `}
@@ -933,6 +1010,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               </div>
             ` : null;
           })()}
+          ${collapseFooter}
         </div>
       `}
       </div>
