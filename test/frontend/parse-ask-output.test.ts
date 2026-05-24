@@ -2,8 +2,6 @@ import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   parseAskOutput,
-  classifyAskQuestion,
-  classifyAskCard,
   normalizeAnswerValues,
   type AskQuestion,
 } from '../../frontend/src/components/EventCard.js';
@@ -165,61 +163,6 @@ describe('parseAskOutput — tool errors and null inputs', () => {
   it('returns null for fully unknown shape', () => {
     const raw = 'something completely different';
     assert.equal(parseAskOutput(raw, [{ question: 'Q' }]), null);
-  });
-});
-
-describe('classifyAskQuestion', () => {
-  const opts = new Set(['opt-A', 'opt-B', 'opt-C']);
-
-  it('returns skipped for undefined answer', () => {
-    assert.equal(classifyAskQuestion(undefined, opts), 'skipped');
-  });
-
-  it('returns skipped for empty string answer', () => {
-    assert.equal(classifyAskQuestion('', opts), 'skipped');
-  });
-
-  it('returns skipped for empty array answer', () => {
-    assert.equal(classifyAskQuestion([], opts), 'skipped');
-  });
-
-  it('returns answered when single value matches an option', () => {
-    assert.equal(classifyAskQuestion('opt-A', opts), 'answered');
-  });
-
-  it('returns freeform when single value does not match any option', () => {
-    assert.equal(classifyAskQuestion('I typed something else', opts), 'freeform');
-  });
-
-  it('returns answered when all array values match options', () => {
-    assert.equal(classifyAskQuestion(['opt-A', 'opt-B'], opts), 'answered');
-  });
-
-  it('returns freeform when any array value is custom', () => {
-    assert.equal(classifyAskQuestion(['opt-A', 'custom text'], opts), 'freeform');
-  });
-});
-
-describe('classifyAskCard', () => {
-  it('returns error when isToolError flag is set', () => {
-    assert.equal(classifyAskCard(['answered', 'answered'], true), 'error');
-  });
-
-  it('returns skipped for an empty list', () => {
-    assert.equal(classifyAskCard([], false), 'skipped');
-  });
-
-  it('returns the unique status when all per-Q match', () => {
-    assert.equal(classifyAskCard(['answered', 'answered'], false), 'answered');
-    assert.equal(classifyAskCard(['skipped', 'skipped'], false), 'skipped');
-    assert.equal(classifyAskCard(['freeform', 'freeform'], false), 'freeform');
-  });
-
-  it('returns partial when mixed', () => {
-    assert.equal(classifyAskCard(['answered', 'skipped'], false), 'partial');
-    assert.equal(classifyAskCard(['answered', 'freeform'], false), 'partial');
-    assert.equal(classifyAskCard(['skipped', 'freeform'], false), 'partial');
-    assert.equal(classifyAskCard(['answered', 'skipped', 'freeform'], false), 'partial');
   });
 });
 

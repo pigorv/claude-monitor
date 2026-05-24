@@ -320,9 +320,6 @@ export interface AskAnswers {
   answers: Record<string, AskAnswerValue>;
   annotations?: Record<string, { notes?: string } | undefined>;
 }
-export type AskQuestionStatus = "answered" | "skipped" | "freeform";
-export type AskCardStatus = "answered" | "partial" | "skipped" | "freeform" | "error";
-
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -446,35 +443,12 @@ export function normalizeAnswerValues(raw: unknown): string[] {
   return [];
 }
 
-// Classify a single question's outcome. "freeform" when the user typed an
-// answer that doesn't match any offered option.
-export function classifyAskQuestion(
-  parsedAnswer: AskAnswerValue | undefined,
-  optionLabels: Set<string>,
-): AskQuestionStatus {
-  const values = normalizeAnswerValues(parsedAnswer).filter(v => v.length > 0);
-  if (values.length === 0) return "skipped";
-  return values.some(v => !optionLabels.has(v)) ? "freeform" : "answered";
-}
-
-// Aggregate per-question statuses into a card-level status. Mixed → "partial".
-export function classifyAskCard(
-  perQuestion: AskQuestionStatus[],
-  isToolError: boolean,
-): AskCardStatus {
-  if (isToolError) return "error";
-  if (perQuestion.length === 0) return "skipped";
-  const unique = new Set(perQuestion);
-  if (unique.size === 1) return [...unique][0] as AskCardStatus;
-  return "partial";
-}
-
 // Format a single AskUserQuestion entry as plain text for clipboard copy.
-// Mirrors what the user sees in the expanded card.
+// Pure data: question, all options (marking which were selected), and the
+// flat list of selected/custom answer values as the SDK recorded them.
 function formatAskQuestionForCopy(
   q: AskQuestion,
-  status: AskQuestionStatus,
-  values: string[],
+  selectedFromOptions: string[],
   customValues: string[],
   note: string | undefined,
 ): string {
@@ -484,18 +458,13 @@ function formatAskQuestionForCopy(
   if (options.length > 0) {
     lines.push("Options:");
     for (const opt of options) {
-      const mark = values.includes(opt.label) ? "✓" : "·";
+      const mark = selectedFromOptions.includes(opt.label) ? "✓" : "·";
       const desc = opt.description ? ` — ${opt.description}` : "";
       lines.push(`  ${mark} ${opt.label}${desc}`);
     }
   }
-  if (status === "skipped") {
-    lines.push("A: (skipped)");
-  } else {
-    const pickedFromOptions = values.filter(v => options.some(o => o.label === v));
-    const allPicked = [...pickedFromOptions, ...customValues.map(c => `Custom: ${c}`)];
-    lines.push(`A: ${allPicked.length > 0 ? allPicked.join(", ") : "(no response)"}`);
-  }
+  const allPicked = [...selectedFromOptions, ...customValues.map(c => `Custom: ${c}`)];
+  if (allPicked.length > 0) lines.push(`A: ${allPicked.join(", ")}`);
   if (note) lines.push(`Note: ${note}`);
   return lines.join("\n");
 }
@@ -513,6 +482,14 @@ function isToolErrorEvent(event: Event): boolean {
 
 export function EventCard({ event, sessionStart, groupIndex, rationale }: EventCardProps) {
   const [expanded, setExpanded] = useState(false);
+  // Per-question L3 expansion for AskUserQuestion cards. Each question expands
+  // independently — multiple can be open at once. Unused for any other event type.
+  const [expandedQs, setExpandedQs] = useState<Set<number>>(new Set());
+  const toggleQ = (i: number) => setExpandedQs((prev) => {
+    const next = new Set(prev);
+    if (next.has(i)) next.delete(i); else next.add(i);
+    return next;
+  });
 
   // Toggle expand/collapse, but skip it when the user has a text selection —
   // otherwise the trailing `click` of a drag-select collapses the block and
@@ -819,7 +796,12 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
     `;
   }
 
-  // AskUserQuestion — dedicated card showing questions, options, and selected answers.
+  // AskUserQuestion — review-mode card. Three zoom levels:
+  //   L1: collapsed row (badge, N-questions chip, first question, duration)
+  //   L2: expanded card showing each question + its selected answer line(s)
+  //   L3: per-question expansion revealing the full options grid for that Q
+  // Renders only what the transcript records — no derived status pills, no
+  // editorial copy. Rejection / true-error metadata surfaces as a small tag.
   if (event.event_type === "tool_call_start" && event.tool_name === "AskUserQuestion") {
     const askInput = tryParseJson(event.input_data) ?? {};
     const rawQuestions = Array.isArray(askInput.questions) ? askInput.questions : [];
@@ -831,55 +813,36 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
     const annotations = askOutput?.annotations ?? {};
     const headerText = questions[0]?.question ?? "AskUserQuestion";
 
-    // "Rejected with clarification" surfaces with permission_status=rejected
-    // AND a body that contains partial answers (the SDK preserves the user's
-    // picks before they reject). That's not an error in the review sense —
-    // it's a Partial. Only treat as error when nothing was extractable.
-    const eventIsErr = isToolErrorEvent(event);
-    const hasAnyAnswer = Object.keys(answers).length > 0;
-    const isErr = eventIsErr && !hasAnyAnswer;
+    // Factual metadata — surfaced as small tags, not error styling.
+    const askMeta = parseMetadata(event);
+    const wasRejected = askMeta?.permission_status === "rejected";
+    const wasToolError = askMeta?.tool_error === true;
 
-    // Per-question status + selected/custom split, computed once.
+    // Per-question selected/custom split. No status classification.
     const perQ = questions.map((q) => {
       const optList = Array.isArray(q.options) ? q.options : [];
       const optionLabels = new Set(optList.map(o => o.label));
       const rawAnswer = (answers as Record<string, AskAnswerValue>)[q.question];
-      const values = normalizeAnswerValues(rawAnswer);
+      const values = normalizeAnswerValues(rawAnswer).filter(v => v.length > 0);
       const selectedFromOptions = values.filter(v => optionLabels.has(v));
       const customValues = values.filter(v => !optionLabels.has(v));
-      const status = classifyAskQuestion(rawAnswer, optionLabels);
       const note = annotations[q.question]?.notes;
-      return { q, optList, optionLabels, values, selectedFromOptions, customValues, status, note };
+      return { q, optList, selectedFromOptions, customValues, note };
     });
-    const cardStatus = classifyAskCard(perQ.map(p => p.status), isErr);
-
-    const statusPillClass = (s: AskCardStatus | AskQuestionStatus): string =>
-      s === "answered" || s === "freeform" ? "pill-green"
-      : s === "partial" ? "pill-orange"
-      : s === "skipped" ? "pill-gray"
-      : "pill-gray";
-    const statusPillLabel = (s: AskCardStatus | AskQuestionStatus): string =>
-      s === "answered" ? "Answered"
-      : s === "freeform" ? "Free-form"
-      : s === "partial" ? "Partial"
-      : s === "skipped" ? "Skipped"
-      : "";
 
     return html`
-      <div class=${"tool-row-standalone ask-card" + (expanded ? " ask-card-open" : "") + (isErr ? " tool-row-standalone-error" : "")}
+      <div class="tool-row-standalone ask-card"
         onClick=${toggleExpand}
       >
-        <div class=${"event-dot dot-tool" + (isErr ? " dot-tool-err" : "")}></div>
+        <div class="event-dot dot-tool"></div>
         <div class="tool-row-content">
-          <div class=${"tool-row" + (isErr ? " tool-row-error" : "")}>
+          <div class="tool-row">
             ${groupIndex != null && html`<span class="tg-item-badge">#${groupIndex}</span>`}
             <span class=${"tool-badge " + toolBadgeClass}>AskUserQuestion</span>
             ${questions.length > 1 && html`<span class="ask-questions-count">${questions.length} questions</span>`}
             <span class="tool-name">${truncate(headerText, 80)}</span>
-            ${isErr
-              ? html`<span class="err-badge">error</span>`
-              : questions.length > 0 && html`<span class=${"event-pill " + statusPillClass(cardStatus) + " ask-status-pill"}>${statusPillLabel(cardStatus)}</span>`
-            }
+            ${wasToolError && html`<span class="ask-meta-tag is-error">error</span>`}
+            ${!wasToolError && wasRejected && html`<span class="ask-meta-tag is-rejected">rejected</span>`}
             <span class="tool-dur">${formatDuration(event.duration_ms)}</span>
             <span class="tool-row-expand">${expanded ? "▾" : "›"}</span>
           </div>
@@ -888,74 +851,69 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               ${questions.length === 0 && html`
                 <div class="ask-empty">(no questions in input)</div>
               `}
-              <div class="ask-card-expanded">
-                ${perQ.map(({ q, optList, selectedFromOptions, customValues, status, note }, idx) => {
-                  const copyText = formatAskQuestionForCopy(q, status, [...selectedFromOptions, ...customValues], customValues, note);
-                  const showCounter = questions.length > 1;
-                  const showOptionsGrid = status === "answered"
-                    || (status === "freeform" && selectedFromOptions.length > 0);
-                  return html`
-                    <div class="ask-q-block">
-                      <div class="ask-q-header">
-                        ${showCounter && html`<span class="ask-q-counter">Q${idx + 1}</span>`}
-                        <span class="ask-q-prompt">${q.question}</span>
-                        ${q.multiSelect === true && html`<span class="ask-q-multi">multi-select</span>`}
-                        ${!isErr && html`<span class=${"event-pill " + statusPillClass(status) + " ask-q-status-pill"}>${statusPillLabel(status)}</span>`}
-                        <${CopyButton} text=${copyText} />
-                      </div>
+              ${questions.length > 0 && html`
+                <div class="ask-card-expanded">
+                  ${perQ.map(({ q, optList, selectedFromOptions, customValues, note }, idx) => {
+                    const copyText = formatAskQuestionForCopy(q, selectedFromOptions, customValues, note);
+                    const showCounter = questions.length > 1;
+                    const qExpanded = expandedQs.has(idx);
+                    const hasOptions = optList.length > 0;
+                    return html`
+                      <div class="ask-q-block">
+                        <div class="ask-q-header"
+                          onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleQ(idx); }}
+                        >
+                          ${showCounter && html`<span class="ask-q-counter">Q${idx + 1}</span>`}
+                          <span class="ask-q-prompt">${q.question}</span>
+                          ${q.multiSelect === true && html`<span class="ask-q-multi">multi-select</span>`}
+                          <${CopyButton} text=${copyText} />
+                          ${hasOptions && html`<span class="ask-q-expand" aria-label=${qExpanded ? "Collapse options" : "Show options"}>${qExpanded ? "▾" : "▸"}</span>`}
+                        </div>
 
-                      ${showOptionsGrid && optList.length > 0 && html`
-                        <div class="ask-options-grid">
-                          ${optList.map((opt) => {
-                            const isSelected = selectedFromOptions.includes(opt.label);
-                            return html`
-                              <div class=${"ask-option " + (isSelected ? "is-selected" : "is-muted")}>
-                                <div class="ask-option-key">${opt.label}</div>
-                                ${opt.description
-                                  ? html`<div class="ask-option-rationale">${opt.description}</div>`
-                                  : html`<div class="ask-option-rationale"></div>`
-                                }
-                                ${isSelected && html`
-                                  <svg class="ask-option-check" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <path d="m8 12 3 3 5-6" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                                  </svg>
-                                `}
+                        ${(selectedFromOptions.length > 0 || customValues.length > 0) && html`
+                          <div class="ask-q-answers">
+                            ${selectedFromOptions.map((v) => html`
+                              <div class="ask-q-answer-line">
+                                <span class="arrow">→</span>${v}
                               </div>
-                            `;
-                          })}
-                        </div>
-                      `}
-
-                      ${status === "freeform" && customValues.length > 0 && html`
-                        <div class="ask-freeform">
-                          <div class="ask-freeform-label">Custom answer</div>
-                          <div class="ask-freeform-text">${customValues.join(", ")}</div>
-                        </div>
-                        ${!showOptionsGrid && optList.length > 0 && html`
-                          <div class="ask-freeform-footnote">
-                            Original options offered: ${optList.map(o => o.label).join(" · ")}
+                            `)}
+                            ${customValues.map((v) => html`
+                              <div class="ask-q-answer-line is-custom">
+                                <span class="arrow">→</span>${v}<span class="ask-custom-tag">custom</span>
+                              </div>
+                            `)}
                           </div>
                         `}
-                      `}
 
-                      ${status === "skipped" && !isErr && html`
-                        <div class="ask-skipped-note">
-                          User declined to answer · agent will proceed with the default
-                        </div>
-                      `}
+                        ${qExpanded && hasOptions && html`
+                          <div class="ask-options-grid">
+                            ${optList.map((opt) => {
+                              const isSelected = selectedFromOptions.includes(opt.label);
+                              return html`
+                                <div class=${"ask-option " + (isSelected ? "is-selected" : "is-muted")}>
+                                  <div class="ask-option-key">${opt.label}</div>
+                                  ${opt.description
+                                    ? html`<div class="ask-option-rationale">${opt.description}</div>`
+                                    : html`<div class="ask-option-rationale"></div>`
+                                  }
+                                  ${isSelected && html`
+                                    <svg class="ask-option-check" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                      <circle cx="12" cy="12" r="10"/>
+                                      <path d="m8 12 3 3 5-6" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                  `}
+                                </div>
+                              `;
+                            })}
+                          </div>
+                        `}
 
-                      ${status === "skipped" && isErr && html`
-                        <div class="ask-skipped-note">
-                          (no response)
-                        </div>
-                      `}
-
-                      ${note && html`<div class="ask-note">Note: ${note}</div>`}
-                    </div>
-                  `;
-                })}
-              </div>
+                        ${note && html`<div class="ask-note">Note: ${note}</div>`}
+                      </div>
+                    `;
+                  })}
+                </div>
+              `}
               ${collapseFooter}
             </div>
           `}

@@ -2526,11 +2526,23 @@
   font-family: var(--mono);
   flex-shrink: 0;
 }
-/* Status pill (Answered/Partial/Skipped/Free-form) — push to the right edge
-   of the row, between the question preview and the duration. */
-.tool-row .ask-status-pill {
-  margin-left: auto;
+
+/* Small factual metadata tag (rejected / error) sourced directly from
+   metadata.permission_status / metadata.tool_error. No derived narrative. */
+.ask-meta-tag {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  color: var(--text3);
+  background: var(--bg-muted);
+  font-family: var(--mono);
+  flex-shrink: 0;
 }
+.ask-meta-tag.is-rejected { color: var(--orange); background: var(--orange-bg); }
+.ask-meta-tag.is-error    { color: var(--red);    background: var(--red-bg); }
 
 .ask-card .ask-detail {
   padding: 0;
@@ -2542,13 +2554,15 @@
   padding: 10px 14px;
 }
 
-/* Expanded body: accent left-rail signals this is the AskUserQuestion's
-   own pane (matches the mockup's full-review variant). */
+/* Expanded body sits on a white card surface over the cream timeline, with
+   an accent left-rail to mark it as the AskUserQuestion's own pane. */
 .ask-card-expanded {
   position: relative;
   display: flex;
   flex-direction: column;
   padding: 8px 14px 8px 16px;
+  background: var(--bg-card);
+  border-radius: var(--r-sm);
 }
 .ask-card-expanded::before {
   content: '';
@@ -2573,9 +2587,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
   flex-wrap: wrap;
+  cursor: pointer;
 }
+.ask-q-header:hover .ask-q-expand { color: var(--text2); }
 .ask-q-counter {
   font-size: 10px;
   font-weight: 600;
@@ -2605,21 +2620,49 @@
   font-family: var(--mono);
   flex-shrink: 0;
 }
-.ask-q-status-pill {
+.ask-q-header .copy-btn { flex-shrink: 0; }
+.ask-q-expand {
+  color: var(--text3);
+  font-size: 11px;
+  padding: 2px 6px;
   flex-shrink: 0;
-}
-/* Copy button sits to the right of the status pill; hover-reveal handled
-   by the shared rule near .detail-section-header. */
-.ask-q-header .copy-btn {
-  flex-shrink: 0;
+  user-select: none;
 }
 
-/* Options grid — two columns, key | rationale. Selected option gets the
-   accent rail + tint + check; others mute to text3. */
+/* L2 — selected & custom answer lines under the question header. Plain
+   monospace, no rail/tint/check (those are reserved for L3 options grid). */
+.ask-q-answers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding-left: 24px;
+}
+.ask-q-answer-line {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--text);
+  line-height: 1.45;
+}
+.ask-q-answer-line .arrow {
+  color: var(--text3);
+  margin-right: 6px;
+}
+.ask-q-answer-line.is-custom .ask-custom-tag {
+  font-family: var(--sans);
+  font-size: 10px;
+  color: var(--text3);
+  margin-left: 8px;
+  font-style: italic;
+}
+
+/* L3 — options grid: two-column key | rationale. Selected option gets the
+   accent rail + tint + check; alternatives mute to text3. */
 .ask-options-grid {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  margin-top: 8px;
 }
 .ask-option {
   display: grid;
@@ -2676,55 +2719,6 @@
 .ask-option.is-muted .ask-option-key,
 .ask-option.is-muted .ask-option-rationale {
   color: var(--text3);
-}
-
-/* Skipped state */
-.ask-skipped-note {
-  padding: 10px 12px;
-  background: var(--bg-muted);
-  border-radius: var(--r-sm);
-  font-size: 12px;
-  color: var(--text3);
-  font-style: italic;
-}
-
-/* Free-form (typed-text) answer */
-.ask-freeform {
-  position: relative;
-  padding: 10px 12px 10px 14px;
-  background: var(--accent-tint);
-  border-radius: var(--r-sm);
-}
-.ask-freeform::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  background: var(--accent);
-  border-radius: 2px;
-}
-.ask-freeform-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-  opacity: 0.75;
-  margin-bottom: 4px;
-}
-.ask-freeform-text {
-  font-size: 13px;
-  font-style: italic;
-  color: var(--accent);
-  line-height: 1.5;
-}
-.ask-freeform-footnote {
-  margin-top: 8px;
-  font-size: 11px;
-  color: var(--text3);
-  padding: 0 4px;
 }
 
 /* Per-question note (legacy `annotations.notes`) */
