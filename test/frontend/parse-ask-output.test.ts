@@ -4,7 +4,7 @@ import {
   parseAskOutput,
   normalizeAnswerValues,
   type AskQuestion,
-} from '../../frontend/src/components/EventCard.js';
+} from '../../frontend/src/lib/ask-output.js';
 
 // The Anthropic SDK serializes AskUserQuestion answers in several distinct
 // shapes; this suite locks in the parser's behavior against the formats

@@ -17,14 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AskUserQuestion` cards no longer show 100% empty answers. The previous renderer expected a `{answers: {…}}` JSON shape that the SDK never actually emits; the parser now anchors on the known input questions and reads the SDK's three real output formats — `User has answered your questions: "Q"="A", …`, `Your questions have been answered: …`, and the rejection bullet list with `Answer: …` / `(No answer provided)` — so previously-blank cards now light up with the selected options.
 - `AskUserQuestion` multi-select answers no longer shred option labels that contain a comma. When the question's option list is known, the parser greedy-matches the longest labels first, so labels like `enhancement, frontend, ux` survive intact instead of being mis-attributed to the `custom` bucket; unmatched fragments are still treated as user-typed custom values.
 - `AskUserQuestion` cards now render the raw tool output when the call errored, was rejected, or otherwise produced no parseable answers — previously the expanded card showed only an `error` / `rejected` tag with no body, hiding the actual error text or rejection narrative.
+- Session Detail timeline: selecting text inside an expanded block no longer collapses it when you release the mouse. Drag-select-then-collapse fix now applies uniformly to thinking, assistant, user, system, and skill-expansion cards, and Copy buttons surface a "Failed" state instead of silently doing nothing when the clipboard API rejects (e.g. on non-secure origins).
 
 ### Changed
 
 - Session Detail timeline: every expanded block — tool groups, system groups, and individual event panes — now has a consistent full-width "Collapse" button at its foot, replacing the small left-aligned text link. Write/Edit cards use the same full-width style for the "Show N more lines" expand control.
-
-### Fixed
-
-- Session Detail timeline: selecting text inside an expanded block no longer collapses it when you release the mouse. Drag-select-then-collapse fix now applies uniformly to thinking, assistant, user, system, and skill-expansion cards, and Copy buttons surface a "Failed" state instead of silently doing nothing when the clipboard API rejects (e.g. on non-secure origins).
 
 ## [0.4.0] - 2026-05-19
 
