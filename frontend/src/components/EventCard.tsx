@@ -7,6 +7,13 @@ import { CopyButton } from "./CopyButton";
 import { computeLineDiff, type DiffLine } from "../lib/diff";
 import { formatTokenMeta, formatTokenCount } from "../lib/format";
 import { hasNonEmptySelection } from "../lib/selection";
+import {
+  type AskQuestion,
+  type AskAnswerValue,
+  parseAskOutput,
+  normalizeAnswerValues,
+  formatAskQuestionForCopy,
+} from "../lib/ask-output";
 import { highlight } from "../lib/syntax";
 
 interface EventCardProps {
@@ -111,6 +118,13 @@ function getToolSummary(event: Event): string | null {
       return input.query ? String(input.query) : (input.tool_name ? String(input.tool_name) : null);
     case "WebFetch":
       return input.url ? truncate(String(input.url), 60) : null;
+    case "AskUserQuestion": {
+      const qs = Array.isArray(input.questions) ? input.questions : [];
+      const first = qs[0] && typeof qs[0] === "object" ? (qs[0] as Record<string, unknown>) : null;
+      const text = first && typeof first.question === "string" ? first.question : null;
+      if (!text) return null;
+      return qs.length > 1 ? `${truncate(text, 50)} (+${qs.length - 1})` : truncate(text, 60);
+    }
     default:
       return (input.file_path ? shortenPath(String(input.file_path)) : null)
         || (input.command ? truncate(String(input.command), 60) : null)
@@ -224,6 +238,7 @@ const TOOL_BADGE_CLASS: Record<string, string> = {
   Agent: "tool-agent",
   Grep: "tool-grep",
   Glob: "tool-glob",
+  AskUserQuestion: "tool-ask",
 };
 
 // Dot color per event type for the timeline rail
@@ -313,6 +328,14 @@ function isToolErrorEvent(event: Event): boolean {
 
 export function EventCard({ event, sessionStart, groupIndex, rationale }: EventCardProps) {
   const [expanded, setExpanded] = useState(false);
+  // Per-question L3 expansion for AskUserQuestion cards. Each question expands
+  // independently — multiple can be open at once. Unused for any other event type.
+  const [expandedQs, setExpandedQs] = useState<Set<number>>(new Set());
+  const toggleQ = (i: number) => setExpandedQs((prev) => {
+    const next = new Set(prev);
+    if (next.has(i)) next.delete(i); else next.add(i);
+    return next;
+  });
 
   // Toggle expand/collapse, but skip it when the user has a text selection —
   // otherwise the trailing `click` of a drag-select collapses the block and
@@ -614,6 +637,139 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
             `}
             ${expanded && hidden > 0 && collapseFooter}
           </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // AskUserQuestion — review-mode card. Three zoom levels:
+  //   L1: collapsed row (badge, N-questions chip, first question, duration)
+  //   L2: expanded card showing each question + its selected answer line(s)
+  //   L3: per-question expansion revealing the full options grid for that Q
+  // Renders only what the transcript records — no derived status pills, no
+  // editorial copy. Rejection / true-error metadata surfaces as a small tag.
+  if (event.event_type === "tool_call_start" && event.tool_name === "AskUserQuestion") {
+    const askInput = tryParseJson(event.input_data) ?? {};
+    const rawQuestions = Array.isArray(askInput.questions) ? askInput.questions : [];
+    const questions: AskQuestion[] = rawQuestions.filter(
+      (q): q is AskQuestion => !!q && typeof q === "object" && typeof (q as AskQuestion).question === "string",
+    );
+    const askOutput = parseAskOutput(event.output_data, questions);
+    const answers = askOutput?.answers ?? {};
+    const annotations = askOutput?.annotations ?? {};
+    const headerText = questions[0]?.question ?? "AskUserQuestion";
+
+    // Factual metadata — surfaced as small tags, not error styling.
+    const askMeta = parseMetadata(event);
+    const wasRejected = askMeta?.permission_status === "rejected";
+    const wasToolError = askMeta?.tool_error === true;
+
+    // Per-question selected/custom split. No status classification.
+    const perQ = questions.map((q) => {
+      const optList = Array.isArray(q.options) ? q.options : [];
+      const optionLabels = new Set(optList.map(o => o.label));
+      const rawAnswer = (answers as Record<string, AskAnswerValue>)[q.question];
+      const values = normalizeAnswerValues(rawAnswer).filter(v => v.length > 0);
+      const selectedFromOptions = values.filter(v => optionLabels.has(v));
+      const customValues = values.filter(v => !optionLabels.has(v));
+      const note = annotations[q.question]?.notes;
+      return { q, optList, selectedFromOptions, customValues, note };
+    });
+
+    return html`
+      <div class="tool-row-standalone ask-card"
+        onClick=${toggleExpand}
+      >
+        <div class="event-dot dot-tool"></div>
+        <div class="tool-row-content">
+          <div class="tool-row">
+            ${groupIndex != null && html`<span class="tg-item-badge">#${groupIndex}</span>`}
+            <span class=${"tool-badge " + toolBadgeClass}>AskUserQuestion</span>
+            ${questions.length > 1 && html`<span class="ask-questions-count">${questions.length} questions</span>`}
+            <span class="tool-name">${truncate(headerText, 80)}</span>
+            ${wasToolError && html`<span class="ask-meta-tag is-error">error</span>`}
+            ${!wasToolError && wasRejected && html`<span class="ask-meta-tag is-rejected">rejected</span>`}
+            <span class="tool-dur">${formatDuration(event.duration_ms)}</span>
+            <span class="tool-row-expand">${expanded ? "▾" : "›"}</span>
+          </div>
+          ${expanded && html`
+            <div class="event-detail ask-detail" onClick=${stopToggle}>
+              ${questions.length === 0 && html`
+                <div class="ask-empty">(no questions in input)</div>
+              `}
+              ${questions.length > 0 && html`
+                <div class="ask-card-expanded">
+                  ${perQ.map(({ q, optList, selectedFromOptions, customValues, note }, idx) => {
+                    const copyText = formatAskQuestionForCopy(q, selectedFromOptions, customValues, note);
+                    const showCounter = questions.length > 1;
+                    const qExpanded = expandedQs.has(idx);
+                    const hasOptions = optList.length > 0;
+                    return html`
+                      <div class="ask-q-block">
+                        <div class="ask-q-header"
+                          onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleQ(idx); }}
+                        >
+                          ${showCounter && html`<span class="ask-q-counter">Q${idx + 1}</span>`}
+                          <span class="ask-q-prompt">${q.question}</span>
+                          ${q.multiSelect === true && html`<span class="ask-q-multi">multi-select</span>`}
+                          <${CopyButton} text=${copyText} />
+                          ${hasOptions && html`<span class="ask-q-expand" aria-label=${qExpanded ? "Collapse options" : "Show options"}>${qExpanded ? "▾" : "▸"}</span>`}
+                        </div>
+
+                        ${(selectedFromOptions.length > 0 || customValues.length > 0) && html`
+                          <div class="ask-q-answers">
+                            ${selectedFromOptions.map((v) => html`
+                              <div class="ask-q-answer-line">
+                                <span class="arrow">→</span>${v}
+                              </div>
+                            `)}
+                            ${customValues.map((v) => html`
+                              <div class="ask-q-answer-line is-custom">
+                                <span class="arrow">→</span>${v}<span class="ask-custom-tag">custom</span>
+                              </div>
+                            `)}
+                          </div>
+                        `}
+
+                        ${qExpanded && hasOptions && html`
+                          <div class="ask-options-grid">
+                            ${optList.map((opt) => {
+                              const isSelected = selectedFromOptions.includes(opt.label);
+                              return html`
+                                <div class=${"ask-option " + (isSelected ? "is-selected" : "is-muted")}>
+                                  <div class="ask-option-key">${opt.label}</div>
+                                  ${opt.description
+                                    ? html`<div class="ask-option-rationale">${opt.description}</div>`
+                                    : html`<div class="ask-option-rationale"></div>`
+                                  }
+                                  ${isSelected && html`
+                                    <svg class="ask-option-check" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                      <circle cx="12" cy="12" r="10"/>
+                                      <path d="m8 12 3 3 5-6" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                  `}
+                                </div>
+                              `;
+                            })}
+                          </div>
+                        `}
+
+                        ${note && html`<div class="ask-note">Note: ${note}</div>`}
+                      </div>
+                    `;
+                  })}
+                </div>
+              `}
+              ${(wasToolError || wasRejected || (questions.length > 0 && !askOutput))
+                && (event.output_data || event.output_preview) && html`
+                <div class="detail-section">
+                  ${sectionHeader("Output", event.output_data || event.output_preview)}
+                  ${StructuredContent({ text: event.output_data || event.output_preview })}
+                </div>
+              `}
+              ${collapseFooter}
+            </div>
+          `}
         </div>
       </div>
     `;

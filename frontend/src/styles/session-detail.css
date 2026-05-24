@@ -1256,15 +1256,18 @@
 /* Copy button stays out of the way until the section (or card) is hovered;
    keyboard focus also reveals it so it remains reachable without a mouse. */
 .detail-section-header .copy-btn,
-.event-card-mutating-header .copy-btn {
+.event-card-mutating-header .copy-btn,
+.ask-q-header .copy-btn {
   opacity: 0;
   transition: opacity 0.12s, background 0.15s, color 0.15s;
 }
 
 .detail-section:hover .detail-section-header .copy-btn,
 .event-card-mutating-header:hover .copy-btn,
+.ask-q-block:hover .ask-q-header .copy-btn,
 .detail-section-header .copy-btn:focus-visible,
-.event-card-mutating-header .copy-btn:focus-visible {
+.event-card-mutating-header .copy-btn:focus-visible,
+.ask-q-header .copy-btn:focus-visible {
   opacity: 1;
 }
 
@@ -2512,6 +2515,219 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   flex-shrink: 0;
+}
+
+/* ── AskUserQuestion card ─────────────────────────────────────────── */
+
+/* "N questions" chip in the collapsed row — sits next to the badge. */
+.ask-questions-count {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+
+/* Small factual metadata tag (rejected / error) sourced directly from
+   metadata.permission_status / metadata.tool_error. No derived narrative. */
+.ask-meta-tag {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  color: var(--text3);
+  background: var(--bg-muted);
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+.ask-meta-tag.is-rejected { color: var(--orange); background: var(--orange-bg); }
+.ask-meta-tag.is-error    { color: var(--red);    background: var(--red-bg); }
+
+.ask-card .ask-detail {
+  padding: 0;
+}
+.ask-card .ask-detail .ask-empty {
+  font-size: 12px;
+  color: var(--text3);
+  font-style: italic;
+  padding: 10px 14px;
+}
+
+/* Expanded body sits on a white card surface over the cream timeline, with
+   an accent left-rail to mark it as the AskUserQuestion's own pane. */
+.ask-card-expanded {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 14px 8px 16px;
+  background: var(--bg-card);
+  border-radius: var(--r-sm);
+}
+.ask-card-expanded::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  opacity: 0.7;
+}
+
+.ask-q-block {
+  padding: 12px 0;
+}
+.ask-q-block + .ask-q-block {
+  border-top: 0.5px dashed var(--border);
+}
+
+.ask-q-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  cursor: pointer;
+}
+.ask-q-header:hover .ask-q-expand { color: var(--text2); }
+.ask-q-counter {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-muted);
+  color: var(--text3);
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+.ask-q-prompt {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.45;
+  flex: 1;
+  min-width: 0;
+}
+.ask-q-multi {
+  font-size: 10px;
+  font-weight: 400;
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  background: var(--bg-muted);
+  color: var(--text3);
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+.ask-q-header .copy-btn { flex-shrink: 0; }
+.ask-q-expand {
+  color: var(--text3);
+  font-size: 11px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* L2 — selected & custom answer lines under the question header. Plain
+   monospace, no rail/tint/check (those are reserved for L3 options grid). */
+.ask-q-answers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding-left: 24px;
+}
+.ask-q-answer-line {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--text);
+  line-height: 1.45;
+}
+.ask-q-answer-line .arrow {
+  color: var(--text3);
+  margin-right: 6px;
+}
+.ask-q-answer-line.is-custom .ask-custom-tag {
+  font-family: var(--sans);
+  font-size: 10px;
+  color: var(--text3);
+  margin-left: 8px;
+  font-style: italic;
+}
+
+/* L3 — options grid: two-column key | rationale. Selected option gets the
+   accent rail + tint + check; alternatives mute to text3. */
+.ask-options-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+.ask-option {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr auto;
+  gap: 14px;
+  padding: 8px 10px 8px 12px;
+  border-radius: var(--r-sm);
+  align-items: start;
+  position: relative;
+}
+.ask-option-key {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+.ask-option-rationale {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text2);
+  min-width: 0;
+}
+.ask-option-check {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+  flex-shrink: 0;
+  justify-self: end;
+  margin-top: 2px;
+}
+
+.ask-option.is-selected {
+  background: var(--accent-tint);
+}
+.ask-option.is-selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.ask-option.is-selected .ask-option-key {
+  color: var(--accent);
+  font-weight: 600;
+}
+.ask-option.is-selected .ask-option-rationale {
+  color: var(--accent);
+}
+
+.ask-option.is-muted .ask-option-key,
+.ask-option.is-muted .ask-option-rationale {
+  color: var(--text3);
+}
+
+/* Per-question note (legacy `annotations.notes`) */
+.ask-note {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text2);
+  padding: 2px 4px 2px 8px;
+  border-left: 2px solid var(--border);
 }
 
 /* Gap 5 & 6: Structured tool detail panel */

@@ -389,6 +389,7 @@ nav a.active {
 .tool-badge.edit, .tool-badge.tool-edit { background: rgba(5, 150, 105, 0.08); color: #059669; }
 .tool-badge.grep, .tool-badge.tool-grep { background: rgba(79, 70, 229, 0.08); color: #4f46e5; }
 .tool-badge.glob, .tool-badge.tool-glob { background: rgba(14, 116, 144, 0.08); color: #0e7490; }
+.tool-badge.ask, .tool-badge.tool-ask { background: var(--purple-bg); color: var(--purple); }
 
 /* Signal badges */
 .signal-badge {

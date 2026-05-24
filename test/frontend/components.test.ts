@@ -332,6 +332,115 @@ describe('EventCard Write/Edit cards', () => {
   });
 });
 
+// ─── EventCard: AskUserQuestion card ────────────────────
+
+// SSR-only coverage of the collapsed L1 row. The L2 expanded body (per-question
+// answers, multi-select tag, custom-value tag, options grid, raw-output
+// fallback, `annotations.notes`) lives behind useState(expanded === true) and
+// needs jsdom + fireEvent to drive the toggle — not in this repo today. Same
+// limitation as copy-button.test.ts; revisit when jsdom lands.
+
+describe('EventCard AskUserQuestion card', () => {
+  function makeAsk(
+    questions: unknown[],
+    overrides: Partial<SessionEvent> = {},
+  ): SessionEvent {
+    return {
+      id: 1, session_id: 'sess-1',
+      event_type: 'tool_call_start', tool_name: 'AskUserQuestion',
+      timestamp: '2026-01-15T10:05:00Z',
+      context_pct: 30, duration_ms: 1200,
+      input_preview: null, output_preview: null,
+      thinking_summary: null, thinking_text: null,
+      input_tokens: null, output_tokens: null, cache_read_tokens: null, cache_write_tokens: null,
+      agent_id: null,
+      input_data: JSON.stringify({ questions }),
+      output_data: null,
+      ...overrides,
+    } as SessionEvent;
+  }
+
+  it('renders the ask-card row with AskUserQuestion badge and tool-ask class', () => {
+    const out = render(html`<${EventCard} event=${makeAsk([{ question: 'Library?' }])} />`);
+    assert.ok(out.includes('ask-card'), 'should apply ask-card class to the row');
+    assert.ok(out.includes('tool-ask'), 'should apply the tool-ask badge class');
+    assert.ok(out.includes('AskUserQuestion'), 'badge text should be AskUserQuestion');
+  });
+
+  it('shows the first question text in the collapsed row', () => {
+    const evt = makeAsk([{ question: 'Which library should we use?' }]);
+    const out = render(html`<${EventCard} event=${evt} />`);
+    assert.ok(out.includes('Which library should we use?'), 'first question text should appear in L1');
+  });
+
+  it('shows the "N questions" chip when there is more than one question', () => {
+    const evt = makeAsk([
+      { question: 'Q1?' }, { question: 'Q2?' }, { question: 'Q3?' },
+    ]);
+    const out = render(html`<${EventCard} event=${evt} />`);
+    assert.ok(out.includes('ask-questions-count'), 'multi-question chip should render');
+    assert.ok(out.includes('3 questions'), 'chip should report the question count');
+  });
+
+  it('omits the "N questions" chip for a single question', () => {
+    const out = render(html`<${EventCard} event=${makeAsk([{ question: 'Just one?' }])} />`);
+    assert.ok(!out.includes('ask-questions-count'), 'no chip when there is only one question');
+  });
+
+  it('surfaces the is-rejected meta tag when metadata.permission_status === "rejected"', () => {
+    const evt = makeAsk([{ question: 'Q?' }], {
+      metadata: JSON.stringify({ permission_status: 'rejected' }),
+    } as Partial<SessionEvent>);
+    const out = render(html`<${EventCard} event=${evt} />`);
+    assert.ok(out.includes('ask-meta-tag is-rejected'), 'rejected tag should render');
+    assert.ok(!out.includes('ask-meta-tag is-error'), 'error tag should NOT render for plain rejection');
+  });
+
+  it('surfaces the is-error meta tag when metadata.tool_error is true', () => {
+    const evt = makeAsk([{ question: 'Q?' }], {
+      metadata: JSON.stringify({ tool_error: true }),
+    } as Partial<SessionEvent>);
+    const out = render(html`<${EventCard} event=${evt} />`);
+    assert.ok(out.includes('ask-meta-tag is-error'), 'error tag should render');
+  });
+
+  it('error tag takes precedence over rejected tag when both flags are set', () => {
+    const evt = makeAsk([{ question: 'Q?' }], {
+      metadata: JSON.stringify({ tool_error: true, permission_status: 'rejected' }),
+    } as Partial<SessionEvent>);
+    const out = render(html`<${EventCard} event=${evt} />`);
+    assert.ok(out.includes('ask-meta-tag is-error'), 'error tag should render');
+    assert.ok(!out.includes('ask-meta-tag is-rejected'), 'rejected tag should be suppressed when tool_error is also set');
+  });
+
+  it('falls back to "AskUserQuestion" as the row title when questions array is empty', () => {
+    const out = render(html`<${EventCard} event=${makeAsk([])} />`);
+    // The badge text and the fallback header text are both "AskUserQuestion",
+    // so we expect at least two occurrences in the output.
+    const count = (out.match(/AskUserQuestion/g) ?? []).length;
+    assert.ok(count >= 2, 'badge + header fallback should both render the literal AskUserQuestion');
+  });
+
+  it('truncates a long single-question header to 60 chars + ellipsis', () => {
+    const longQ = 'A'.repeat(120) + '?';
+    const out = render(html`<${EventCard} event=${makeAsk([{ question: longQ }])} />`);
+    assert.ok(!out.includes('A'.repeat(120)), 'long header should be truncated');
+    assert.ok(out.includes('A'.repeat(60) + '…'), 'should truncate to 60 chars and append the ellipsis');
+  });
+
+  it('renders the right-arrow expand chevron in the collapsed initial render', () => {
+    const out = render(html`<${EventCard} event=${makeAsk([{ question: 'Q?' }])} />`);
+    assert.ok(out.includes('tool-row-expand'), 'expand chevron container should render');
+    assert.ok(out.includes('›'), 'should show right arrow in collapsed state');
+  });
+
+  it('renders a duration when duration_ms is set', () => {
+    const evt = makeAsk([{ question: 'Q?' }], { duration_ms: 3400 });
+    const out = render(html`<${EventCard} event=${evt} />`);
+    assert.ok(out.includes('3.4s'), 'should format duration on the ask-card row');
+  });
+});
+
 // ─── AgentTree / AgentFlow ──────────────────────────────
 
 describe('AgentTree', () => {
