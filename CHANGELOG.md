@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Install no longer fails on Node 24. Bumped `better-sqlite3` to v12, which ships prebuilt binaries for Node 24's ABI, so `npx @pigorv/claude-monitor` and `npm install -g` work on machines without a C++ toolchain (Python / VS Build Tools on Windows, Xcode CLT on macOS).
 - Session Detail timeline: selecting text inside an expanded block no longer collapses it when you release the mouse. Drag-select-then-collapse fix now applies uniformly to thinking, assistant, user, system, and skill-expansion cards, and Copy buttons surface a "Failed" state instead of silently doing nothing when the clipboard API rejects (e.g. on non-secure origins).
 
 ### Changed
