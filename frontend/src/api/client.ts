@@ -1,4 +1,4 @@
-import type { SessionListResponse, SessionDetailResponse, Event, ProjectInfo } from "../../../src/shared/types";
+import type { SessionListResponse, SessionDetailResponse, Event, ProjectInfo, HealthResponse } from "../../../src/shared/types";
 
 export interface EventsResponse {
   events: Event[];
@@ -56,12 +56,15 @@ export function fetchProjects(): Promise<{ projects: ProjectInfo[] }> {
   return fetchApi<{ projects: ProjectInfo[] }>("/api/projects");
 }
 
-export type TerminalPreference = "auto" | "terminal" | "iterm2";
+export type DarwinTerminalApp = "terminal" | "iterm2";
+export type Win32TerminalApp = "wt" | "powershell" | "cmd";
+export type TerminalApp = DarwinTerminalApp | Win32TerminalApp;
+export type TerminalPreference = "auto" | TerminalApp;
 
 export async function openTerminal(
   sessionId: string,
   terminal: TerminalPreference,
-): Promise<{ success: true; terminal: "terminal" | "iterm2" }> {
+): Promise<{ success: true; terminal: TerminalApp }> {
   const res = await fetch(
     `/api/sessions/${encodeURIComponent(sessionId)}/open-terminal`,
     {
@@ -75,4 +78,15 @@ export async function openTerminal(
     throw new Error((body as { message?: string }).message || `API ${res.status}`);
   }
   return res.json();
+}
+
+let _platform: Promise<string> | null = null;
+
+export function getPlatform(): Promise<string> {
+  if (!_platform) {
+    _platform = fetchApi<HealthResponse>("/api/health")
+      .then((h) => h.platform ?? "unknown")
+      .catch(() => "unknown");
+  }
+  return _platform;
 }

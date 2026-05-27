@@ -11,6 +11,7 @@ health.get('/api/health', (c) => {
     status: 'ok',
     version: VERSION,
     node_version: process.version,
+    platform: process.platform,
     db_path: getDbPath(),
     db_engine: 'better-sqlite3 (WAL)',
     server_port: Number(process.env.PORT || DEFAULT_CONFIG.defaultPort),

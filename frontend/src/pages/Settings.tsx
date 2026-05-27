@@ -22,11 +22,56 @@ function formatDate(iso: string | null | undefined): string {
   });
 }
 
-type TerminalPref = "auto" | "terminal" | "iterm2";
+type TerminalPref = "auto" | "terminal" | "iterm2" | "wt" | "powershell" | "cmd";
+
+const VALID_TERMINAL_PREFS: ReadonlySet<TerminalPref> = new Set<TerminalPref>([
+  "auto",
+  "terminal",
+  "iterm2",
+  "wt",
+  "powershell",
+  "cmd",
+]);
 
 function readTerminalPref(): TerminalPref {
   const v = localStorage.getItem("claude-monitor-terminal");
-  return v === "terminal" || v === "iterm2" || v === "auto" ? v : "auto";
+  return v != null && VALID_TERMINAL_PREFS.has(v as TerminalPref)
+    ? (v as TerminalPref)
+    : "auto";
+}
+
+interface TerminalOption {
+  value: TerminalPref;
+  label: string;
+}
+
+function optionsForPlatform(platform: string | undefined): TerminalOption[] {
+  if (platform === "darwin") {
+    return [
+      { value: "auto", label: "Auto-detect" },
+      { value: "terminal", label: "Terminal.app" },
+      { value: "iterm2", label: "iTerm2" },
+    ];
+  }
+  if (platform === "win32") {
+    return [
+      { value: "auto", label: "Auto-detect" },
+      { value: "wt", label: "Windows Terminal" },
+      { value: "powershell", label: "PowerShell" },
+      { value: "cmd", label: "cmd.exe" },
+    ];
+  }
+  return [{ value: "auto", label: "Auto-detect" }];
+}
+
+function hintForPlatform(platform: string | undefined): string {
+  if (platform === "darwin") {
+    return 'Used by the "Open in Terminal" button on session pages. Auto-detect checks $TERM_PROGRAM, falls back to iTerm2 if installed, otherwise Terminal.app.';
+  }
+  if (platform === "win32") {
+    return 'Used by the "Open in Terminal" button on session pages. Auto-detect prefers Windows Terminal (wt.exe) if installed, then PowerShell, then cmd.exe.';
+  }
+  return 'The "Open in Terminal" button isn\'t supported on this platform yet.';
 }
 
 export function Settings() {
@@ -200,28 +245,36 @@ export function Settings() {
         </section>
 
         <!-- Terminal card -->
-        <section class="settings-card">
-          <h3>Terminal</h3>
-          <div class="settings-rows">
-            <div class="settings-row">
-              <span class="settings-label">Preferred app</span>
-              <select
-                class="terminal-select"
-                value=${terminalPref}
-                onChange=${handleTerminalChange}
-              >
-                <option value="auto">Auto-detect</option>
-                <option value="terminal">Terminal.app</option>
-                <option value="iterm2">iTerm2</option>
-              </select>
-            </div>
-          </div>
-          <p class="settings-hint">
-            Used by the "Open in Terminal" button on session pages. Auto-detect checks
-            <code>$TERM_PROGRAM</code>, falls back to iTerm2 if installed, otherwise Terminal.app.
-            macOS only.
-          </p>
-        </section>
+        ${(() => {
+          const options = optionsForPlatform(data.platform);
+          // Show 'auto' in the dropdown if the stored pref doesn't match the
+          // current platform — don't overwrite localStorage so a pref from
+          // another machine survives a round-trip.
+          const displayPref = options.some((o) => o.value === terminalPref)
+            ? terminalPref
+            : "auto";
+          return html`
+            <section class="settings-card">
+              <h3>Terminal</h3>
+              <div class="settings-rows">
+                <div class="settings-row">
+                  <span class="settings-label">Preferred app</span>
+                  <select
+                    class="terminal-select"
+                    value=${displayPref}
+                    onChange=${handleTerminalChange}
+                    disabled=${options.length <= 1}
+                  >
+                    ${options.map(
+                      (o) => html`<option value=${o.value}>${o.label}</option>`,
+                    )}
+                  </select>
+                </div>
+              </div>
+              <p class="settings-hint">${hintForPlatform(data.platform)}</p>
+            </section>
+          `;
+        })()}
 
         <!-- Quick Actions card -->
         <section class="settings-card">
