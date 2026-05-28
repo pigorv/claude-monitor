@@ -36,7 +36,9 @@
   },
   "scripts": {
     "build": "tsup && vite build",
+    "clean": "rm -rf dist",
     "dev": "tsup --watch",
+    "dev:server": "node --watch dist/index.js start --no-open",
     "dev:frontend": "vite dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

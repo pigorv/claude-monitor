@@ -124,9 +124,10 @@ That's everything. claude-monitor never writes outside `~/.claude-monitor/`, and
 git clone https://github.com/pigorv/claude-monitor.git
 cd claude-monitor
 npm install
-npm run build          # Build CLI + frontend
-npm run dev            # Start server in dev mode
-npm run dev:frontend   # Start Vite dev server
+npm run build          # Build CLI + frontend (one-time, required before dev:server)
+npm run dev            # Rebuild CLI on change (tsup --watch)
+npm run dev:server     # Run the rebuilt server on :4173 (node --watch)
+npm run dev:frontend   # Vite dev server on :5173 with HMR (proxies /api → :4173)
 npm test               # Run tests
 npm run typecheck      # TypeScript type checking
 ```

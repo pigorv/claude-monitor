@@ -27,11 +27,14 @@ test/           # Tests and fixtures
 
 | Command | Purpose |
 |---------|---------|
-| `npm run build` | Build CLI + frontend |
-| `npm run dev` | Start server in dev mode with auto-reload |
-| `npm run dev:frontend` | Start Vite dev server for frontend |
+| `npm run build` | Build CLI + frontend (one-time, required before `dev:server`) |
+| `npm run dev` | Rebuild CLI on change (`tsup --watch`) — does not run a server |
+| `npm run dev:server` | Run the rebuilt server on `:4173` (`node --watch`, restarts on `dist/index.js` change) |
+| `npm run dev:frontend` | Vite dev server on `:5173` with HMR (proxies `/api` → `:4173`; requires `dev:server`) |
 | `npm test` | Run test suite |
 | `npm run typecheck` | TypeScript type checking |
+
+For backend-only iteration, run `dev` + `dev:server` and open `http://localhost:4173`. Add `dev:frontend` and switch to `:5173` only when you want frontend HMR.
 
 ## Key Conventions
 

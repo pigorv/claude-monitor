@@ -21,7 +21,8 @@ Local observability dashboard for Claude Code sessions. Imports JSONL transcript
 ```bash
 npm run build          # Build CLI (tsup) + frontend (Vite)
 npm run dev            # tsup --watch (rebuilds CLI on change)
-npm run dev:frontend   # Vite dev server (proxies /api → localhost:4173)
+npm run dev:server     # node --watch dist/index.js start --no-open (API on :4173)
+npm run dev:frontend   # Vite dev server on :5173 (proxies /api → :4173)
 npm test               # vitest run
 npm run typecheck      # tsc --noEmit
 ```
@@ -30,6 +31,15 @@ Run a single test file:
 ```bash
 npx vitest run test/ingestion/thinking-extractor.test.ts
 ```
+
+### Local dev loop
+
+The server (`claude-monitor start`) serves both the API and the prebuilt SPA on `:4173` — so after a one-time `npm run build`, `node dist/index.js start` (or `npm run dev:server`) is enough on its own.
+
+For iterative work pick the scripts that match what you're editing:
+
+- Editing **CLI / server / ingestion** → `npm run dev` (tsup rebuilds `dist/index.js`) + `npm run dev:server` (node `--watch` restarts on rebuild). Open `http://localhost:4173`.
+- Editing **frontend** and you want HMR → also run `npm run dev:frontend` (Vite on `:5173`, proxies `/api` → `:4173`). Open `http://localhost:5173`. Running `dev:frontend` without `dev:server` will 500 on every `/api` call.
 
 ## Architecture
 
@@ -86,4 +96,4 @@ When making bug fixes or adding features, add a bullet under the `## [Unreleased
 - All timestamps are ISO 8601 strings
 - Frontend styles are plain CSS with custom properties (dark theme)
 - `better-sqlite3` is marked external in tsup (native module)
-- Vite dev server proxies `/api` to `localhost:4173` — run both `npm run dev` and `npm run dev:frontend` for full local development
+- Vite dev server (`dev:frontend`) proxies `/api` to `localhost:4173` and is only needed for frontend HMR; the Hono server (`dev:server`) already serves the prebuilt SPA on `:4173`
