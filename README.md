@@ -85,6 +85,31 @@ Options for `start`: `--port, -p <number>`, `--no-open`, `--verbose`
 Options for `import`: `--force` (re-import existing sessions)
 <!-- cli:end -->
 
+## Uninstall
+
+claude-monitor stores all its state in a single directory and registers no system services, daemons, or login items. To remove it completely:
+
+**1. Stop any running instance.** If `claude-monitor start` is running in a terminal, press `Ctrl+C`. To find a stray background process:
+
+```bash
+pgrep -fa claude-monitor
+# then: kill <pid>
+```
+
+**2. Delete the data directory.** This removes the SQLite database and its WAL/SHM sidecar files — every imported session, event, and analysis result:
+
+```bash
+rm -rf ~/.claude-monitor
+```
+
+**3. Uninstall the package** (skip this step if you only ever ran it via `npx`):
+
+```bash
+npm uninstall -g @pigorv/claude-monitor
+```
+
+That's everything. claude-monitor never writes outside `~/.claude-monitor/`, and **`~/.claude/projects/` belongs to Claude Code itself — leave it alone unless you also want to delete your transcripts.**
+
 ## Built With
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
