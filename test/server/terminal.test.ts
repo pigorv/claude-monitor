@@ -276,19 +276,46 @@ describe('terminal route helpers', () => {
     });
 
     it('rejects cmd paths containing a double quote', () => {
-      assert.throws(() => buildWindowsLaunch('cmd', 'C:\\bad"path', 'abc'));
+      assert.throws(
+        () => buildWindowsLaunch('cmd', 'C:\\bad"path', 'abc'),
+        /Unsupported character in project path for cmd\.exe/,
+      );
     });
 
     it('rejects cmd paths containing % or ! or newlines', () => {
-      assert.throws(() => buildWindowsLaunch('cmd', 'C:\\%PATH%', 'abc'));
-      assert.throws(() => buildWindowsLaunch('cmd', 'C:\\bang!', 'abc'));
-      assert.throws(() => buildWindowsLaunch('cmd', 'C:\\new\nline', 'abc'));
+      const re = /Unsupported character in project path for cmd\.exe/;
+      assert.throws(() => buildWindowsLaunch('cmd', 'C:\\%PATH%', 'abc'), re);
+      assert.throws(() => buildWindowsLaunch('cmd', 'C:\\bang!', 'abc'), re);
+      assert.throws(() => buildWindowsLaunch('cmd', 'C:\\new\nline', 'abc'), re);
+    });
+
+    it('rejects wt paths containing a semicolon (wt subcommand separator)', () => {
+      assert.throws(
+        () => buildWindowsLaunch('wt', 'C:\\a;calc', 'abc'),
+        /Unsupported character in project path for Windows Terminal/,
+      );
+    });
+
+    it('powershell accepts a semicolon in the path (safe inside -LiteralPath)', () => {
+      const spec = buildWindowsLaunch('powershell', 'C:\\a;b', 'abc');
+      assert.equal(spec.exe, 'powershell.exe');
+      assert.deepEqual(spec.args, [
+        '-NoExit',
+        '-Command',
+        `Set-Location -LiteralPath 'C:\\a;b'; claude --resume abc`,
+      ]);
     });
 
     it('rejects session ids with shell metacharacters', () => {
-      assert.throws(() => buildWindowsLaunch('wt', 'C:\\proj', '; rm -rf /'));
-      assert.throws(() => buildWindowsLaunch('powershell', 'C:\\proj', 'id with space'));
-      assert.throws(() => buildWindowsLaunch('cmd', 'C:\\proj', ''));
+      assert.throws(
+        () => buildWindowsLaunch('wt', 'C:\\proj', '; rm -rf /'),
+        /Invalid session id/,
+      );
+      assert.throws(
+        () => buildWindowsLaunch('powershell', 'C:\\proj', 'id with space'),
+        /Invalid session id/,
+      );
+      assert.throws(() => buildWindowsLaunch('cmd', 'C:\\proj', ''), /Invalid session id/);
     });
   });
 });

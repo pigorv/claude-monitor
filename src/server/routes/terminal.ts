@@ -129,6 +129,18 @@ function cmdQuote(value: string): string {
   return `"${value}"`;
 }
 
+// wt.exe re-tokenizes its own command line and treats ';' as a subcommand
+// separator, so a path containing ';' (a legal Windows directory char) would
+// inject a second wt subcommand. Reject it rather than try to escape — wt has
+// no documented escape for ';' in a -d argument. '"' can't occur in a real
+// Windows path (reserved char) but is rejected defensively, as are control
+// chars that could split the command line.
+function assertWtSafePath(value: string): void {
+  if (/[;"\r\n]/.test(value)) {
+    throw new Error('Unsupported character in project path for Windows Terminal');
+  }
+}
+
 export interface WindowsLaunchSpec {
   exe: string;
   args: string[];
@@ -146,7 +158,9 @@ export function buildWindowsLaunch(
   switch (app) {
     case 'wt':
       // -d takes the cwd as its own argv element; only the resume command
-      // reaches PowerShell, and sessionId is already char-restricted.
+      // reaches PowerShell, and sessionId is already char-restricted. wt still
+      // re-tokenizes its command line, so the path is guarded against ';'.
+      assertWtSafePath(projectPath);
       return {
         exe: 'wt.exe',
         args: ['-d', projectPath, 'powershell.exe', '-NoExit', '-Command', resume],

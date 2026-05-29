@@ -84,9 +84,12 @@ let _platform: Promise<string> | null = null;
 
 export function getPlatform(): Promise<string> {
   if (!_platform) {
-    _platform = fetchApi<HealthResponse>("/api/health")
-      .then((h) => h.platform ?? "unknown")
-      .catch(() => "unknown");
+    _platform = fetchApi<HealthResponse>("/api/health").then((h) => h.platform ?? "unknown");
   }
-  return _platform;
+  return _platform.catch(() => {
+    // Don't cache a transient failure — clear it so a later call retries
+    // instead of leaving the button disabled until a full page reload.
+    _platform = null;
+    return "unknown";
+  });
 }
