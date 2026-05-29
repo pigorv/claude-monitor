@@ -3,7 +3,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import { getSession } from '../../db/queries/sessions.js';
 import * as logger from '../../shared/logger.js';
 
-export type TerminalApp = 'terminal' | 'iterm2';
+export type DarwinTerminalApp = 'terminal' | 'iterm2';
+export type Win32TerminalApp = 'wt' | 'powershell' | 'cmd';
+export type TerminalApp = DarwinTerminalApp | Win32TerminalApp;
 export type TerminalPreference = 'auto' | TerminalApp;
 
 const SESSION_ID_RE = /^[A-Za-z0-9_-]+$/;
@@ -35,17 +37,17 @@ const ITERM_APPLESCRIPT = `on run argv
   end tell
 end run`;
 
-export function buildAppleScript(app: TerminalApp): string {
+export function buildAppleScript(app: DarwinTerminalApp): string {
   return app === 'iterm2' ? ITERM_APPLESCRIPT : TERMINAL_APPLESCRIPT;
 }
 
-export interface ResolveTerminalInput {
+export interface ResolveDarwinInput {
   pref: TerminalPreference;
   env: NodeJS.ProcessEnv;
   isItermInstalled: () => boolean;
 }
 
-export function resolveTerminal(input: ResolveTerminalInput): TerminalApp {
+export function resolveDarwinTerminal(input: ResolveDarwinInput): DarwinTerminalApp {
   if (input.pref === 'iterm2' || input.pref === 'terminal') {
     return input.pref;
   }
@@ -54,6 +56,23 @@ export function resolveTerminal(input: ResolveTerminalInput): TerminalApp {
   if (tp === 'Apple_Terminal') return 'terminal';
   if (input.isItermInstalled()) return 'iterm2';
   return 'terminal';
+}
+
+export interface ResolveWin32Input {
+  pref: TerminalPreference;
+  env: NodeJS.ProcessEnv;
+  isWtInstalled: () => boolean;
+}
+
+export function resolveWin32Terminal(input: ResolveWin32Input): Win32TerminalApp {
+  if (input.pref === 'wt' || input.pref === 'powershell' || input.pref === 'cmd') {
+    return input.pref;
+  }
+  // Darwin-only prefs fall through to auto on win32.
+  if (input.env.WT_SESSION) return 'wt';
+  if (input.isWtInstalled()) return 'wt';
+  if (input.env.PSModulePath) return 'powershell';
+  return 'cmd';
 }
 
 function probeItermInstalled(): boolean {
@@ -68,9 +87,102 @@ function probeItermInstalled(): boolean {
   }
 }
 
+function probeWtInstalled(): boolean {
+  try {
+    const res = spawnSync('where.exe', ['wt.exe'], {
+      encoding: 'utf8',
+      timeout: 2000,
+    });
+    return res.status === 0;
+  } catch {
+    return false;
+  }
+}
+
 function parseTerminalPreference(value: unknown): TerminalPreference {
-  if (value === 'iterm2' || value === 'terminal' || value === 'auto') return value;
+  if (
+    value === 'auto' ||
+    value === 'terminal' ||
+    value === 'iterm2' ||
+    value === 'wt' ||
+    value === 'powershell' ||
+    value === 'cmd'
+  ) {
+    return value;
+  }
   return 'auto';
+}
+
+// PowerShell single-quoted string: wrap in '…', double any embedded '.
+function psSingleQuote(value: string): string {
+  return `'${value.replace(/'/g, `''`)}'`;
+}
+
+// cmd.exe has no general escape mechanism inside "…" strings. We wrap the path
+// in double quotes and refuse the (rare) characters that would let the path
+// break out of the quoted context or trigger delayed-expansion / variable
+// expansion. Backslash-escaping would not work — cmd doesn't honour it.
+function cmdQuote(value: string): string {
+  if (/["%!\r\n]/.test(value)) {
+    throw new Error('Unsupported character in project path for cmd.exe');
+  }
+  return `"${value}"`;
+}
+
+// wt.exe re-tokenizes its own command line and treats ';' as a subcommand
+// separator, so a path containing ';' (a legal Windows directory char) would
+// inject a second wt subcommand. Reject it rather than try to escape — wt has
+// no documented escape for ';' in a -d argument. '"' can't occur in a real
+// Windows path (reserved char) but is rejected defensively, as are control
+// chars that could split the command line.
+function assertWtSafePath(value: string): void {
+  if (/[;"\r\n]/.test(value)) {
+    throw new Error('Unsupported character in project path for Windows Terminal');
+  }
+}
+
+export interface WindowsLaunchSpec {
+  exe: string;
+  args: string[];
+}
+
+export function buildWindowsLaunch(
+  app: Win32TerminalApp,
+  projectPath: string,
+  sessionId: string,
+): WindowsLaunchSpec {
+  if (!SESSION_ID_RE.test(sessionId)) {
+    throw new Error('Invalid session id');
+  }
+  const resume = `claude --resume ${sessionId}`;
+  switch (app) {
+    case 'wt':
+      // -d takes the cwd as its own argv element; only the resume command
+      // reaches PowerShell, and sessionId is already char-restricted. wt still
+      // re-tokenizes its command line, so the path is guarded against ';'.
+      assertWtSafePath(projectPath);
+      return {
+        exe: 'wt.exe',
+        args: ['-d', projectPath, 'powershell.exe', '-NoExit', '-Command', resume],
+      };
+    case 'powershell':
+      // -LiteralPath neutralises [ ] * wildcards in the path. The whole
+      // -Command string is one argv element so cmd.exe quoting rules
+      // don't apply.
+      return {
+        exe: 'powershell.exe',
+        args: [
+          '-NoExit',
+          '-Command',
+          `Set-Location -LiteralPath ${psSingleQuote(projectPath)}; ${resume}`,
+        ],
+      };
+    case 'cmd':
+      return {
+        exe: 'cmd.exe',
+        args: ['/D', '/K', `cd /d ${cmdQuote(projectPath)} && ${resume}`],
+      };
+  }
 }
 
 export interface RunOsascriptResult {
@@ -96,22 +208,49 @@ function runOsascript(script: string, arg: string): Promise<RunOsascriptResult> 
   });
 }
 
+// Fire-and-forget launch: the terminal process is long-lived (it stays open
+// until the user quits it), so we resolve as soon as the OS confirms the
+// spawn, not when the child closes. A `'spawn'` event covers ENOENT / PATH
+// failures, which is the only failure mode worth surfacing here.
+function launchWindows(spec: WindowsLaunchSpec): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(spec.exe, spec.args, {
+      shell: false,
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false,
+    });
+    let settled = false;
+    child.once('error', (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
+    child.once('spawn', () => {
+      if (settled) return;
+      settled = true;
+      child.unref();
+      resolve();
+    });
+  });
+}
+
 const terminal = new Hono();
 
 terminal.post('/api/sessions/:id/open-terminal', async (c) => {
   // Request-shape checks first (apply regardless of platform) so callers
   // get accurate errors instead of having a bad id masked by a platform
-  // error on non-darwin systems.
+  // error.
   const id = c.req.param('id');
   if (!SESSION_ID_RE.test(id)) {
     return c.json({ error: 'invalid_session_id', message: 'Invalid session id.' }, 400);
   }
 
-  if (process.platform !== 'darwin') {
+  if (process.platform !== 'darwin' && process.platform !== 'win32') {
     return c.json(
       {
         error: 'unsupported_platform',
-        message: 'Opening a terminal is currently only supported on macOS.',
+        message: 'Opening a terminal is currently only supported on macOS and Windows.',
       },
       400,
     );
@@ -135,26 +274,67 @@ terminal.post('/api/sessions/:id/open-terminal', async (c) => {
     );
   }
 
-  const chosen = resolveTerminal({
+  if (process.platform === 'darwin') {
+    const chosen = resolveDarwinTerminal({
+      pref,
+      env: process.env,
+      isItermInstalled: probeItermInstalled,
+    });
+
+    const shellCmd = buildShellCommand(projectPath, id);
+    const script = buildAppleScript(chosen);
+
+    const result = await runOsascript(script, shellCmd);
+    if (result.code !== 0) {
+      logger.error('Failed to open terminal', {
+        session_id: id,
+        terminal: chosen,
+        stderr: result.stderr,
+      });
+      return c.json(
+        {
+          error: 'osascript_failed',
+          message: result.stderr.trim() || 'osascript exited with a nonzero status.',
+        },
+        500,
+      );
+    }
+
+    return c.json({ success: true, terminal: chosen });
+  }
+
+  // win32
+  const chosen = resolveWin32Terminal({
     pref,
     env: process.env,
-    isItermInstalled: probeItermInstalled,
+    isWtInstalled: probeWtInstalled,
   });
 
-  const shellCmd = buildShellCommand(projectPath, id);
-  const script = buildAppleScript(chosen);
+  let spec: WindowsLaunchSpec;
+  try {
+    spec = buildWindowsLaunch(chosen, projectPath, id);
+  } catch (err) {
+    return c.json(
+      {
+        error: 'invalid_project_path',
+        message: err instanceof Error ? err.message : 'Failed to build launch command.',
+      },
+      500,
+    );
+  }
 
-  const result = await runOsascript(script, shellCmd);
-  if (result.code !== 0) {
+  try {
+    await launchWindows(spec);
+  } catch (err) {
     logger.error('Failed to open terminal', {
       session_id: id,
       terminal: chosen,
-      stderr: result.stderr,
+      error: err instanceof Error ? err.message : String(err),
     });
     return c.json(
       {
-        error: 'osascript_failed',
-        message: result.stderr.trim() || 'osascript exited with a nonzero status.',
+        error: 'spawn_failed',
+        message: err instanceof Error ? err.message : 'Failed to spawn terminal.',
       },
       500,
     );

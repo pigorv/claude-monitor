@@ -9,17 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Windows support for the "Open in Terminal" button on session pages. Auto-detect prefers Windows Terminal (`wt.exe`), then PowerShell, then `cmd.exe`; each launches a new window at the session's project directory with `claude --resume <id>` already running. `/api/health` now reports `platform`.
 - README: new **Uninstall** section documenting the full cleanup procedure — stop running instances, delete `~/.claude-monitor/`, and (if installed globally) `npm uninstall -g @pigorv/claude-monitor`. Calls out that `~/.claude/projects/` belongs to Claude Code and should not be deleted.
 - Session Detail timeline: `AskUserQuestion` tool calls now render as a review-mode card with three zoom levels. **L1 — collapsed row:** purple `AskUserQuestion` badge, `N questions` chip, the first question (truncated), and a small uppercase `rejected` / `error` tag sourced from `metadata.permission_status` / `metadata.tool_error` when applicable. **L2 — expanded card** (white background, accent left-rail): each question listed as `Q1/Q2/…` (counter omitted when there's only one) with a `→ <selected option>` line below in monospace; questions with no recorded answer render silently. A small `custom` tag annotates lines where the user typed text instead of picking from offered options. **L3 — per-question expansion:** click any question's chevron to reveal the full options grid for that one question only (other questions stay in L2). Selected options carry the accent rail + tint + check icon; alternatives mute to gray. Each question header has a hover-revealed Copy button that puts a formatted `Q / Options / A` block on the clipboard. Multi-select questions show a `multi-select` tag. Renders only what the SDK actually wrote — no derived status pills, no editorial copy.
 - Session Detail timeline: each expanded message and tool body — and every Write/Edit card, including empty-content writes — has a hover-revealed Copy button that puts the full, untruncated text on the clipboard.
 
 ### Fixed
 
+- "Open in Terminal" on Windows now rejects a project path containing a semicolon when launching via Windows Terminal (`wt.exe`), which would otherwise re-tokenize the path and run a stray subcommand. PowerShell and `cmd.exe` launches were already guarded.
 - Install no longer fails on Node 24. Bumped `better-sqlite3` to v12, which ships prebuilt binaries for Node 24's ABI, so `npx @pigorv/claude-monitor` and `npm install -g` work on machines without a C++ toolchain (Python / VS Build Tools on Windows, Xcode CLT on macOS).
 - Session Detail timeline: selecting text inside an expanded block no longer collapses it when you release the mouse. Drag-select-then-collapse fix now applies uniformly to thinking, assistant, user, system, and skill-expansion cards, and Copy buttons surface a "Failed" state instead of silently doing nothing when the clipboard API rejects (e.g. on non-secure origins).
 
 ### Changed
 
+- Settings terminal-app dropdown is now platform-aware (macOS vs Windows options derived from `/api/health`). On platforms where "Open in Terminal" isn't supported, the per-session button is disabled with an explanatory tooltip instead of clicking through to a 400 error.
 - Session Detail timeline: every expanded block — tool groups, system groups, and individual event panes — now has a consistent full-width "Collapse" button at its foot, replacing the small left-aligned text link. Write/Edit cards use the same full-width style for the "Show N more lines" expand control.
 
 ## [0.4.0] - 2026-05-19

@@ -327,6 +327,7 @@ export interface HealthResponse {
   status: 'ok';
   version: string;
   node_version?: string;
+  platform?: string;
   db_path?: string;
   db_engine?: string;
   server_port?: number;
