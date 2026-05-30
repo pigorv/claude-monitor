@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-05-30
+
 ### Added
 
 - Windows support for the "Open in Terminal" button on session pages. Auto-detect prefers Windows Terminal (`wt.exe`), then PowerShell, then `cmd.exe`; each launches a new window at the session's project directory with `claude --resume <id>` already running. `/api/health` now reports `platform`.
