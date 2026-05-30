@@ -9,11 +9,13 @@ let _tokenTimelineStmt: Database.Statement | null = null;
 let _miniTimelineStmt: Database.Statement | null = null;
 let _deleteEventsBySessionStmt: Database.Statement | null = null;
 let _eventCountBySessionStmt: Database.Statement | null = null;
+let _eventCountParentOnlyStmt: Database.Statement | null = null;
 let _annotationEventsStmt: Database.Statement | null = null;
 
 onDbClose(() => {
   _insertEventStmt = _getEventStmt = _tokenTimelineStmt = _miniTimelineStmt =
-    _deleteEventsBySessionStmt = _eventCountBySessionStmt = _annotationEventsStmt = null;
+    _deleteEventsBySessionStmt = _eventCountBySessionStmt = _eventCountParentOnlyStmt =
+    _annotationEventsStmt = null;
 });
 
 export function insertEvent(event: Omit<Event, 'id'>): number {
@@ -290,11 +292,21 @@ export function getTurnCountsForSessions(sessionIds: string[]): Map<string, numb
   return result;
 }
 
-export function getEventCountBySession(sessionId: string): number {
+/**
+ * Count events for a session. When `parentOnly` is true, sub-agent events
+ * (non-NULL `agent_id`) are excluded — mirroring the parent-only filter the
+ * Timeline list uses, so the tab badge matches the default landing view.
+ */
+export function getEventCountBySession(sessionId: string, parentOnly = false): number {
   const db = getDb();
+  if (parentOnly) {
+    _eventCountParentOnlyStmt ??= db.prepare(
+      'SELECT COUNT(*) as count FROM events WHERE session_id = ? AND agent_id IS NULL',
+    );
+    return (_eventCountParentOnlyStmt.get(sessionId) as { count: number }).count;
+  }
   _eventCountBySessionStmt ??= db.prepare('SELECT COUNT(*) as count FROM events WHERE session_id = ?');
-  const row = _eventCountBySessionStmt.get(sessionId) as { count: number };
-  return row.count;
+  return (_eventCountBySessionStmt.get(sessionId) as { count: number }).count;
 }
 
 interface AnnotationEventRow {

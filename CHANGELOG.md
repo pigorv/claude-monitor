@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Session Detail: the `Timeline (N)` tab badge no longer overcounts for sessions with sub-agents. It now reports the parent-only event count — matching the rows the Timeline actually renders and its "N events" toolbar — instead of silently including every sub-agent's internal events.
+
 ## [0.4.1] - 2026-05-30
 
 ### Added

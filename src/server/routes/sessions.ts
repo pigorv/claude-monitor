@@ -244,7 +244,9 @@ sessions.get('/api/sessions/:id', (c) => {
     };
   }
 
-  const eventCount = getEventCountBySession(id);
+  // Badge should match the Timeline's default landing view, which is parent-only
+  // when the session has sub-agents (Timeline.tsx hasAgents check). Mirror it here.
+  const eventCount = getEventCountBySession(id, agents.length > 0);
   const linkedSessions = getLinkedSessions(id);
 
   // File activity + peak parent tokens for Context tab

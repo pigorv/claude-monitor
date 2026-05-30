@@ -89,6 +89,15 @@ describe('Sessions routes', () => {
     insertEvent.run('sess-1', 'tool_call_start', 'transcript_import', 'Write', '2026-01-15T10:02:00Z', 2, 200, 100, 20, 0.2, 300, '{"file_path":"/src/output.ts"}');
     insertEvent.run('sess-1', 'compaction', 'transcript_import', null, '2026-01-15T10:05:00Z', 3, 500, 200, 50, 0.5, null, null);
 
+    // A sub-agent event for sess-1 (has agent_id). The Timeline list defaults to
+    // parent-only when a session has sub-agents, so the tab badge (event_count)
+    // must exclude this row.
+    db.prepare(`
+      INSERT INTO events (
+        session_id, agent_id, event_type, event_source, tool_name, timestamp, sequence_num
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run('sess-1', 'agent-abc', 'tool_call_start', 'transcript_import', 'Grep', '2026-01-15T10:03:00Z', 4);
+
     // Insert agent relationship for sess-1
     db.prepare(`
       INSERT INTO agent_relationships (
@@ -381,6 +390,15 @@ describe('Sessions routes', () => {
     const body: SessionDetailResponse = await res.json();
     assert.equal(typeof body.event_count, 'number');
     assert.ok(body.event_count >= 3); // We inserted at least 3 events
+  });
+
+  it('event_count excludes sub-agent events when the session has sub-agents', async () => {
+    // sess-1 has 3 parent events + 1 sub-agent event + an agent relationship,
+    // so the badge must report the parent-only count (3), matching the Timeline's
+    // default landing view.
+    const res = await app.request('/api/sessions/sess-1');
+    const body: SessionDetailResponse = await res.json();
+    assert.equal(body.event_count, 3);
   });
 });
 
