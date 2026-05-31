@@ -250,6 +250,15 @@ describe('Database Layer', () => {
       assert.ok(count >= 4);
     });
 
+    it('should exclude sub-agent events from the parent-only count', () => {
+      const fullBefore = getEventCountBySession('test-session-1');
+      insertEvent(makeEvent({ agent_id: 'agent-x', sequence_num: 99 }));
+      // Default count includes the sub-agent event...
+      assert.equal(getEventCountBySession('test-session-1'), fullBefore + 1);
+      // ...but parent-only excludes it.
+      assert.equal(getEventCountBySession('test-session-1', true), fullBefore);
+    });
+
     it('should enforce foreign key on invalid session_id', () => {
       assert.throws(() => {
         insertEvent(makeEvent({ session_id: 'nonexistent-session' }));

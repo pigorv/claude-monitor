@@ -279,10 +279,15 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
     setError(null);
 
     const hasAgents = agents && agents.length > 0;
+    // Always parent-only when the session has sub-agents — for every filter, not
+    // just "All". The rendered list skips sub-agent rows (groupTimelineItems), so
+    // dropping parent_only under a type filter would only inflate the "N events"
+    // count with rows that are never shown. Sub-agent events are viewed by
+    // expanding an AgentGroup, not through the main timeline.
     fetchEvents(sessionId, {
       event_type: typeFilter || undefined,
       include_thinking: "true",
-      parent_only: hasAgents && !typeFilter ? "true" : undefined,
+      parent_only: hasAgents ? "true" : undefined,
       limit: PAGE_SIZE,
       offset,
     })
