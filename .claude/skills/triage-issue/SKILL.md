@@ -25,6 +25,7 @@ The skill is invoked as `/triage-issue <number>` or `/triage-issue` with no argu
 
 - Single-author repo (`pigorv`). Skip stakeholder/CODEOWNERS hunting — there's one owner.
 - Default GitHub labels only: `bug`, `enhancement`, `documentation`, `question`, `duplicate`, `help wanted`, `good first issue`, `invalid`, `wontfix`. Do **not** invent new labels — if you think a new `area:*` label would help, mention it in the proposal text and let the user decide whether to create it.
+- One exception: `triaged` is a recognized workflow label. Every issue that gets a triage comment posted also gets the `triaged` label, so triaged tickets are easy to find/filter. The label already exists in the repo — just apply it.
 - Surface areas (use these to locate code, not as labels):
   - **Ingestion** — `src/ingestion/` (jsonl-parser, thinking-extractor, token-tracker, transcript-importer, session-linker, transcript-watcher)
   - **Analysis** — `src/analysis/` (compaction detection, session summary, agent efficiency)
@@ -113,6 +114,8 @@ Pick from the existing taxonomy only. Typical sets:
 - Not actionable: `invalid` or `wontfix`
 - `good first issue` / `help wanted`: only suggest if the change is genuinely small and self-contained AND the maintainer has indicated openness to outside contribution on this surface. Default is to leave these off.
 
+Always include `triaged` in the suggested label set — it's applied to every issue that gets a triage comment so triaged tickets are easy to filter. (It's the one non-taxonomy label that's always in play.)
+
 If a non-standard area label would genuinely help routing (e.g. `area:ingestion`), mention it as a *suggestion to create*, not as a label to apply.
 
 ### 9. Produce the proposal
@@ -135,7 +138,7 @@ Print to the user, in this exact order. The outer fence below uses **four** back
 
 **Duplicates considered:** <list #N — title, or "none">
 
-**Suggested labels:** `bug`, `documentation`, ...
+**Suggested labels:** `bug`, `documentation`, ..., `triaged`
 
 **Proposed comment:**
 ---
@@ -148,7 +151,7 @@ gh --repo pigorv/claude-monitor issue comment <num> --body "$(cat <<'EOF'
 <same comment text>
 EOF
 )"
-gh --repo pigorv/claude-monitor issue edit <num> --add-label "bug" --add-label "..."
+gh --repo pigorv/claude-monitor issue edit <num> --add-label "bug" --add-label "..." --add-label "triaged"
 ```
 
 Reply `go` to apply, or tell me what to change.
