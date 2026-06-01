@@ -25,7 +25,7 @@ The skill is invoked as `/triage-issue <number>` or `/triage-issue` with no argu
 
 - Single-author repo (`pigorv`). Skip stakeholder/CODEOWNERS hunting — there's one owner.
 - Default GitHub labels only: `bug`, `enhancement`, `documentation`, `question`, `duplicate`, `help wanted`, `good first issue`, `invalid`, `wontfix`. Do **not** invent new labels — if you think a new `area:*` label would help, mention it in the proposal text and let the user decide whether to create it.
-- One exception: `triaged` is a recognized workflow label. Every issue that gets a triage comment posted also gets the `triaged` label, so triaged tickets are easy to find/filter. It's created on first use if it doesn't exist yet (see the apply step) — you don't need to ask the user to create it.
+- One exception: `triaged` is a recognized workflow label. Every issue that gets a triage comment posted also gets the `triaged` label, so triaged tickets are easy to find/filter. The label already exists in the repo — just apply it.
 - Surface areas (use these to locate code, not as labels):
   - **Ingestion** — `src/ingestion/` (jsonl-parser, thinking-extractor, token-tracker, transcript-importer, session-linker, transcript-watcher)
   - **Analysis** — `src/analysis/` (compaction detection, session summary, agent efficiency)
@@ -151,9 +151,6 @@ gh --repo pigorv/claude-monitor issue comment <num> --body "$(cat <<'EOF'
 <same comment text>
 EOF
 )"
-# Ensure the `triaged` label exists (no-op if already created), then label the issue.
-gh --repo pigorv/claude-monitor label create triaged \
-  --description "Issue has been triaged" --color 0E8A16 2>/dev/null || true
 gh --repo pigorv/claude-monitor issue edit <num> --add-label "bug" --add-label "..." --add-label "triaged"
 ```
 
