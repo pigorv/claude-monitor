@@ -7,6 +7,7 @@ import { CompactionBanner } from "./CompactionBanner";
 import { TokenBudgetBar } from "./TokenBudgetBar";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { updateParams } from "../lib/url-state";
+import { toolTagClass } from "../lib/tool-tags";
 import type { Event, EventType, AgentRelationship } from "../../../src/shared/types";
 
 interface TimelineProps {
@@ -23,16 +24,6 @@ const VALID_TIMELINE_FILTERS = new Set(["", "user_message", "assistant_message",
 const PAGE_SIZE = 50;
 
 // -- Helpers for tool group rendering --
-
-const BADGE_CLASS: Record<string, string> = {
-  Read: "tool-read",
-  Write: "tool-write",
-  Edit: "tool-write",
-  Bash: "tool-bash",
-  Agent: "tool-agent",
-  Grep: "tool-grep",
-  Glob: "tool-glob",
-};
 
 function tryParseJson(s: string | null): Record<string, unknown> | null {
   if (!s) return null;
@@ -454,7 +445,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
                       <div class="tool-group-header" onClick=${() => toggleToolGroup(item.groupKey)}>
                         <span class="tg-badges">
                           ${uniqueTools.map((t) => html`
-                            <span class=${"tool-badge " + (BADGE_CLASS[t] || "")}>${t}</span>
+                            <span class=${"tool-badge " + toolTagClass(t)}>${t}</span>
                           `)}
                         </span>
                         <span class="tool-group-label">${item.events.length} calls</span>

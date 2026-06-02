@@ -3,6 +3,7 @@ import { html } from "htm/preact";
 import { updateParams } from "../lib/url-state";
 import { renderStructuredInner } from "../lib/markdown";
 import { computeGanttWindow, ganttPosition, computeTimeAxis, formatHMS } from "../lib/gantt";
+import { toolTagClass } from "../lib/tool-tags";
 import type { AgentRelationship, InternalToolCall, AgentEfficiencyAggregates, TokenDataPoint } from "../../../src/shared/types";
 
 interface AgentTreeProps {
@@ -40,18 +41,6 @@ function formatTokens(n: number | null): string {
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max) + "\u2026";
-}
-
-function toolBadgeClass(name: string): string {
-  const lower = name.toLowerCase();
-  if (lower.includes("read")) return "read";
-  if (lower.includes("write")) return "write";
-  if (lower.includes("edit")) return "edit";
-  if (lower.includes("bash")) return "bash";
-  if (lower.includes("grep")) return "grep";
-  if (lower.includes("glob")) return "glob";
-  if (lower.includes("agent")) return "agent";
-  return "";
 }
 
 function toolFillClass(name: string): string {
@@ -262,7 +251,7 @@ function AgentDetailPanel({
             return html`
               <div class=${"tool-row-exp" + (isHeavy ? " heavy" : "") + (isOpen ? " open" : "")}>
                 <div class="tool-row-header" onClick=${() => toggleTool(idx)}>
-                  <span class=${"tool-badge " + toolBadgeClass(tc.tool_name)}>${tc.tool_name}</span>
+                  <span class=${"tool-badge " + toolTagClass(tc.tool_name)}>${tc.tool_name}</span>
                   <code class="tool-path">${getToolDisplayPath(tc)}</code>
                   <span class=${"tool-tokens" + (isHeavy ? " heavy-tokens" : "")}>
                     ${tc.estimated_tokens ? formatTokens(tc.estimated_tokens) + " tok" : "\u2014"}

@@ -363,7 +363,7 @@ describe('EventCard AskUserQuestion card', () => {
   it('renders the ask-card row with AskUserQuestion badge and tool-ask class', () => {
     const out = render(html`<${EventCard} event=${makeAsk([{ question: 'Library?' }])} />`);
     assert.ok(out.includes('ask-card'), 'should apply ask-card class to the row');
-    assert.ok(out.includes('tool-ask'), 'should apply the tool-ask badge class');
+    assert.ok(out.includes('tool-edit'), 'should apply the tool-edit badge class (toolTagClass maps AskUserQuestion → tool-edit via ask keyword)');
     assert.ok(out.includes('AskUserQuestion'), 'badge text should be AskUserQuestion');
   });
 

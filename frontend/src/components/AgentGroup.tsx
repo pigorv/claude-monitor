@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "preact/hooks";
 import { html } from "htm/preact";
 import { fetchEvents } from "../api/client";
 import { renderStructuredInner } from "../lib/markdown";
+import { toolTagClass } from "../lib/tool-tags";
 import type { Event, AgentRelationship } from "../../../src/shared/types";
 
 interface AgentGroupProps {
@@ -44,12 +45,6 @@ function extractFilePath(event: Event): string | null {
   const simpleMatch = text.match(/["']?(\/\w[^\s"']+)["']?/);
   return simpleMatch ? simpleMatch[1] : null;
 }
-
-// Tool badge color classes
-const TOOL_BADGE_CLASS: Record<string, string> = {
-  Read: "tool-read", Write: "tool-write", Edit: "tool-write",
-  Bash: "tool-bash", Agent: "tool-agent", Grep: "tool-read", Glob: "tool-read",
-};
 
 const TOOL_TRUNCATE_THRESHOLD = 5;
 const TOOL_SHOW_INITIAL = 3;
@@ -207,7 +202,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
     const filePath = extractFilePath(evt);
     const tokenCount = (evt.input_tokens || 0) + (evt.output_tokens || 0);
     const isHeavy = (evt.output_tokens || 0) > 1000;
-    const toolClass = TOOL_BADGE_CLASS[evt.tool_name || ""] || "";
+    const toolClass = toolTagClass(evt.tool_name || "");
     const isOpen = expandedTools[evt.id] || false;
 
     // Token percentage for Read tools (#5)

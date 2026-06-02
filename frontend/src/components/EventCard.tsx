@@ -15,6 +15,7 @@ import {
   formatAskQuestionForCopy,
 } from "../lib/ask-output";
 import { highlight } from "../lib/syntax";
+import { toolTagClass } from "../lib/tool-tags";
 
 interface EventCardProps {
   event: Event;
@@ -229,18 +230,6 @@ const TYPE_PILL_CLASS: Record<string, string> = {
   notification: "pill-gray",
 };
 
-// Tool-specific badge classes
-const TOOL_BADGE_CLASS: Record<string, string> = {
-  Read: "tool-read",
-  Write: "tool-write",
-  Edit: "tool-write",
-  Bash: "tool-bash",
-  Agent: "tool-agent",
-  Grep: "tool-grep",
-  Glob: "tool-glob",
-  AskUserQuestion: "tool-ask",
-};
-
 // Dot color per event type for the timeline rail
 const DOT_COLORS: Record<string, string> = {
   user_message: "var(--purple)",
@@ -372,7 +361,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
   const isRoleMsg = event.event_type === "user_message" || event.event_type === "assistant_message";
   const pillClass = TYPE_PILL_CLASS[event.event_type] || "pill-gray";
   const typeClass = `event-card event-${event.event_type.replace(/_/g, "-")}`;
-  const toolBadgeClass = event.tool_name ? (TOOL_BADGE_CLASS[event.tool_name] || "") : "";
+  const toolBadgeClass = event.tool_name ? toolTagClass(event.tool_name) : "";
 
   const meta = parseMetadata(event);
   const isCommand = meta?.command;
