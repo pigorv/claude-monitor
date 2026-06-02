@@ -78,10 +78,10 @@ function formatEndTime(endedAt: string | null): string {
 }
 
 function peakAccentColor(pct: number): string {
-  if (pct >= 80) return "var(--red)";
-  if (pct >= 60) return "var(--orange)";
-  if (pct >= 40) return "var(--yellow)";
-  return "var(--green)";
+  if (pct >= 80) return "var(--color-ctx-danger-text)";
+  if (pct >= 60) return "var(--color-ctx-warn-text)";
+  if (pct >= 40) return "var(--color-ctx-warn-text)";
+  return "var(--color-ctx-safe-text)";
 }
 
 type Tab = "timeline" | "context" | "agents";
@@ -207,7 +207,7 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
         <div class="breadcrumb">
           <a href="#/">Sessions</a>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="opacity:0.4"><path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span style="color:var(--text3)">${s.project_name || 'Unknown'}</span>
+          <span style="color:var(--color-text-tertiary)">${s.project_name || 'Unknown'}</span>
         </div>
         <h1 class="session-title">${s.summary || s.project_name || 'Session'}</h1>
         <div class="session-subtitle">
@@ -229,7 +229,7 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
           }
           <span class="sep">·</span>
           <span class="meta-item">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="color:var(--text3)"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3.5V6L7.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="color:var(--color-text-tertiary)"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3.5V6L7.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
             ${formatDuration(s.duration_ms)}
           </span>
           <span class="sep">·</span>
@@ -237,7 +237,7 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
           <span class="sep">·</span>
           ${s.tool_call_count} tool calls
           <span class="sep">·</span>
-          <span style="color:var(--text3)">ended ${formatEndTime(s.ended_at)}</span>
+          <span style="color:var(--color-text-tertiary)">ended ${formatEndTime(s.ended_at)}</span>
         </div>
       </div>
 
@@ -274,25 +274,25 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-accent" style="background: var(--accent)"></div>
+          <div class="stat-card-accent" style="background: var(--color-accent)"></div>
           <div class="label">Peak Tokens</div>
           <div class="value">${data.peak_parent_tokens != null ? formatTokens(data.peak_parent_tokens) : "\u2014"}</div>
           <div class="detail">of ${formatTokens(headerThresholds.maxTokens)} window \u00b7 parent only</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-accent" style="background: ${s.compaction_count > 0 ? 'var(--orange)' : 'var(--border)'}"></div>
+          <div class="stat-card-accent" style="background: ${s.compaction_count > 0 ? 'var(--color-status-warning-text)' : 'var(--color-border-primary)'}"></div>
           <div class="label">Compactions</div>
-          <div class="value" style="color: ${s.compaction_count > 0 ? 'var(--orange)' : ''}">${s.compaction_count}</div>
+          <div class="value" style="color: ${s.compaction_count > 0 ? 'var(--color-status-warning-text)' : ''}">${s.compaction_count}</div>
           <div class="detail">${s.compaction_count > 0 ? "auto-triggered" : "none"}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-accent" style="background: var(--accent)"></div>
+          <div class="stat-card-accent" style="background: var(--color-accent)"></div>
           <div class="label">Files Loaded</div>
           <div class="value">${fileCount}</div>
           <div class="detail">${totalRereads > 0 ? `${totalRereads} re-reads across ${rereadFiles.length} files` : "no re-reads"}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-accent" style="background: ${s.subagent_count > 0 ? 'var(--teal)' : 'var(--border)'}"></div>
+          <div class="stat-card-accent" style="background: ${s.subagent_count > 0 ? 'var(--color-status-completed)' : 'var(--color-border-primary)'}"></div>
           <div class="label">Agents</div>
           <div class="value">${s.subagent_count}</div>
           <div class="detail">${s.subagent_count > 0 ? "sub-agents" : "none"}</div>

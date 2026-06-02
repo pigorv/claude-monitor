@@ -230,7 +230,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
         `}
         ${(evt.output_data || evt.output_preview) && html`
           <div class="agent-tool-io">
-            <div class="agent-tool-io-label">Output${readPct >= 20 ? html` <span style="font-size:7px;color:var(--orange);font-weight:600;margin-left:3px">${readPct}% of agent reads</span>` : ""}</div>
+            <div class="agent-tool-io-label">Output${readPct >= 20 ? html` <span style="font-size:7px;color:var(--color-status-warning-text);font-weight:600;margin-left:3px">${readPct}% of agent reads</span>` : ""}</div>
             <div class=${"agent-tool-io-content" + (expandedIo["out-" + evt.id] ? " expanded" : "")} onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleIo("out-" + evt.id); }}>
               <div class="agent-tool-io-body" dangerouslySetInnerHTML=${{ __html: renderStructuredInner(evt.output_data || evt.output_preview || "") }}></div>
               <div class="fade"></div>
@@ -263,10 +263,10 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
             <span class="agent-event-time">${offset}</span>
             ${isResult
               ? html`
-                <span style="font-size:10px;color:var(--teal);font-weight:500">result</span>
-                ${meta.totalTokens > 0 && html`<span style="font-size:10px;font-family:var(--mono);color:var(--text3)">${formatTokens(meta.totalTokens)} tok</span>`}
+                <span style="font-size:10px;color:var(--color-status-completed);font-weight:500">result</span>
+                ${meta.totalTokens > 0 && html`<span style="font-size:10px;font-family:var(--font-mono);color:var(--color-text-tertiary)">${formatTokens(meta.totalTokens)} tok</span>`}
               `
-              : html`<span style="font-size:10px;color:var(--accent);font-weight:500">assistant</span>`
+              : html`<span style="font-size:10px;color:var(--color-status-running);font-weight:500">assistant</span>`
             }
           </div>
           ${body && html`
@@ -288,7 +288,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
           <div class="mini-dot"></div>
           <div class="agent-event-header">
             <span class="agent-event-time">${offset}</span>
-            <span style="font-size:10px;color:var(--text3);font-weight:500;font-style:italic">prompt</span>
+            <span style="font-size:10px;color:var(--color-text-tertiary);font-weight:500;font-style:italic">prompt</span>
           </div>
           <div class=${"agent-event-body prompt-muted" + (isBodyOpen ? " expanded" : "")} onClick=${() => toggleBody(evt.id)}>
             ${summary}
@@ -304,7 +304,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
         <div class="mini-dot"></div>
         <div class="agent-event-header">
           <span class="agent-event-time">${offset}</span>
-          <span style="font-size:10px;color:var(--text3)">${evt.event_type.replace(/_/g, " ")}</span>
+          <span style="font-size:10px;color:var(--color-text-tertiary)">${evt.event_type.replace(/_/g, " ")}</span>
         </div>
       </div>
     `;
@@ -328,7 +328,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
         </span>
       </div>
       <div class=${"agent-block-body" + (expanded ? " show" : "")}>
-        ${loadingEvents && html`<div style="padding:8px 12px;font-size:12px;color:var(--text3)">Loading agent events…</div>`}
+        ${loadingEvents && html`<div style="padding:8px 12px;font-size:12px;color:var(--color-text-tertiary)">Loading agent events…</div>`}
         <div class="agent-events">
           ${renderEvents.map((chunk) => {
             if (chunk.type === "single") {

@@ -9,6 +9,7 @@ import {
   buildChartOpts,
   computeYScale,
 } from "../lib/chart-config";
+import { CHART } from "../lib/chart-palette";
 
 interface TokenChartProps {
   timeline: TokenDataPoint[];
@@ -140,12 +141,12 @@ export function TokenChart({ timeline, model, compactionDetails, session, fileAc
           <div class="chart-container" ref=${wrapperRef}>
             <div class="chart-header">
               <div class="chart-legend">
-                <span class="legend-item"><span class="legend-dot" style="background:#6d28d9"></span> Context %</span>
-                <span class="legend-item"><span class="legend-dot" style="background:rgba(14,116,144,0.6)"></span> Cache read</span>
-                <span class="legend-item"><span class="legend-dot legend-dot-zone" style="background:rgba(161,98,7,0.15); border: 1px solid rgba(161,98,7,0.3)"></span> Warning</span>
-                <span class="legend-item"><span class="legend-dot legend-dot-zone" style="background:rgba(185,28,28,0.1); border: 1px solid rgba(185,28,28,0.25)"></span> Danger</span>
+                <span class="legend-item"><span class="legend-dot" style=${"background:" + CHART.purple}></span> Context %</span>
+                <span class="legend-item"><span class="legend-dot" style=${"background:" + CHART.tealCursorFill}></span> Cache read</span>
+                <span class="legend-item"><span class="legend-dot legend-dot-zone" style=${"background:" + CHART.amberLegendFill + "; border: 1px solid " + CHART.amberLegendStroke}></span> Warning</span>
+                <span class="legend-item"><span class="legend-dot legend-dot-zone" style=${"background:" + CHART.redLegendFill + "; border: 1px solid " + CHART.redLegendStroke}></span> Danger</span>
                 <span class="legend-sep">|</span>
-                <span class="legend-item"><span class="legend-dot legend-dot-line" style="background:#b91c1c"></span> Compaction</span>
+                <span class="legend-item"><span class="legend-dot legend-dot-line" style=${"background:" + CHART.ctxDanger}></span> Compaction</span>
               </div>
             </div>
             <div class="chart-canvas-wrap" ref=${canvasRef}></div>

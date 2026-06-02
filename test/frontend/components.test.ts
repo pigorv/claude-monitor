@@ -144,7 +144,8 @@ describe('EventCard', () => {
     const out = render(html`<${EventCard} event=${evt} />`);
     assert.ok(out.includes('ctx-minibar'), 'should render context minibar');
     assert.ok(out.includes('75%'), 'should show percentage');
-    assert.ok(out.includes('var(--red)'), 'context >= 70% should be red');
+    // DS migration: minibar now uses two-tier ctx tokens (>=70% danger, else warning)
+    assert.ok(out.includes('var(--color-status-danger-text)'), 'context >= 70% should be danger');
   });
 
   it('hides context mini-bar for low context', () => {
@@ -588,19 +589,20 @@ describe('Signal badges (context mini-bars)', () => {
     assert.ok(!out.includes('ctx-minibar'), 'context < 50% should not render minibar');
   });
 
-  it('yellow for context 50-59%', () => {
+  // DS migration: minibar collapsed to two tiers — 50-69% → warning token, >=70% → danger token
+  it('warning token for context 50-59%', () => {
     const out = render(html`<${EventCard} event=${makeEvent(55)} />`);
-    assert.ok(out.includes('var(--yellow)'));
+    assert.ok(out.includes('var(--color-status-warning-text)'));
   });
 
-  it('orange for context 60-70%', () => {
+  it('warning token for context 60-70%', () => {
     const out = render(html`<${EventCard} event=${makeEvent(65)} />`);
-    assert.ok(out.includes('var(--orange)'));
+    assert.ok(out.includes('var(--color-status-warning-text)'));
   });
 
-  it('red for context >= 70%', () => {
+  it('danger token for context >= 70%', () => {
     const out = render(html`<${EventCard} event=${makeEvent(85)} />`);
-    assert.ok(out.includes('var(--red)'));
+    assert.ok(out.includes('var(--color-status-danger-text)'));
   });
 
   it('caps bar width at 100%', () => {

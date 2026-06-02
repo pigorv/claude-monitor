@@ -22,6 +22,11 @@ export const CHART = {
   redZoneStroke: 'rgba(185, 28, 28, 0.2)',    // danger-zone dashed line (#b91c1c @ 20%)
   redZoneLabel: 'rgba(185, 28, 28, 0.45)',    // danger-zone % label (#b91c1c @ 45%)
   redCompaction: 'rgba(185, 28, 28, 0.5)',    // compaction marker line (#b91c1c @ 50%)
+  // legend swatch fills/strokes (mirror canvas zones at legend-specific alphas)
+  amberLegendFill: 'rgba(161, 98, 7, 0.15)',   // warning legend dot fill (#a16207 @ 15%)
+  amberLegendStroke: 'rgba(161, 98, 7, 0.3)',  // warning legend dot border (#a16207 @ 30%)
+  redLegendFill: 'rgba(185, 28, 28, 0.1)',     // danger legend dot fill (#b91c1c @ 10%)
+  redLegendStroke: 'rgba(185, 28, 28, 0.25)',  // danger legend dot border (#b91c1c @ 25%)
   // context % series (purple gradient fill)
   purpleGradFill0: 'rgba(109, 40, 217, 0.08)',  // fallback / static fill
   purpleGradStop0: 'rgba(109, 40, 217, 0.18)',  // gradient top stop
