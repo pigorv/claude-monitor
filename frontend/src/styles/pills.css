@@ -1,14 +1,14 @@
 /* Shared pill primitives reused by Timeline event cards and the Session List.
    Keep visual parity with EventCard pills so users recognize them at a glance. */
 
-.command-pill {
-  font-family: var(--mono);
+.command-pill, .cmd-pill {
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   padding: 2px 10px;
-  border-radius: var(--r-xs);
-  background: rgba(21, 128, 61, 0.08);
-  color: var(--green);
+  border-radius: var(--radius-sm);
+  background: var(--color-interactive-selected-bg);
+  color: var(--color-interactive-selected-text);
   white-space: nowrap;
 }
 
@@ -16,22 +16,9 @@
   font-size: 10px;
   font-weight: 500;
   padding: 2px 10px;
-  border-radius: var(--r-xs);
-  background: var(--orange-bg);
-  color: var(--orange);
-  border: 1px solid var(--orange-border);
-  font-family: var(--mono);
-}
-
-/* Larger blue pill — used in the Timeline body for slash commands and
-   in the Session List to highlight sessions that started with a command. */
-.cmd-pill {
-  font-size: 11px;
-  font-family: var(--mono);
-  font-weight: 600;
-  padding: 2px 9px;
-  border-radius: 6px;
-  background: rgba(37,99,235,0.12);
-  color: var(--blue);
-  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  background: var(--color-interactive-selected-bg);
+  color: var(--color-interactive-selected-text);
+  border: 1px solid var(--color-interactive-selected-border);
+  font-family: var(--font-mono);
 }

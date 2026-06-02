@@ -217,14 +217,14 @@ const TYPE_LABELS: Record<string, string> = {
 
 // CSS class for event type pill color
 const TYPE_PILL_CLASS: Record<string, string> = {
-  session_start: "pill-green",
+  session_start: "pill-teal",
   session_end: "pill-gray",
   tool_call_start: "pill-tool",
   tool_call_end: "pill-tool",
   subagent_start: "pill-teal",
   subagent_end: "pill-teal",
-  compaction: "pill-orange",
-  thinking: "pill-yellow",
+  compaction: "pill-amber",
+  thinking: "pill-amber",
   assistant_message: "pill-gray",
   user_message: "pill-purple",
   notification: "pill-gray",

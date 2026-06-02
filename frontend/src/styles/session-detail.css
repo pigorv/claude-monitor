@@ -501,14 +501,13 @@
   white-space: nowrap;
 }
 
-.pill-purple { background: var(--accent-tint); color: var(--accent); }
-.pill-blue { background: var(--blue-tint); color: var(--blue); }
-.pill-green { background: var(--green-tint); color: var(--green); }
-.pill-yellow { background: var(--yellow-tint); color: var(--yellow); }
-.pill-orange { background: var(--orange-tint); color: var(--orange); }
-.pill-teal { background: var(--teal-tint); color: var(--teal); }
-.pill-gray { background: var(--bg-muted); color: var(--text3); }
-.pill-tool { background: var(--bg-muted); color: var(--text2); }
+.pill-purple { background: var(--color-interactive-selected-bg); color: var(--color-interactive-selected-text); }
+.pill-blue   { background: var(--color-tool-read-bg);  color: var(--color-tool-read-text); }
+.pill-green  { background: var(--color-tool-write-bg); color: var(--color-tool-write-text); }
+.pill-amber  { background: var(--color-status-warning-bg); color: var(--color-status-warning-text); }
+.pill-teal   { background: var(--color-status-completed-bg); color: var(--color-status-completed-text); }
+.pill-gray   { background: var(--color-background-tertiary); color: var(--color-text-tertiary); }
+.pill-tool   { background: var(--color-background-tertiary); color: var(--color-text-secondary); }
 
 /* Role labels (USER / ASSISTANT) — uppercase, slightly heavier so they
    read as conversation turn markers, consistent across both roles. */
