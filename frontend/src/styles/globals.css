@@ -29,7 +29,7 @@
   --color-border-accent:var(--purple-200); /* dark → var(--purple-600) */
   /* Accent (links, focus, generic interactive) */
   --color-accent:var(--purple-600);     /* dark → var(--purple-200) */
-  --color-accent-tint:color-mix(in srgb, var(--purple-600) 12%, transparent);
+  --color-accent-tint:color-mix(in srgb, var(--purple-600) 12%, transparent); /* dark → color-mix(in srgb, var(--purple-200) 12%, transparent) */
   /* Interactive selection */
   --color-interactive-selected-bg:var(--purple-50);       /* dark → var(--purple-800) */
   --color-interactive-selected-border:var(--purple-200);  /* dark → var(--purple-600) */
@@ -76,6 +76,7 @@
   --font-weight-regular:400; --font-weight-medium:500; --font-weight-semibold:600; --font-weight-bold:700;
 
   /* ═══ LEGACY ALIASES — TEMPORARY. Deleted in a later task. ═══ */
+  /* NOTE: these intentionally resolve to the NEW ramp (e.g. --orange→amber), so colours reach ~final appearance during migration, not the old hues. */
   --bg:var(--color-background-secondary); --bg-card:var(--color-background-primary);
   --bg-hover:var(--color-background-hover); --bg-active:var(--color-background-active);
   --bg-muted:var(--color-background-tertiary);
