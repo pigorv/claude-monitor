@@ -30,7 +30,7 @@ export function lintContent(path, content) {
       if (PRIMITIVE.test(line)) out.push({ line: i + 1, snippet: raw.trim(), rule: 'primitive-ref' });
       if (LEGACY.test(line)) out.push({ line: i + 1, snippet: raw.trim(), rule: 'legacy-token' });
     } else if (isTsx) {
-      const styleBearing = /style\s*=|background|color|fill|stroke|var\(--/.test(line);
+      const styleBearing = /style\s*=|\b(?:background|color|fill|stroke)\b|var\(--/.test(line);
       if (styleBearing && HEX.test(line)) out.push({ line: i + 1, snippet: raw.trim(), rule: 'raw-hex' });
       if (PRIMITIVE.test(line)) out.push({ line: i + 1, snippet: raw.trim(), rule: 'primitive-ref' });
       if (LEGACY.test(line)) out.push({ line: i + 1, snippet: raw.trim(), rule: 'legacy-token' });
