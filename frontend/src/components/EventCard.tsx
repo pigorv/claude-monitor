@@ -232,23 +232,23 @@ const TYPE_PILL_CLASS: Record<string, string> = {
 
 // Dot color per event type for the timeline rail
 const DOT_COLORS: Record<string, string> = {
-  user_message: "var(--purple)",
-  assistant_message: "var(--text2)",
+  user_message: "var(--color-interactive-selected-text)",
+  assistant_message: "var(--color-text-secondary)",
   tool_call_start: "transparent",
   tool_call_end: "transparent",
-  subagent_start: "var(--teal)",
-  subagent_end: "var(--teal)",
-  compaction: "var(--orange)",
+  subagent_start: "var(--color-status-completed)",
+  subagent_end: "var(--color-status-completed)",
+  compaction: "var(--color-status-warning-text)",
   thinking: "transparent",
-  session_start: "var(--green)",
-  session_end: "var(--text3)",
-  notification: "var(--text3)",
+  session_start: "var(--color-status-completed)",
+  session_end: "var(--color-text-tertiary)",
+  notification: "var(--color-text-tertiary)",
 };
 
 const DOT_BORDER_COLORS: Record<string, string> = {
-  tool_call_start: "var(--text3)",
-  tool_call_end: "var(--text3)",
-  thinking: "var(--yellow)",
+  tool_call_start: "var(--color-text-tertiary)",
+  tool_call_end: "var(--color-text-tertiary)",
+  thinking: "var(--color-status-warning-text)",
 };
 
 // Event types where we suppress the type pill. User/assistant now show an
@@ -257,12 +257,12 @@ const SUPPRESS_PILL_TYPES = new Set(["thinking"]);
 
 function getDotStyle(eventType: string, isSystemGenerated?: boolean, isSkillExpansion?: boolean): string {
   if (isSystemGenerated) {
-    return `background: var(--bg-muted); border: 1.5px dotted var(--text3);`;
+    return `background: var(--color-background-tertiary); border: 1.5px dotted var(--color-text-tertiary);`;
   }
   if (isSkillExpansion) {
-    return `background: transparent; border: 2px dashed var(--orange);`;
+    return `background: transparent; border: 2px dashed var(--color-interactive-selected-text);`;
   }
-  const bg = DOT_COLORS[eventType] || "var(--text3)";
+  const bg = DOT_COLORS[eventType] || "var(--color-text-tertiary)";
   const border = DOT_BORDER_COLORS[eventType];
   const isDashed = eventType === "thinking";
   if (border) {
@@ -579,7 +579,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               ${event.context_pct != null && event.context_pct >= 50 && html`
                 <span class="event-ctx">
                   <span class="ctx-minibar">
-                    <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--red)' : event.context_pct >= 60 ? 'var(--orange)' : 'var(--yellow)'}"></span>
+                    <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--color-status-danger-text)' : 'var(--color-status-warning-text)'}"></span>
                   </span>
                   <span class="mono">${Math.round(event.context_pct)}%</span>
                 </span>
@@ -591,7 +591,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
             <div class="event-card-rationale-row event-card-rationale-row-ctx-only">
               <span class="event-ctx">
                 <span class="ctx-minibar">
-                  <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--red)' : event.context_pct >= 60 ? 'var(--orange)' : 'var(--yellow)'}"></span>
+                  <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--color-status-danger-text)' : 'var(--color-status-warning-text)'}"></span>
                 </span>
                 <span class="mono">${Math.round(event.context_pct)}%</span>
               </span>
@@ -872,7 +872,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
         ${event.context_pct != null && event.context_pct >= 50 && html`
           <span class="event-ctx">
             <span class="ctx-minibar">
-              <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--red)' : event.context_pct >= 60 ? 'var(--orange)' : 'var(--yellow)'}"></span>
+              <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--color-status-danger-text)' : 'var(--color-status-warning-text)'}"></span>
             </span>
             <span class="mono">${Math.round(event.context_pct)}%</span>
           </span>

@@ -1,7 +1,8 @@
 export function projectColor(name: string): string {
+  // Distinct hues used purely to visually disambiguate projects in DOM dots/swatches.
   const colors = [
-    "var(--purple)", "var(--accent)", "var(--teal)",
-    "var(--orange)", "var(--green)", "var(--yellow)",
+    "var(--color-accent)", "var(--color-status-completed)", "var(--color-tool-read-text)",
+    "var(--color-status-warning-text)", "var(--color-tool-write-text)", "var(--color-status-danger-text)",
   ];
   let hash = 0;
   for (let i = 0; i < name.length; i++) {

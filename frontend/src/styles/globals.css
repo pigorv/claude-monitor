@@ -112,16 +112,16 @@
 }
 
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--sans);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
 a {
-  color: var(--accent);
+  color: var(--color-accent);
   text-decoration: none;
 }
 
@@ -138,16 +138,16 @@ a:hover {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg);
+  background: var(--color-background-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-hover);
+  background: var(--color-border-secondary);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text3);
+  background: var(--color-text-tertiary);
 }
 
 /* ═══════════════════════════════════════════
@@ -158,8 +158,8 @@ nav {
   align-items: center;
   gap: 16px;
   padding: 12px 32px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
+  background: var(--color-background-primary);
+  border-bottom: 1px solid var(--color-border-primary);
   box-shadow: var(--shadow-sm);
   position: sticky;
   top: 0;
@@ -170,12 +170,12 @@ nav .brand {
   font-weight: 700;
   font-size: 16px;
   letter-spacing: -0.03em;
-  color: var(--text);
+  color: var(--color-text-primary);
 }
 
 nav .brand-accent {
   font-weight: 400;
-  color: var(--accent);
+  color: var(--color-accent);
 }
 
 nav .nav-links {
@@ -186,21 +186,21 @@ nav .nav-links {
 
 nav a {
   padding: 7px 16px;
-  border-radius: var(--r-sm);
-  color: var(--text2);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
   font-size: 13px;
   font-weight: 500;
   transition: all 0.15s;
 }
 
 nav a:hover {
-  background: var(--bg-hover);
+  background: var(--color-background-hover);
   opacity: 1;
 }
 
 nav a.active {
-  background: var(--accent-light);
-  color: var(--accent);
+  background: var(--color-interactive-selected-bg);
+  color: var(--color-interactive-selected-text);
   font-weight: 600;
 }
 
@@ -229,13 +229,13 @@ nav a.active {
 
 .page-sub {
   font-size: 13px;
-  color: var(--text2);
+  color: var(--color-text-secondary);
   margin-bottom: 28px;
 }
 
 .breadcrumb {
   font-size: 12px;
-  color: var(--text2);
+  color: var(--color-text-secondary);
   margin-bottom: 6px;
 }
 
@@ -259,9 +259,9 @@ nav a.active {
 .stat-card {
   position: relative;
   overflow: hidden;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
   padding: 16px 18px;
   box-shadow: var(--shadow-sm);
   transition: all 0.2s;
@@ -283,7 +283,7 @@ nav a.active {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--text3);
+  color: var(--color-text-tertiary);
   font-weight: 600;
   margin-bottom: 4px;
 }
@@ -297,7 +297,7 @@ nav a.active {
 
 .stat-card .detail {
   font-size: 11px;
-  color: var(--text2);
+  color: var(--color-text-secondary);
   margin-top: 3px;
 }
 
@@ -315,7 +315,7 @@ nav a.active {
 .progress {
   height: 4px;
   border-radius: 2px;
-  background: var(--bg-muted);
+  background: var(--color-background-tertiary);
   overflow: hidden;
   margin-top: 6px;
 }
@@ -332,57 +332,57 @@ nav a.active {
 .chip {
   display: inline-flex;
   padding: 4px 12px;
-  border-radius: var(--r-pill);
+  border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 500;
-  background: var(--bg-card);
-  color: var(--text2);
+  background: var(--color-background-primary);
+  color: var(--color-text-secondary);
   cursor: pointer;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border-primary);
   transition: all 0.15s;
   box-shadow: var(--shadow-sm);
   user-select: none;
 }
 
 .chip:hover {
-  border-color: var(--border-hover);
+  border-color: var(--color-border-secondary);
 }
 
 .chip.active {
-  background: var(--accent);
-  color: var(--text-inv);
-  border-color: var(--accent);
-  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.2);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  border-color: var(--color-accent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
 .model-pill {
   font-size: 10px;
   padding: 4px 12px;
-  border-radius: var(--r-sm);
+  border-radius: var(--radius-md);
   font-weight: 600;
   letter-spacing: 0.02em;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
 }
 
 .model-pill.opus {
-  background: var(--purple-bg);
-  color: var(--purple);
-  border: 1px solid var(--purple-border);
+  background: var(--color-interactive-selected-bg);
+  color: var(--color-interactive-selected-text);
+  border: 1px solid var(--color-interactive-selected-border);
 }
 
 .model-pill.sonnet {
-  background: var(--accent-light);
-  color: var(--accent);
-  border: 1px solid var(--accent-border);
+  background: var(--color-interactive-selected-bg);
+  color: var(--color-accent);
+  border: 1px solid var(--color-border-accent);
 }
 
 .model-pill.haiku {
-  background: var(--bg-muted);
-  color: var(--text2);
-  border: 1px solid var(--border);
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-primary);
 }
 
 .model-switch {
@@ -396,8 +396,8 @@ nav a.active {
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;
-  border-radius: var(--r-xs);
-  font-family: var(--mono);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
   display: inline-block;
 }
 
@@ -413,11 +413,11 @@ nav a.active {
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  border-radius: var(--r-sm);
+  border-radius: var(--radius-md);
   font-size: 11px;
   font-weight: 500;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
 }
 
 .signal-dot {
@@ -431,9 +431,9 @@ nav a.active {
    CARD
    ═══════════════════════════════════════════ */
 .card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
@@ -442,9 +442,9 @@ nav a.active {
    TABLE
    ═══════════════════════════════════════════ */
 .table-wrap {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
@@ -459,16 +459,16 @@ th {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--text3);
+  color: var(--color-text-tertiary);
   padding: 11px 18px;
   font-weight: 600;
-  background: var(--bg-muted);
-  border-bottom: 1px solid var(--border);
+  background: var(--color-background-tertiary);
+  border-bottom: 1px solid var(--color-border-primary);
 }
 
 td {
   padding: 13px 18px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border-primary);
   font-size: 13px;
   vertical-align: middle;
 }
@@ -483,7 +483,7 @@ tbody tr {
 }
 
 tbody tr:hover td {
-  background: var(--bg-hover);
+  background: var(--color-background-hover);
 }
 
 /* ═══════════════════════════════════════════
@@ -492,7 +492,7 @@ tbody tr:hover td {
 .tab-bar {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border-primary);
   margin-bottom: 0;
 }
 
@@ -500,71 +500,71 @@ tbody tr:hover td {
   padding: 10px 22px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text3);
+  color: var(--color-text-tertiary);
   cursor: pointer;
   border: none;
   background: none;
   border-bottom: 2px solid transparent;
   transition: all 0.15s;
   user-select: none;
-  font-family: var(--sans);
+  font-family: var(--font-sans);
 }
 
 .tab:hover {
-  color: var(--text);
+  color: var(--color-text-primary);
 }
 
 .tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+  color: var(--color-interactive-selected-text);
+  border-bottom-color: var(--color-interactive-tab-active-line);
   font-weight: 600;
 }
 
 .tab .count {
-  background: var(--bg-muted);
-  color: var(--text3);
+  background: var(--color-background-tertiary);
+  color: var(--color-text-tertiary);
   padding: 1px 7px;
-  border-radius: var(--r-pill);
+  border-radius: var(--radius-pill);
   font-size: 11px;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   margin-left: 4px;
   font-weight: 500;
 }
 
 .tab.active .count {
-  background: var(--accent-light);
-  color: var(--accent);
+  background: var(--color-interactive-count-bg-selected);
+  color: var(--color-interactive-selected-text);
 }
 
 /* ═══════════════════════════════════════════
    SEARCH
    ═══════════════════════════════════════════ */
 .search-input {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-md);
   padding: 9px 16px;
   font-size: 13px;
   width: 240px;
   outline: none;
-  color: var(--text);
-  font-family: var(--sans);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
   box-shadow: var(--shadow-sm);
   transition: all 0.15s;
 }
 
 .search-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.08);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
 /* ═══════════════════════════════════════════
    MONO HELPERS
    ═══════════════════════════════════════════ */
 .mono {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--text2);
+  color: var(--color-text-secondary);
 }
 
 /* ═══════════════════════════════════════════
@@ -575,28 +575,28 @@ tbody tr:hover td {
   align-items: center;
   justify-content: space-between;
   padding: 12px 18px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--color-border-primary);
   font-size: 12px;
-  color: var(--text2);
+  color: var(--color-text-secondary);
 }
 
 .pg-btn {
   padding: 6px 16px;
-  border-radius: var(--r-sm);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  color: var(--text2);
+  border-radius: var(--radius-md);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  color: var(--color-text-secondary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: all 0.15s;
-  font-family: var(--sans);
+  font-family: var(--font-sans);
 }
 
 .pg-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .pg-btn:disabled {
@@ -608,14 +608,14 @@ tbody tr:hover td {
    BUTTONS
    ═══════════════════════════════════════════ */
 .btn {
-  font-family: var(--sans);
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
   padding: 8px 20px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--text-inv);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
   cursor: pointer;
   transition: all 0.15s;
   box-shadow: var(--shadow-sm);
@@ -631,24 +631,24 @@ tbody tr:hover td {
 }
 
 .btn-secondary {
-  background: var(--bg-card);
-  color: var(--text);
-  border-color: var(--border);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-primary);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .btn-danger {
-  background: var(--bg-card);
-  color: var(--red);
-  border-color: var(--red-border);
+  background: var(--color-background-primary);
+  color: var(--color-status-danger-text);
+  border-color: var(--red-200);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: var(--red-bg);
+  background: var(--color-status-danger-bg);
 }
 
 /* ═══════════════════════════════════════════
@@ -660,40 +660,40 @@ tbody tr:hover td {
 .pg-btn:focus-visible,
 .action-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent);
 }
 
 .btn-danger:focus-visible {
-  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-status-danger-text) 15%, transparent);
 }
 
 /* Action buttons (stacked) */
 .action-btn {
   padding: 8px 20px;
-  border-radius: var(--r-sm);
+  border-radius: var(--radius-md);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
   box-shadow: var(--shadow-sm);
   transition: all 0.15s;
-  font-family: var(--sans);
+  font-family: var(--font-sans);
   display: block;
   width: 100%;
   text-align: left;
 }
 
 .action-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .action-btn.primary {
-  background: var(--accent);
-  color: var(--text-inv);
-  border-color: var(--accent);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  border-color: var(--color-accent);
 }
 
 .action-btn.primary:hover {
@@ -701,12 +701,12 @@ tbody tr:hover td {
 }
 
 .action-btn.danger {
-  color: var(--red);
-  border-color: var(--red-border);
+  color: var(--color-status-danger-text);
+  border-color: var(--red-200);
 }
 
 .action-btn.danger:hover {
-  background: var(--red-bg);
+  background: var(--color-status-danger-bg);
 }
 
 /* ═══════════════════════════════════════════
@@ -715,13 +715,13 @@ tbody tr:hover td {
 .status-text {
   padding: 32px 0;
   text-align: center;
-  color: var(--text2);
+  color: var(--color-text-secondary);
 }
 
 .error-text {
   padding: 32px 0;
   text-align: center;
-  color: var(--red);
+  color: var(--color-status-danger-text);
 }
 
 /* ═══════════════════════════════════════════

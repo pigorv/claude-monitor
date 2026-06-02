@@ -175,10 +175,10 @@ function AgentDetailPanel({
         <div class="stat">Started <strong>${formatOffset(agent.started_at, sessionStart)}</strong></div>
         <div class="stat">Duration <strong>${formatDuration(agent.duration_ms)}</strong></div>
         ${agent.input_tokens_total != null && html`
-          <div class="stat">Prompt <strong style="color:var(--teal)">${formatTokens(agent.input_tokens_total)}</strong></div>
+          <div class="stat">Prompt <strong style="color:var(--color-status-completed)">${formatTokens(agent.input_tokens_total)}</strong></div>
         `}
         ${agent.output_tokens_total != null && html`
-          <div class="stat">Result <strong style="color:var(--accent)">${formatTokens(agent.output_tokens_total)}</strong></div>
+          <div class="stat">Result <strong style="color:var(--color-accent)">${formatTokens(agent.output_tokens_total)}</strong></div>
         `}
         <div class="stat"><strong>${agent.tool_call_count}</strong> tool calls</div>
       </div>
@@ -212,7 +212,7 @@ function AgentDetailPanel({
           <span>Tool calls (${toolCalls.length})</span>
           ${totalEstTokens > 0 && html`
             <span class="tools-total">
-              Total loaded: <strong style="color:var(--text2)">${formatTokens(totalEstTokens)} tokens</strong>
+              Total loaded: <strong style="color:var(--color-text-secondary)">${formatTokens(totalEstTokens)} tokens</strong>
             </span>
           `}
         </div>
@@ -236,7 +236,7 @@ function AgentDetailPanel({
         `}
 
         ${isBackground && toolCalls.length === 0 && html`
-          <div style="font-size:11px;color:var(--text3);padding:8px 0">
+          <div style="font-size:11px;color:var(--color-text-tertiary);padding:8px 0">
             Background agent \u2014 internal activity not captured in parent transcript.
           </div>
         `}
@@ -246,7 +246,7 @@ function AgentDetailPanel({
             const isHeavy = (tc.estimated_tokens || 0) > 800;
             const isOpen = openTools.has(idx);
             const weightPct = totalEstTokens > 0 ? Math.min(100, ((tc.estimated_tokens || 0) / totalEstTokens) * 100) : 0;
-            const weightColor = isHeavy ? "#c2410c" : (weightPct > 8 ? "#a16207" : "var(--teal)");
+            const weightColor = isHeavy ? "var(--color-status-danger-text)" : (weightPct > 8 ? "var(--color-status-warning-text)" : "var(--color-status-completed)");
 
             return html`
               <div class=${"tool-row-exp" + (isHeavy ? " heavy" : "") + (isOpen ? " open" : "")}>
@@ -337,7 +337,7 @@ export function AgentTree({ agents, sessionStart, agentEfficiency, params }: Age
         <strong>${completed}</strong> completed
         ${failed > 0 && html`
           <span class="sep">\u00b7</span>
-          <strong>${failed}</strong> <span style="color:var(--red);font-weight:500">failed</span>
+          <strong>${failed}</strong> <span style="color:var(--color-status-danger-text);font-weight:500">failed</span>
         `}
         ${totalTokens > 0 && html`
           <span class="sep">\u00b7</span>
