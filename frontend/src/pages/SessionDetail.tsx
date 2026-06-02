@@ -79,7 +79,6 @@ function formatEndTime(endedAt: string | null): string {
 
 function peakAccentColor(pct: number): string {
   if (pct >= 80) return "var(--color-ctx-danger-text)";
-  if (pct >= 60) return "var(--color-ctx-warn-text)";
   if (pct >= 40) return "var(--color-ctx-warn-text)";
   return "var(--color-ctx-safe-text)";
 }

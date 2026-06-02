@@ -35,4 +35,16 @@ describe('lintContent', () => {
   it('flags a bare rgba() return in tsx even off a style line', () => {
     assert.equal(lintContent('frontend/src/components/X.tsx', '  return "rgba(20,20,20,0.5)";').length, 1);
   });
+  it('flags a quoted raw-hex literal in tsx even off a style line', () => {
+    assert.equal(lintContent('frontend/src/components/X.tsx', '  return "#abc123";').length, 1);
+  });
+  it('does not flag a raw hex inside a comment (no surrounding quote)', () => {
+    assert.equal(lintContent('frontend/src/components/X.tsx', '  // fallback was #abcdef before').length, 0);
+  });
+  it('flags a Tier-1 primitive ref in a tsx file', () => {
+    assert.equal(lintContent('frontend/src/components/X.tsx', 'const c = "color: var(--purple-600)";').length, 1);
+  });
+  it('flags a legacy token in a tsx file', () => {
+    assert.equal(lintContent('frontend/src/components/X.tsx', 'const c = "color: var(--accent)";').length, 1);
+  });
 });

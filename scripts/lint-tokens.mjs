@@ -33,8 +33,12 @@ export function lintContent(path, content) {
       const styleBearing = /style\s*=|\b(?:background|color|fill|stroke)\b|var\(--/.test(line);
       const RGB = /\brgba?\(/;
       const HEXLIT = /#[0-9a-fA-F]{3,8}\b/;
+      // A hex literal counts when it's on a style-bearing line (e.g. `style="color:#fff"`)
+      // OR when it's a quoted string literal anywhere (`return "#abc"`, `const c = "#abc"`).
+      // Comments (`// #abc`, no surrounding quote) are intentionally left alone.
+      const QUOTED_HEX = /["'`]#[0-9a-fA-F]{3,8}\b/;
       if (RGB.test(line)) out.push({ line: i + 1, snippet: raw.trim(), rule: 'raw-hex' });
-      else if (styleBearing && HEXLIT.test(line)) out.push({ line: i + 1, snippet: raw.trim(), rule: 'raw-hex' });
+      else if (HEXLIT.test(line) && (styleBearing || QUOTED_HEX.test(line))) out.push({ line: i + 1, snippet: raw.trim(), rule: 'raw-hex' });
       if (PRIMITIVE.test(line)) out.push({ line: i + 1, snippet: raw.trim(), rule: 'primitive-ref' });
       if (LEGACY.test(line)) out.push({ line: i + 1, snippet: raw.trim(), rule: 'legacy-token' });
     }
