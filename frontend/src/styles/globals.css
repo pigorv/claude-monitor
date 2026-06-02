@@ -401,14 +401,11 @@ nav a.active {
   display: inline-block;
 }
 
-.tool-badge.read, .tool-badge.tool-read { background: rgba(37, 99, 235, 0.08); color: #2563eb; }
-.tool-badge.write, .tool-badge.tool-write { background: rgba(21, 128, 61, 0.08); color: #15803d; }
-.tool-badge.bash, .tool-badge.tool-bash { background: rgba(161, 98, 7, 0.08); color: #a16207; }
-.tool-badge.agent, .tool-badge.tool-agent { background: var(--accent-tint); color: var(--accent); }
-.tool-badge.edit, .tool-badge.tool-edit { background: rgba(5, 150, 105, 0.08); color: #059669; }
-.tool-badge.grep, .tool-badge.tool-grep { background: rgba(79, 70, 229, 0.08); color: #4f46e5; }
-.tool-badge.glob, .tool-badge.tool-glob { background: rgba(14, 116, 144, 0.08); color: #0e7490; }
-.tool-badge.ask, .tool-badge.tool-ask { background: var(--purple-bg); color: var(--purple); }
+.tool-badge.tool-bash    { background: var(--color-tool-bash-bg);    color: var(--color-tool-bash-text); }
+.tool-badge.tool-read    { background: var(--color-tool-read-bg);    color: var(--color-tool-read-text); }
+.tool-badge.tool-edit    { background: var(--color-tool-edit-bg);    color: var(--color-tool-edit-text); }
+.tool-badge.tool-write   { background: var(--color-tool-write-bg);   color: var(--color-tool-write-text); }
+.tool-badge.tool-default { background: var(--color-tool-default-bg); color: var(--color-tool-default-text); }
 
 /* Signal badges */
 .signal-badge {
