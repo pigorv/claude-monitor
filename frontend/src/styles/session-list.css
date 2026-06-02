@@ -3,9 +3,9 @@
    ═══════════════════════════════════════════ */
 
 .session-list {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
   /* clip keeps rounded corners while allowing sticky date headers */
   overflow: clip;
   box-shadow: var(--shadow-sm);
@@ -21,19 +21,19 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 18px;
-  background: var(--bg-muted);
-  border-bottom: 1px solid var(--border);
+  background: var(--color-background-tertiary);
+  border-bottom: 1px solid var(--color-border-primary);
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--text3);
+  color: var(--color-text-tertiary);
 }
 
 .dg-count {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-weight: 600;
-  color: var(--text3);
+  color: var(--color-text-tertiary);
 }
 
 /* ── Row ─────────────────────────────────────────────────────── */
@@ -44,13 +44,13 @@
   gap: 28px;
   align-items: start;
   padding: 12px 18px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border-primary);
   cursor: pointer;
   transition: background 0.1s;
 }
 
 .srow:hover {
-  background: var(--bg-hover);
+  background: var(--color-background-hover);
 }
 
 /* Left — recognition zone (3 lines) */
@@ -78,7 +78,7 @@
 .srow-proj {
   font-size: 11px;
   font-weight: 500;
-  color: var(--text3);
+  color: var(--color-text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -99,7 +99,7 @@
 .srow-title-text {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -111,7 +111,7 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--text3);
+  color: var(--color-text-tertiary);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -121,15 +121,15 @@
 }
 
 .srow-sub-empty {
-  color: var(--text3);
+  color: var(--color-text-tertiary);
 }
 
-/* Active session: pulsing green dot */
+/* Active session: pulsing teal dot */
 .active-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--green);
+  background: var(--color-status-completed);
   display: inline-block;
   flex-shrink: 0;
   animation: pulse 2s ease-in-out infinite;
@@ -162,16 +162,16 @@
   align-items: flex-end;
   gap: 4px;
   text-align: right;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 11px;
   /* recede while scanning; lift on row hover */
-  color: var(--text3);
+  color: var(--color-text-tertiary);
   flex-shrink: 0;
   white-space: nowrap;
 }
 
 .srow:hover .srow-rail {
-  color: var(--text2);
+  color: var(--color-text-secondary);
 }
 
 .rail-time {
@@ -192,7 +192,7 @@
 }
 
 .rail-usd {
-  color: var(--text2);
+  color: var(--color-text-secondary);
   font-weight: 600;
 }
 
@@ -226,10 +226,10 @@
   justify-content: center;
   gap: 8px;
   padding: 16px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-muted);
+  border-top: 1px solid var(--color-border-primary);
+  background: var(--color-background-tertiary);
   font-size: 12px;
-  color: var(--text3);
+  color: var(--color-text-tertiary);
   min-height: 44px;
 }
 
@@ -240,14 +240,14 @@
 }
 
 .infinite-sentinel .retry-btn {
-  font-family: var(--sans);
+  font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 500;
   padding: 4px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-xs);
-  background: var(--bg-card);
-  color: var(--text2);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-background-primary);
+  color: var(--color-text-secondary);
   cursor: pointer;
 }
 
@@ -258,14 +258,14 @@
   left: 50%;
   bottom: 24px;
   transform: translateX(-50%);
-  font-family: var(--sans);
+  font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 600;
   padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
-  background: var(--bg-card);
-  color: var(--text2);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-pill);
+  background: var(--color-background-primary);
+  color: var(--color-text-secondary);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   z-index: 50;
@@ -273,11 +273,11 @@
 }
 
 .back-to-top:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+  background: var(--color-background-hover);
+  color: var(--color-text-primary);
 }
 
 /* Orange text utility (stats bar) */
 .orange {
-  color: var(--orange);
+  color: var(--color-status-warning-text);
 }
