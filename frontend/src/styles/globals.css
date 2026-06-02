@@ -75,32 +75,6 @@
   --font-size-body:13px; --font-size-meta:12px; --font-size-label:11px;
   --font-weight-regular:400; --font-weight-medium:500; --font-weight-semibold:600; --font-weight-bold:700;
 
-  /* ═══ LEGACY ALIASES — TEMPORARY. Deleted in a later task. ═══ */
-  /* NOTE: these intentionally resolve to the NEW ramp (e.g. --orange→amber), so colours reach ~final appearance during migration, not the old hues. */
-  --bg:var(--color-background-secondary); --bg-card:var(--color-background-primary);
-  --bg-hover:var(--color-background-hover); --bg-active:var(--color-background-active);
-  --bg-muted:var(--color-background-tertiary);
-  --border:var(--color-border-primary); --border-hover:var(--color-border-secondary);
-  --border-accent:var(--color-border-accent);
-  --text:var(--color-text-primary); --text2:var(--color-text-secondary);
-  --text3:var(--color-text-tertiary); --text-inv:var(--color-text-inverse);
-  --accent:var(--color-accent); --accent-light:var(--color-interactive-selected-bg);
-  --accent-border:var(--color-border-accent); --accent-tint:var(--color-accent-tint);
-  --green:var(--green-800); --green-bg:var(--green-50); --green-border:var(--green-600);
-  --yellow:var(--amber-800); --yellow-bg:var(--amber-50); --yellow-border:var(--amber-200);
-  --orange:var(--amber-800); --orange-bg:var(--amber-50); --orange-border:var(--amber-200);
-  --red:var(--red-600); --red-bg:var(--red-50); --red-border:var(--red-200);
-  --blue:var(--blue-800); --blue-bg:var(--blue-50); --blue-border:var(--blue-600);
-  --teal:var(--teal-400); --teal-bg:var(--teal-50); --teal-border:var(--teal-200);
-  --purple:var(--purple-800); --purple-bg:var(--purple-50); --purple-border:var(--purple-200);
-  --green-tint:color-mix(in srgb, var(--green-800) 12%, transparent);
-  --yellow-tint:color-mix(in srgb, var(--amber-800) 12%, transparent);
-  --orange-tint:color-mix(in srgb, var(--amber-800) 12%, transparent);
-  --red-tint:color-mix(in srgb, var(--red-600) 12%, transparent);
-  --blue-tint:color-mix(in srgb, var(--blue-800) 12%, transparent);
-  --teal-tint:color-mix(in srgb, var(--teal-400) 12%, transparent);
-  --r:var(--radius-lg); --r-sm:var(--radius-md); --r-xs:var(--radius-sm); --r-pill:var(--radius-pill);
-  --mono:var(--font-mono); --sans:var(--font-sans);
 }
 
 *,
