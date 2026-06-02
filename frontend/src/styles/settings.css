@@ -17,9 +17,9 @@
    SETTINGS CARD
    ═══════════════════════════════════════════ */
 .settings-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
   padding: 20px;
   box-shadow: var(--shadow-sm);
 }
@@ -27,10 +27,10 @@
 .settings-card h3 {
   font-size: 14px;
   font-weight: 700;
-  color: var(--text);
+  color: var(--color-text-primary);
   margin-bottom: 14px;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border-primary);
   letter-spacing: -0.02em;
 }
 
@@ -49,16 +49,16 @@
 }
 
 .settings-row + .settings-row {
-  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--color-border-primary) 50%, transparent);
 }
 
 .settings-label {
-  color: var(--text2);
+  color: var(--color-text-secondary);
   font-size: 12px;
 }
 
 .settings-value {
-  color: var(--text);
+  color: var(--color-text-primary);
   font-size: 12px;
   font-weight: 500;
   display: flex;
@@ -71,7 +71,7 @@
 }
 
 .settings-value.mono {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 11px;
 }
 
@@ -87,11 +87,11 @@
 }
 
 .dot-ok {
-  background: var(--green);
+  background: var(--color-status-completed-text);
 }
 
 .dot-warn {
-  background: var(--orange);
+  background: var(--color-status-warning-text);
 }
 
 /* ═══════════════════════════════════════════
@@ -118,23 +118,23 @@
 .settings-hint {
   margin-top: 10px;
   font-size: 11px;
-  color: var(--text2);
+  color: var(--color-text-secondary);
 }
 
 .settings-hint code {
-  background: var(--bg-muted);
+  background: var(--color-background-tertiary);
   padding: 2px 6px;
-  border-radius: var(--r-xs);
+  border-radius: var(--radius-sm);
   font-size: 11px;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
 }
 
 .settings-error {
-  background: var(--red-bg);
-  border: 1px solid var(--red-border);
-  border-radius: var(--r-sm);
+  background: var(--color-status-danger-bg);
+  border: 1px solid color-mix(in srgb, var(--color-status-danger-text) 30%, transparent);
+  border-radius: var(--radius-md);
   padding: 16px;
-  color: var(--red);
+  color: var(--color-status-danger-text);
   font-size: 13px;
 }
 
@@ -142,10 +142,10 @@
    TERMINAL SELECT
    ═══════════════════════════════════════════ */
 .terminal-select {
-  background: var(--bg-card);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--r-xs);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-sm);
   padding: 4px 8px;
   font-size: 12px;
   font-family: inherit;
@@ -154,5 +154,5 @@
 
 .terminal-select:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--color-accent);
 }
