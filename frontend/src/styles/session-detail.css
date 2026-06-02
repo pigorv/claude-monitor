@@ -115,7 +115,7 @@
 }
 
 .linked-session-link:hover {
-  border-left-color: var(--color-tool-read-text);
+  border-left-color: var(--color-accent);
   background: var(--color-background-hover);
 }
 
@@ -2706,7 +2706,7 @@
   top: 4px;
   bottom: 4px;
   width: 3px;
-  background: var(--color-interactive-selected-border);
+  background: var(--color-accent);
   border-radius: 2px;
 }
 .ask-option.is-selected .ask-option-key {
@@ -2974,7 +2974,7 @@
 .ctx-pct { font-family: var(--font-mono); font-size: 10px; color: var(--color-text-tertiary); min-width: 40px; text-align: right; }
 .ctx-bar { width: 60px; height: 4px; background: var(--color-background-tertiary); border-radius: 2px; overflow: hidden; }
 .ctx-fill { height: 100%; border-radius: 2px; background: var(--color-status-completed); }
-.ctx-fill-green { background: var(--color-status-completed); }
+.ctx-fill-green { background: var(--color-tool-write-text); }
 .ctx-row-total { background: var(--color-background-tertiary); font-weight: 500; }
 
 /* ═══════════════════════════════════════════
