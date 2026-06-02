@@ -382,6 +382,7 @@ export function AgentTree({ agents, sessionStart, agentEfficiency, params }: Age
           const pos = sessionStart ? ganttPosition(agent, gantt.windowStartMs, gantt.duration) : { left: 0, width: 2 };
           const isSelected = (effectiveSelectedId) === agent.child_agent_id;
           const isFailed = agent.status === "error" || agent.status === "failed";
+          const isCompleted = agent.status === "completed";
           const isNarrow = pos.width < 6;
 
           return html`
@@ -397,7 +398,7 @@ export function AgentTree({ agents, sessionStart, agentEfficiency, params }: Age
                 <div class="gantt-gridlines">
                   ${ticks.map(() => html`<div class="gantt-gridline" />`)}
                 </div>
-                <div class=${"gantt-bar" + (isFailed ? " failed" : "") + (isNarrow ? " narrow" : "")} style=${"left:" + pos.left + "%;width:" + pos.width + "%"}>
+                <div class=${"gantt-bar" + (isFailed ? " failed" : isCompleted ? " completed" : " running") + (isNarrow ? " narrow" : "")} style=${"left:" + pos.left + "%;width:" + pos.width + "%"}>
                   <span class="gantt-bar-dur">${formatDuration(agent.duration_ms)}</span>
                 </div>
               </div>

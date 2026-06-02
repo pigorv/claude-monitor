@@ -2209,10 +2209,12 @@
 .gantt-gridline:last-child { border-right: none; }
 
 /* Gantt bar */
-.gantt-bar { position: absolute; top: 10px; height: 18px; border-radius: 4px; background: var(--teal); opacity: 0.7; transition: opacity 0.15s; display: flex; align-items: center; justify-content: center; min-width: 6px; }
-.gantt-row:hover .gantt-bar { opacity: 0.9; }
-.gantt-row.selected .gantt-bar { opacity: 1; box-shadow: 0 1px 4px rgba(14, 116, 144, 0.3); }
-.gantt-bar.failed { background: var(--red); }
+.gantt-bar { position: absolute; top: 10px; height: 18px; border-radius: var(--radius-sm); opacity: 0.85; transition: opacity 0.15s; display: flex; align-items: center; justify-content: center; min-width: 6px; }
+.gantt-bar.running   { background: var(--color-agent-bar-active); }
+.gantt-bar.completed { background: var(--color-agent-bar-done); }
+.gantt-bar.failed    { background: var(--color-status-danger-text); }
+.gantt-row:hover .gantt-bar { opacity: 1; }
+.gantt-row.selected .gantt-bar { opacity: 1; box-shadow: 0 1px 4px color-mix(in srgb, var(--color-status-completed) 30%, transparent); }
 .gantt-bar-dur { font-size: 10px; font-family: var(--mono); color: var(--text-inv, #fffffe); font-weight: 600; white-space: nowrap; padding: 0 6px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); }
 /* Narrow bars: label floats right */
 .gantt-bar.narrow .gantt-bar-dur { color: var(--teal); text-shadow: none; position: absolute; left: calc(100% + 4px); }
@@ -2263,13 +2265,13 @@
 /* Tool calls in detail panel */
 .tool-context-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--bg-muted); margin-bottom: 4px; gap: 1px; }
 .tool-context-fill { height: 100%; min-width: 2px; transition: opacity 0.15s; cursor: pointer; }
-.tool-context-fill.read-fill { background: #2563eb; opacity: 0.45; }
-.tool-context-fill.read-fill:hover { opacity: 0.8; }
-.tool-context-fill.bash-fill { background: #a16207; opacity: 0.45; }
-.tool-context-fill.bash-fill:hover { opacity: 0.8; }
-.tool-context-fill.glob-fill { background: var(--text3); opacity: 0.45; }
-.tool-context-fill.glob-fill:hover { opacity: 0.8; }
-.tool-context-fill.write-fill { background: #15803d; opacity: 0.45; }
+.tool-context-fill.read-fill  { background: var(--color-tool-read-text);  opacity: 0.45; }
+.tool-context-fill.read-fill:hover  { opacity: 0.8; }
+.tool-context-fill.bash-fill  { background: var(--color-tool-bash-text);  opacity: 0.45; }
+.tool-context-fill.bash-fill:hover  { opacity: 0.8; }
+.tool-context-fill.glob-fill  { background: var(--color-tool-read-text);  opacity: 0.45; }
+.tool-context-fill.glob-fill:hover  { opacity: 0.8; }
+.tool-context-fill.write-fill { background: var(--color-tool-write-text); opacity: 0.45; }
 .tool-context-fill.write-fill:hover { opacity: 0.8; }
 
 .tool-list-expanded { display: flex; flex-direction: column; gap: 1px; }
