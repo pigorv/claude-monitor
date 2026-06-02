@@ -32,4 +32,7 @@ describe('lintContent', () => {
   it('flags hex on a style-bearing line in tsx', () => {
     assert.equal(lintContent('frontend/src/components/X.tsx', 'html`<div style="color:#fff">`').length, 1);
   });
+  it('flags a bare rgba() return in tsx even off a style line', () => {
+    assert.equal(lintContent('frontend/src/components/X.tsx', '  return "rgba(20,20,20,0.5)";').length, 1);
+  });
 });

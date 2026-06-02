@@ -1149,14 +1149,14 @@
 .skill-expansion-body {
   color: var(--color-text-secondary);
   max-height: 36px;
-  background: var(--color-status-warning-bg);
-  border-left: 3px solid var(--color-status-warning-text);
+  background: var(--color-interactive-selected-bg);
+  border-left: 3px solid var(--color-interactive-selected-text);
   font-size: 11px;
 }
 
 .skill-expansion-label {
   font-size: 11px;
-  color: var(--color-text-tertiary);
+  color: var(--color-interactive-selected-text);
 }
 
 /* System-tagged messages */

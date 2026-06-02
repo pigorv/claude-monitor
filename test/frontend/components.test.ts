@@ -57,7 +57,7 @@ describe('Heatmap', () => {
   it('applies color based on context percentage', () => {
     const timeline = [makePoint(90)];
     const out = render(html`<${Heatmap} timeline=${timeline} />`);
-    assert.ok(out.includes('rgba(185, 28, 28'), 'high context should use red');
+    assert.ok(out.includes('var(--health-rose)'), 'high context should use the rose health token');
   });
 });
 
