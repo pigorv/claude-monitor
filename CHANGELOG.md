@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Session Detail timeline: the event-type filter (All / User / Assistant / Tools) is now a single segmented control on a soft muted track, instead of four separate bordered-and-shadowed pills with a heavy purple "active" fill. The active filter reads as a clean white thumb with accent-colored text — calmer and better aligned with the rest of the dashboard.
+
 ### Fixed
 
 - Session Detail: the `Timeline (N)` tab badge no longer overcounts for sessions with sub-agents, and the Timeline's "N events" toolbar count now stays parent-only under every filter (User / Assistant / Tools), not just "All". Both report the parent-only event count — matching the rows the Timeline actually renders — instead of silently including every sub-agent's internal events.
