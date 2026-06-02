@@ -1199,7 +1199,7 @@
   font-family: var(--font-mono);
   font-size: 11px;
   padding: 8px 12px;
-  background: color-mix(in srgb, var(--color-status-completed) 8%, transparent);
+  background: color-mix(in srgb, var(--color-tool-write-text) 8%, transparent);
   color: var(--color-text-primary);
   white-space: pre-wrap;
   word-break: break-word;
