@@ -207,22 +207,11 @@
   opacity: 0.4;
 }
 
-/* Peak-context color thresholds (model-aware, set in component) */
-.tel-ctx {
-  font-weight: 600;
-}
-
-.tel-green {
-  color: var(--health-green);
-}
-
-.tel-amber {
-  color: var(--health-amber);
-}
-
-.tel-red {
-  color: var(--health-rose);
-}
+/* Peak-context graduated badge — teal/amber/red at <40 / 40-65 / 65+ */
+.ctx-pct { font-size: 11px; padding: 2px 7px; border-radius: var(--radius-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ctx-pct.safe   { background: var(--color-ctx-safe-bg);   color: var(--color-ctx-safe-text); }
+.ctx-pct.warn   { background: var(--color-ctx-warn-bg);   color: var(--color-ctx-warn-text); }
+.ctx-pct.danger { background: var(--color-ctx-danger-bg); color: var(--color-ctx-danger-text); }
 
 /* Low cache-hit ratio (< 50%) */
 .tel-cache-low {
