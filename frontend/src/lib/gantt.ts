@@ -109,8 +109,11 @@ export function computeTimeAxis(offsetMs: number, durationMs: number): { label: 
     interval = Math.ceil(totalSec / MAX_TICKS / 3600) * 3600;
   }
 
+  // Bound by tick count, not just the time compare: when totalSec is an exact
+  // multiple of `interval` (totalSec / interval === MAX_TICKS), the inclusive
+  // end would emit MAX_TICKS + 1 ticks. The right-edge tick is the redundant one.
   const ticks: { label: string; ms: number }[] = [];
-  for (let s = 0; s <= totalSec + 0.5; s += interval) {
+  for (let s = 0; s <= totalSec + 0.5 && ticks.length < MAX_TICKS; s += interval) {
     const ms = offsetMs + s * 1000;
     ticks.push({ label: `+${formatHMS(ms)}`, ms });
   }

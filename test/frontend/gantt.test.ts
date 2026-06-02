@@ -52,6 +52,15 @@ describe('computeTimeAxis', () => {
     assert.ok(ticks.length <= 8, `expected <= 8 ticks, got ${ticks.length}`);
   });
 
+  it('caps at MAX_TICKS when the window is an exact multiple of the interval', () => {
+    // totalSec / interval === 8 (8m → 60s interval, 8h → 3600s interval): the
+    // inclusive loop end would otherwise emit a redundant 9th right-edge tick.
+    for (const durMs of [80_000, 480_000, 28_800_000]) {
+      const ticks = computeTimeAxis(0, durMs);
+      assert.ok(ticks.length <= 8, `dur=${durMs}ms expected <= 8 ticks, got ${ticks.length}`);
+    }
+  });
+
   it('labels are session-relative (offset applied)', () => {
     const offset = 800 * 60 * 1000; // window starts +800m into session
     const ticks = computeTimeAxis(offset, 600 * 1000);
