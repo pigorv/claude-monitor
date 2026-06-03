@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "preact/hooks";
 import { html } from "htm/preact";
-import { fetchEvents } from "../api/client";
+import { fetchEvents, fetchEventCounts } from "../api/client";
+import type { EventTypeCounts } from "../api/client";
 import { EventCard } from "./EventCard";
 import { AgentGroup } from "./AgentGroup";
 import { CompactionBanner } from "./CompactionBanner";
 import { TokenBudgetBar } from "./TokenBudgetBar";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { updateParams } from "../lib/url-state";
+import { toolTagClass } from "../lib/tool-tags";
 import type { Event, EventType, AgentRelationship } from "../../../src/shared/types";
 
 interface TimelineProps {
@@ -23,16 +25,6 @@ const VALID_TIMELINE_FILTERS = new Set(["", "user_message", "assistant_message",
 const PAGE_SIZE = 50;
 
 // -- Helpers for tool group rendering --
-
-const BADGE_CLASS: Record<string, string> = {
-  Read: "tool-read",
-  Write: "tool-write",
-  Edit: "tool-write",
-  Bash: "tool-bash",
-  Agent: "tool-agent",
-  Grep: "tool-grep",
-  Glob: "tool-glob",
-};
 
 function tryParseJson(s: string | null): Record<string, unknown> | null {
   if (!s) return null;
@@ -254,6 +246,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
   const [error, setError] = useState<string | null>(null);
   const [endOfList, setEndOfList] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [counts, setCounts] = useState<EventTypeCounts | null>(null);
   const [expandedToolGroups, setExpandedToolGroups] = useState<Record<string, boolean>>({});
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -272,6 +265,19 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
     setEndOfList(false);
     setError(null);
   }, [typeFilter, sessionId]);
+
+  // Per-type counts for the filter pills — fetched once per session (and when
+  // agent data arrives, since that flips parent-only mode). Independent of the
+  // active filter/page so the pill counts stay stable as you click around.
+  useEffect(() => {
+    let cancelled = false;
+    const hasAgents = agents && agents.length > 0;
+    setCounts(null);
+    fetchEventCounts(sessionId, { parent_only: hasAgents ? "true" : undefined })
+      .then((res) => { if (!cancelled) setCounts(res.counts); })
+      .catch(() => { if (!cancelled) setCounts(null); });
+    return () => { cancelled = true; };
+  }, [sessionId, agents]);
 
   useEffect(() => {
     let cancelled = false;
@@ -386,16 +392,24 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
       <div class="timeline-toolbar">
         <div class="timeline-chips">
           ${[
-            { label: "All", value: "" },
-            { label: "User", value: "user_message" },
-            { label: "Assistant", value: "assistant_message" },
-            { label: "Tools", value: "tool_call_start" },
+            { label: "All", value: "", count: counts?.all },
+            { label: "User", value: "user_message", count: counts?.user_message },
+            { label: "Assistant", value: "assistant_message", count: counts?.assistant_message },
+            { label: "Tools", value: "tool_call_start", count: counts?.tool_call_start },
           ].map((chip) => html`
             <button
               key=${chip.value}
               class=${"chip" + (typeFilter === chip.value ? " active" : "")}
               onClick=${() => setTypeFilter(chip.value)}
-            >${chip.label}</button>
+            >
+              <span class="chip-check" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2.5 6.2 5 8.5 9.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              ${chip.label}
+              ${chip.count != null && html`<span class="count">${chip.count}</span>`}
+            </button>
           `)}
         </div>
 
@@ -454,7 +468,7 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
                       <div class="tool-group-header" onClick=${() => toggleToolGroup(item.groupKey)}>
                         <span class="tg-badges">
                           ${uniqueTools.map((t) => html`
-                            <span class=${"tool-badge " + (BADGE_CLASS[t] || "")}>${t}</span>
+                            <span class=${"tool-badge " + toolTagClass(t)}>${t}</span>
                           `)}
                         </span>
                         <span class="tool-group-label">${item.events.length} calls</span>

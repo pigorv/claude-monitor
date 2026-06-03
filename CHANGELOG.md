@@ -7,12 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Design-system token guard (`npm run lint:tokens`) and a `design-system` steward skill that keep future UI changes on the shared color palette. The guard now also flags raw hex written as a string literal anywhere in a component (e.g. a color returned from a helper), not only on `style=` lines.
+
 ### Changed
 
-- Session Detail timeline: the event-type filter (All / User / Assistant / Tools) is now a single segmented control on a soft muted track, instead of four separate bordered-and-shadowed pills with a heavy purple "active" fill. The active filter reads as a clean white thumb with accent-colored text — calmer and better aligned with the rest of the dashboard.
+- Unified all dashboard colors onto a single three-tier design-token system (five semantic color ramps, each owning one meaning) for consistent styling across every tab and view.
+- Session Detail timeline: the event-type filter (All / User / Assistant / Tools) is restyled to match the Timeline/Agents tab badges — each pill now carries a per-type event count, and the selected filter reads as a soft purple-tinted pill with a leading check instead of a heavy solid-purple fill. Counts are parent-only for sessions with sub-agents, matching the rows the timeline actually renders.
 
 ### Fixed
 
+- Context chart colors now match across each element: the Context % line and the area fill beneath it share one purple, the Cache-read legend swatch matches the line it labels, and the compaction marker's pill, legend, and line all use the same red. Previously the canvas migration left the line/fill/legend variants on slightly different shades.
+- Edit tool tags now render purple (previously green); Gantt bars now distinguish running (purple) from completed (teal); the session-list context-% badge uses consistent teal/amber/red thresholds at 40% / 65%.
+- Session Detail → Agents: the "Agent concurrency" Gantt chart is now readable for long (multi-hour) sessions. The time axis no longer explodes into a wall of one-minute tick labels — it shows at most ~8 hour-aware ticks (e.g. `+22h 57m`) regardless of session length. Bars are framed to the agent-activity window (first agent start → last agent end) instead of the full session span, so short sub-agents in a 24h session are spread out and visible rather than crushed into 2px specks at the same spot. Durations across the Agents tab now render in `Hh Mm` form for long spans.
 - Session Detail: the `Timeline (N)` tab badge no longer overcounts for sessions with sub-agents, and the Timeline's "N events" toolbar count now stays parent-only under every filter (User / Assistant / Tools), not just "All". Both report the parent-only event count — matching the rows the Timeline actually renders — instead of silently including every sub-agent's internal events.
 
 ## [0.4.1] - 2026-05-30

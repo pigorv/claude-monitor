@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "preact/hooks";
 import { html } from "htm/preact";
 import { fetchEvents } from "../api/client";
 import { renderStructuredInner } from "../lib/markdown";
+import { toolTagClass } from "../lib/tool-tags";
 import type { Event, AgentRelationship } from "../../../src/shared/types";
 
 interface AgentGroupProps {
@@ -44,12 +45,6 @@ function extractFilePath(event: Event): string | null {
   const simpleMatch = text.match(/["']?(\/\w[^\s"']+)["']?/);
   return simpleMatch ? simpleMatch[1] : null;
 }
-
-// Tool badge color classes
-const TOOL_BADGE_CLASS: Record<string, string> = {
-  Read: "tool-read", Write: "tool-write", Edit: "tool-write",
-  Bash: "tool-bash", Agent: "tool-agent", Grep: "tool-read", Glob: "tool-read",
-};
 
 const TOOL_TRUNCATE_THRESHOLD = 5;
 const TOOL_SHOW_INITIAL = 3;
@@ -207,7 +202,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
     const filePath = extractFilePath(evt);
     const tokenCount = (evt.input_tokens || 0) + (evt.output_tokens || 0);
     const isHeavy = (evt.output_tokens || 0) > 1000;
-    const toolClass = TOOL_BADGE_CLASS[evt.tool_name || ""] || "";
+    const toolClass = toolTagClass(evt.tool_name || "");
     const isOpen = expandedTools[evt.id] || false;
 
     // Token percentage for Read tools (#5)
@@ -235,7 +230,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
         `}
         ${(evt.output_data || evt.output_preview) && html`
           <div class="agent-tool-io">
-            <div class="agent-tool-io-label">Output${readPct >= 20 ? html` <span style="font-size:7px;color:var(--orange);font-weight:600;margin-left:3px">${readPct}% of agent reads</span>` : ""}</div>
+            <div class="agent-tool-io-label">Output${readPct >= 20 ? html` <span style="font-size:7px;color:var(--color-status-warning-text);font-weight:600;margin-left:3px">${readPct}% of agent reads</span>` : ""}</div>
             <div class=${"agent-tool-io-content" + (expandedIo["out-" + evt.id] ? " expanded" : "")} onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleIo("out-" + evt.id); }}>
               <div class="agent-tool-io-body" dangerouslySetInnerHTML=${{ __html: renderStructuredInner(evt.output_data || evt.output_preview || "") }}></div>
               <div class="fade"></div>
@@ -268,10 +263,10 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
             <span class="agent-event-time">${offset}</span>
             ${isResult
               ? html`
-                <span style="font-size:10px;color:var(--teal);font-weight:500">result</span>
-                ${meta.totalTokens > 0 && html`<span style="font-size:10px;font-family:var(--mono);color:var(--text3)">${formatTokens(meta.totalTokens)} tok</span>`}
+                <span style="font-size:10px;color:var(--color-status-completed);font-weight:500">result</span>
+                ${meta.totalTokens > 0 && html`<span style="font-size:10px;font-family:var(--font-mono);color:var(--color-text-tertiary)">${formatTokens(meta.totalTokens)} tok</span>`}
               `
-              : html`<span style="font-size:10px;color:var(--accent);font-weight:500">assistant</span>`
+              : html`<span style="font-size:10px;color:var(--color-status-running);font-weight:500">assistant</span>`
             }
           </div>
           ${body && html`
@@ -293,7 +288,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
           <div class="mini-dot"></div>
           <div class="agent-event-header">
             <span class="agent-event-time">${offset}</span>
-            <span style="font-size:10px;color:var(--text3);font-weight:500;font-style:italic">prompt</span>
+            <span style="font-size:10px;color:var(--color-text-tertiary);font-weight:500;font-style:italic">prompt</span>
           </div>
           <div class=${"agent-event-body prompt-muted" + (isBodyOpen ? " expanded" : "")} onClick=${() => toggleBody(evt.id)}>
             ${summary}
@@ -309,7 +304,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
         <div class="mini-dot"></div>
         <div class="agent-event-header">
           <span class="agent-event-time">${offset}</span>
-          <span style="font-size:10px;color:var(--text3)">${evt.event_type.replace(/_/g, " ")}</span>
+          <span style="font-size:10px;color:var(--color-text-tertiary)">${evt.event_type.replace(/_/g, " ")}</span>
         </div>
       </div>
     `;
@@ -333,7 +328,7 @@ export function AgentGroup({ agentId, sessionId, agent, events: propEvents, sess
         </span>
       </div>
       <div class=${"agent-block-body" + (expanded ? " show" : "")}>
-        ${loadingEvents && html`<div style="padding:8px 12px;font-size:12px;color:var(--text3)">Loading agent events…</div>`}
+        ${loadingEvents && html`<div style="padding:8px 12px;font-size:12px;color:var(--color-text-tertiary)">Loading agent events…</div>`}
         <div class="agent-events">
           ${renderEvents.map((chunk) => {
             if (chunk.type === "single") {

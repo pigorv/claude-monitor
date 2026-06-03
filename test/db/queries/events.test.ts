@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getDb, closeDb, insertSession, insertEvent } from '../../../src/db/index.js';
-import { getTurnCountsForSessions } from '../../../src/db/queries/events.js';
+import { getTurnCountsForSessions, getEventTypeCounts } from '../../../src/db/queries/events.js';
 import type { Session, Event } from '../../../src/shared/types.js';
 
 function makeSession(overrides: Partial<Session> = {}): Session {
@@ -121,5 +121,50 @@ describe('getTurnCountsForSessions', () => {
     const result = getTurnCountsForSessions(['sess-1', 'sess-2', 'sess-unknown']);
     assert.equal(result.has('sess-unknown'), true);
     assert.equal(result.get('sess-unknown'), 0);
+  });
+});
+
+describe('getEventTypeCounts', () => {
+  let dir: string;
+
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'type-counts-test-'));
+    getDb(join(dir, 'test.sqlite'));
+    insertSession(makeSession({ id: 'sess-1' }));
+    // Parent events: 2 user, 3 assistant, 4 tool, 1 thinking
+    for (let i = 0; i < 2; i++) insertEvent(makeEvent({ event_type: 'user_message', sequence_num: 100 + i }));
+    for (let i = 0; i < 3; i++) insertEvent(makeEvent({ event_type: 'assistant_message', sequence_num: 200 + i }));
+    for (let i = 0; i < 4; i++) insertEvent(makeEvent({ event_type: 'tool_call_start', tool_name: 'Bash', sequence_num: 300 + i }));
+    insertEvent(makeEvent({ event_type: 'thinking', sequence_num: 400 }));
+    // Sub-agent events that must be excluded under parentOnly
+    insertEvent(makeEvent({ event_type: 'user_message', agent_id: 'sub-1', sequence_num: 500 }));
+    insertEvent(makeEvent({ event_type: 'tool_call_start', tool_name: 'Read', agent_id: 'sub-1', sequence_num: 501 }));
+  });
+
+  afterAll(() => {
+    closeDb();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('counts each type and rolls every event (incl. thinking) into all (parent-only)', () => {
+    const c = getEventTypeCounts('sess-1', true);
+    assert.equal(c.user_message, 2);
+    assert.equal(c.assistant_message, 3);
+    assert.equal(c.tool_call_start, 4);
+    // all includes the thinking event too: 2 + 3 + 4 + 1
+    assert.equal(c.all, 10);
+  });
+
+  it('includes sub-agent events when parentOnly is false', () => {
+    const c = getEventTypeCounts('sess-1', false);
+    assert.equal(c.user_message, 3); // +1 sub-agent
+    assert.equal(c.tool_call_start, 5); // +1 sub-agent
+    assert.equal(c.all, 12);
+  });
+
+  it('returns all-zero counts for a session with no events', () => {
+    insertSession(makeSession({ id: 'empty' }));
+    const c = getEventTypeCounts('empty', true);
+    assert.deepEqual(c, { all: 0, user_message: 0, assistant_message: 0, tool_call_start: 0 });
   });
 });

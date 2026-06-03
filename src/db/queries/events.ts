@@ -11,11 +11,13 @@ let _deleteEventsBySessionStmt: Database.Statement | null = null;
 let _eventCountBySessionStmt: Database.Statement | null = null;
 let _eventCountParentOnlyStmt: Database.Statement | null = null;
 let _annotationEventsStmt: Database.Statement | null = null;
+let _eventTypeCountsStmt: Database.Statement | null = null;
+let _eventTypeCountsParentOnlyStmt: Database.Statement | null = null;
 
 onDbClose(() => {
   _insertEventStmt = _getEventStmt = _tokenTimelineStmt = _miniTimelineStmt =
     _deleteEventsBySessionStmt = _eventCountBySessionStmt = _eventCountParentOnlyStmt =
-    _annotationEventsStmt = null;
+    _annotationEventsStmt = _eventTypeCountsStmt = _eventTypeCountsParentOnlyStmt = null;
 });
 
 export function insertEvent(event: Omit<Event, 'id'>): number {
@@ -307,6 +309,41 @@ export function getEventCountBySession(sessionId: string, parentOnly = false): n
   }
   _eventCountBySessionStmt ??= db.prepare('SELECT COUNT(*) as count FROM events WHERE session_id = ?');
   return (_eventCountBySessionStmt.get(sessionId) as { count: number }).count;
+}
+
+export interface EventTypeCounts {
+  /** Total across every event type — what the unfiltered ("All") view shows. */
+  all: number;
+  user_message: number;
+  assistant_message: number;
+  tool_call_start: number;
+}
+
+/**
+ * Per-event-type counts for a session, used by the Timeline filter pills.
+ * Mirrors the WHERE clause of `listEventsBySession` (minus the event_type
+ * condition) so each pill's count equals the `total` that filter would return.
+ * When `parentOnly` is true, sub-agent events are excluded — matching the
+ * Timeline's parent-only mode for sessions with sub-agents.
+ */
+export function getEventTypeCounts(sessionId: string, parentOnly = false): EventTypeCounts {
+  const db = getDb();
+  const stmt = parentOnly
+    ? (_eventTypeCountsParentOnlyStmt ??= db.prepare(
+        'SELECT event_type, COUNT(*) as count FROM events WHERE session_id = ? AND agent_id IS NULL GROUP BY event_type',
+      ))
+    : (_eventTypeCountsStmt ??= db.prepare(
+        'SELECT event_type, COUNT(*) as count FROM events WHERE session_id = ? GROUP BY event_type',
+      ));
+  const rows = stmt.all(sessionId) as { event_type: string; count: number }[];
+  const counts: EventTypeCounts = { all: 0, user_message: 0, assistant_message: 0, tool_call_start: 0 };
+  for (const { event_type, count } of rows) {
+    counts.all += count;
+    if (event_type === 'user_message' || event_type === 'assistant_message' || event_type === 'tool_call_start') {
+      counts[event_type] = count;
+    }
+  }
+  return counts;
 }
 
 interface AnnotationEventRow {

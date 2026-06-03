@@ -33,11 +33,11 @@ function formatDuration(ms: number | null): string {
 }
 
 function compressionRating(ratio: number | null): { label: string; color: string } {
-  if (ratio == null || ratio <= 0) return { label: "—", color: "var(--text3)" };
-  if (ratio > 20) return { label: "Excellent", color: "var(--green)" };
-  if (ratio > 5) return { label: "Good", color: "var(--green)" };
-  if (ratio > 2) return { label: "Fair", color: "var(--yellow)" };
-  return { label: "Poor", color: "var(--red)" };
+  if (ratio == null || ratio <= 0) return { label: "—", color: "var(--color-text-tertiary)" };
+  if (ratio > 20) return { label: "Excellent", color: "var(--color-status-completed)" };
+  if (ratio > 5) return { label: "Good", color: "var(--color-status-completed)" };
+  if (ratio > 2) return { label: "Fair", color: "var(--color-status-warning-text)" };
+  return { label: "Poor", color: "var(--color-status-danger-text)" };
 }
 
 function resultBadgeClass(classification: string | null): string {
@@ -62,7 +62,7 @@ export function AgentEfficiencyDashboard({ agents, efficiency }: DashboardProps)
   return html`
     <div class="agent-efficiency-dashboard">
       <div class="efficiency-stat">
-        <div class="efficiency-stat-value" style="color: var(--teal)">${efficiency.total_agents}</div>
+        <div class="efficiency-stat-value" style="color: var(--color-status-completed)">${efficiency.total_agents}</div>
         <div class="efficiency-stat-label">Total Agents</div>
       </div>
       <div class="efficiency-stat">
@@ -79,11 +79,11 @@ export function AgentEfficiencyDashboard({ agents, efficiency }: DashboardProps)
         `}
       </div>
       <div class="efficiency-stat">
-        <div class="efficiency-stat-value" style="color: ${efficiency.agents_with_compaction > 0 ? 'var(--orange)' : 'var(--text)'}">${efficiency.agents_with_compaction}</div>
+        <div class="efficiency-stat-value" style="color: ${efficiency.agents_with_compaction > 0 ? 'var(--color-status-warning-text)' : 'var(--color-text-primary)'}">${efficiency.agents_with_compaction}</div>
         <div class="efficiency-stat-label">Compacted</div>
       </div>
       <div class="efficiency-stat">
-        <div class="efficiency-stat-value" style="color: ${efficiency.parent_pressure_events > 0 ? 'var(--red)' : 'var(--text)'}">${efficiency.parent_pressure_events}</div>
+        <div class="efficiency-stat-value" style="color: ${efficiency.parent_pressure_events > 0 ? 'var(--color-status-danger-text)' : 'var(--color-text-primary)'}">${efficiency.parent_pressure_events}</div>
         <div class="efficiency-stat-label">Pressure Events</div>
       </div>
       <div class="efficiency-stat">
@@ -155,8 +155,8 @@ export function ConcurrencyTimeline({ agents, sessionStart, onAgentClick }: Time
       <div class="concurrency-timeline-scroll">
         <svg width=${svgWidth} height=${svgHeight} class="concurrency-svg">
           ${timeLabels.map(({ x, label }) => html`
-            <line x1=${x} y1=${HEADER_HEIGHT} x2=${x} y2=${svgHeight - 10} stroke="var(--border)" stroke-width="0.5" stroke-dasharray="3,3" />
-            <text x=${x} y=${HEADER_HEIGHT - 4} text-anchor="middle" fill="var(--text3)" font-size="10" font-family="var(--mono)">${label}</text>
+            <line x1=${x} y1=${HEADER_HEIGHT} x2=${x} y2=${svgHeight - 10} stroke="var(--color-border-primary)" stroke-width="0.5" stroke-dasharray="3,3" />
+            <text x=${x} y=${HEADER_HEIGHT - 4} text-anchor="middle" fill="var(--color-text-tertiary)" font-size="10" font-family="var(--font-mono)">${label}</text>
           `)}
 
           ${validAgents.map((agent, i) => {
@@ -166,8 +166,8 @@ export function ConcurrencyTimeline({ agents, sessionStart, onAgentClick }: Time
             const barWidth = Math.max(endX - startX, 4);
             const isHovered = hoveredAgent === agent.child_agent_id;
             const classification = agent.result_classification;
-            const barColor = classification === 'oversized' ? 'var(--red)' :
-                           classification === 'large' ? 'var(--yellow)' : 'var(--teal)';
+            const barColor = classification === 'oversized' ? 'var(--color-status-danger-text)' :
+                           classification === 'large' ? 'var(--color-status-warning-text)' : 'var(--color-status-completed)';
             const label = (agent.prompt_preview || agent.child_agent_id).slice(0, 18);
 
             return html`
@@ -179,16 +179,16 @@ export function ConcurrencyTimeline({ agents, sessionStart, onAgentClick }: Time
                 style="cursor: pointer"
               >
                 ${isHovered && html`
-                  <rect x=${0} y=${HEADER_HEIGHT + i * ROW_HEIGHT} width=${svgWidth} height=${ROW_HEIGHT} fill="var(--bg-hover)" rx="4" />
+                  <rect x=${0} y=${HEADER_HEIGHT + i * ROW_HEIGHT} width=${svgWidth} height=${ROW_HEIGHT} fill="var(--color-background-hover)" rx="4" />
                 `}
 
                 <text
                   x=${PADDING_LEFT - 8}
                   y=${y + BAR_HEIGHT / 2 + 4}
                   text-anchor="end"
-                  fill=${isHovered ? "var(--text)" : "var(--text2)"}
+                  fill=${isHovered ? "var(--color-text-primary)" : "var(--color-text-secondary)"}
                   font-size="11"
-                  font-family="var(--mono)"
+                  font-family="var(--font-mono)"
                 >${label}</text>
 
                 <rect
@@ -204,7 +204,7 @@ export function ConcurrencyTimeline({ agents, sessionStart, onAgentClick }: Time
                 ${agent.agent_compaction_count > 0 && html`
                   <polygon
                     points="${startX + barWidth * 0.6 - 4},${y - 2} ${startX + barWidth * 0.6 + 4},${y - 2} ${startX + barWidth * 0.6},${y + 4}"
-                    fill="var(--orange)"
+                    fill="var(--color-status-warning-text)"
                   />
                 `}
 
@@ -216,7 +216,7 @@ export function ConcurrencyTimeline({ agents, sessionStart, onAgentClick }: Time
                     fill="white"
                     font-size="10"
                     font-weight="600"
-                    font-family="var(--mono)"
+                    font-family="var(--font-mono)"
                   >${agent.compression_ratio.toFixed(1)}:1</text>
                 `}
 
@@ -322,10 +322,10 @@ export function MiniContextChart({ timeline }: MiniChartProps) {
   return html`
     <div class="mini-context-chart">
       <svg width=${WIDTH} height=${HEIGHT} class="mini-chart-svg">
-        <rect x=${PADDING} y=${PADDING} width=${WIDTH - 2 * PADDING} height=${(HEIGHT - 2 * PADDING) * 0.3} fill="color-mix(in srgb, var(--red) 5%, transparent)" rx="2" />
-        <path d=${linePath} fill="none" stroke="var(--teal)" stroke-width="1.5" />
+        <rect x=${PADDING} y=${PADDING} width=${WIDTH - 2 * PADDING} height=${(HEIGHT - 2 * PADDING) * 0.3} fill="color-mix(in srgb, var(--color-status-danger-text) 5%, transparent)" rx="2" />
+        <path d=${linePath} fill="none" stroke="var(--color-status-completed)" stroke-width="1.5" />
         ${points.filter(p => p.isCompaction).map(p => html`
-          <circle cx=${p.x} cy=${p.y} r="3" fill="var(--orange)" />
+          <circle cx=${p.x} cy=${p.y} r="3" fill="var(--color-status-warning-text)" />
         `)}
       </svg>
       <div class="mini-chart-labels">

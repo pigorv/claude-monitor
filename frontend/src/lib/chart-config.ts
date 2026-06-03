@@ -1,6 +1,7 @@
 import type { TokenDataPoint, ContextThresholds, EventAnnotation } from "../../../src/shared/types";
 import { MODEL_THRESHOLDS } from "../../../src/shared/model-thresholds";
 import type uPlot from "uplot";
+import { CHART } from './chart-palette';
 
 // ── Model threshold resolution ─────────────────────────────────────
 
@@ -79,13 +80,13 @@ export function thresholdPlugin(thresholds: ChartThresholds): uPlot.Plugin {
             const warningY = valToY(warningPct);
             const dangerY = dangerPct <= yScale.max ? valToY(dangerPct) : valToY(yScale.max);
 
-            ctx.fillStyle = "rgba(161, 98, 7, 0.06)";
+            ctx.fillStyle = CHART.amberZoneFill;
             ctx.fillRect(left, dangerY, width, warningY - dangerY);
 
             // Dashed line at warning threshold
             ctx.setLineDash([4, 4]);
             ctx.lineWidth = 1;
-            ctx.strokeStyle = "rgba(161, 98, 7, 0.25)";
+            ctx.strokeStyle = CHART.amberZoneStroke;
             ctx.beginPath();
             ctx.moveTo(left, warningY);
             ctx.lineTo(left + width, warningY);
@@ -95,7 +96,7 @@ export function thresholdPlugin(thresholds: ChartThresholds): uPlot.Plugin {
             // Simple % label
             ctx.font = "500 10px IBM Plex Mono, monospace";
             ctx.textAlign = "end";
-            ctx.fillStyle = "rgba(161, 98, 7, 0.5)";
+            ctx.fillStyle = CHART.amberZoneLabel;
             ctx.fillText(`${warningPct}%`, left + width - 4, warningY - 4);
           }
 
@@ -103,13 +104,13 @@ export function thresholdPlugin(thresholds: ChartThresholds): uPlot.Plugin {
           if (dangerPct <= yScale.max && dangerPct >= yScale.min) {
             const dangerY = valToY(dangerPct);
 
-            ctx.fillStyle = "rgba(185, 28, 28, 0.04)";
+            ctx.fillStyle = CHART.redZoneFill;
             ctx.fillRect(left, top, width, dangerY - top);
 
             // Dashed line at danger threshold
             ctx.setLineDash([4, 4]);
             ctx.lineWidth = 1;
-            ctx.strokeStyle = "rgba(185, 28, 28, 0.2)";
+            ctx.strokeStyle = CHART.redZoneStroke;
             ctx.beginPath();
             ctx.moveTo(left, dangerY);
             ctx.lineTo(left + width, dangerY);
@@ -119,7 +120,7 @@ export function thresholdPlugin(thresholds: ChartThresholds): uPlot.Plugin {
             // Simple % label
             ctx.font = "500 10px IBM Plex Mono, monospace";
             ctx.textAlign = "end";
-            ctx.fillStyle = "rgba(185, 28, 28, 0.45)";
+            ctx.fillStyle = CHART.redZoneLabel;
             ctx.fillText(`${dangerPct}%`, left + width - 4, dangerY - 4);
           }
 
@@ -149,7 +150,7 @@ export function compactionPlugin(chartData: ChartData): uPlot.Plugin {
             // Vertical dashed line
             ctx.setLineDash([6, 3]);
             ctx.lineWidth = 1.5;
-            ctx.strokeStyle = "rgba(185, 28, 28, 0.5)";
+            ctx.strokeStyle = CHART.redCompaction;
             ctx.beginPath();
             ctx.moveTo(x, top);
             ctx.lineTo(x, top + height + 8);
@@ -165,11 +166,11 @@ export function compactionPlugin(chartData: ChartData): uPlot.Plugin {
             const lx = x - pillW / 2;
             const ly = top - 3;
 
-            ctx.fillStyle = "#b91c1c";
+            ctx.fillStyle = CHART.ctxDanger;
             ctx.beginPath();
             ctx.roundRect(lx, ly, pillW, pillH, 4);
             ctx.fill();
-            ctx.fillStyle = "#fff";
+            ctx.fillStyle = CHART.white;
             ctx.fillText(label, lx + 5, ly + 11.5);
           }
 
@@ -217,9 +218,9 @@ export function eventMarkerPlugin(chartData: ChartData): uPlot.Plugin {
             ctx.lineTo(cx, cy + r);
             ctx.lineTo(cx - r + 1, cy);
             ctx.closePath();
-            ctx.fillStyle = "#b91c1c";
+            ctx.fillStyle = CHART.ctxDanger;
             ctx.fill();
-            ctx.strokeStyle = "#fff";
+            ctx.strokeStyle = CHART.white;
             ctx.lineWidth = 1.5;
             ctx.stroke();
           }
@@ -244,16 +245,16 @@ export function eventMarkerPlugin(chartData: ChartData): uPlot.Plugin {
             switch (ann.marker_type) {
               case 'file_read':
               case 'file_write':
-                fillColor = "#6d28d9"; // purple
+                fillColor = CHART.purple;
                 break;
               case 'agent':
-                fillColor = "#0e7490"; // teal
+                fillColor = CHART.teal;
                 break;
               case 'bash':
-                fillColor = "#78716c"; // gray
+                fillColor = CHART.grayMid;
                 break;
               default:
-                fillColor = "#a8a29e"; // light gray
+                fillColor = CHART.grayLight;
                 break;
             }
 
@@ -261,7 +262,7 @@ export function eventMarkerPlugin(chartData: ChartData): uPlot.Plugin {
             ctx.arc(cx, cy, r, 0, Math.PI * 2);
             ctx.fillStyle = fillColor;
             ctx.fill();
-            ctx.strokeStyle = "#fff";
+            ctx.strokeStyle = CHART.white;
             ctx.lineWidth = 1.5;
             ctx.stroke();
           }
@@ -330,17 +331,17 @@ export function tooltipPlugin(chartData: ChartData, thresholds: ChartThresholds)
           };
 
           // Zone color for %
-          let pctColor = "#15803d"; // green
-          if (pt.context_pct >= thresholds.dangerPct) pctColor = "#b91c1c"; // red
-          else if (pt.context_pct >= thresholds.warningPct) pctColor = "#a16207"; // orange
+          let pctColor = CHART.ctxSafe;
+          if (pt.context_pct >= thresholds.dangerPct) pctColor = CHART.ctxDanger;
+          else if (pt.context_pct >= thresholds.warningPct) pctColor = CHART.ctxWarn;
 
           const effectiveCtx = pt.input_tokens + pt.cache_read_tokens + (pt.cache_write_tokens ?? 0);
 
           let content = `<div class="tt-time">${new Date(pt.timestamp).toLocaleTimeString()}</div>`;
           content += `<div class="tt-pct" style="color:${pctColor}">${pt.context_pct.toFixed(1)}%</div>`;
-          content += `<div class="tt-row"><span class="tt-dot" style="background:#6d28d9"></span>${fmt(effectiveCtx)} of ${fmt(thresholds.maxTokens)} tokens</div>`;
+          content += `<div class="tt-row"><span class="tt-dot" style="background:${CHART.purple}"></span>${fmt(effectiveCtx)} of ${fmt(thresholds.maxTokens)} tokens</div>`;
           if (pt.cache_read_tokens > 0) {
-            content += `<div class="tt-row"><span class="tt-dot" style="background:#0e7490"></span>Cache read: ${fmt(pt.cache_read_tokens)}</div>`;
+            content += `<div class="tt-row"><span class="tt-dot" style="background:${CHART.teal}"></span>Cache read: ${fmt(pt.cache_read_tokens)}</div>`;
           }
 
           if (pt.is_compaction) {
@@ -351,8 +352,8 @@ export function tooltipPlugin(chartData: ChartData, thresholds: ChartThresholds)
           const anns = annotationsByIndex.get(idx);
           if (anns && anns.length > 0) {
             const typeColors: Record<string, string> = {
-              file_read: "#6d28d9", file_write: "#6d28d9",
-              agent: "#0e7490", bash: "#78716c", other_tool: "#a8a29e",
+              file_read: CHART.purple, file_write: CHART.purple,
+              agent: CHART.teal, bash: CHART.grayMid, other_tool: CHART.grayLight,
             };
             const typeLabels: Record<string, string> = {
               file_read: "Read", file_write: "Write",
@@ -367,11 +368,11 @@ export function tooltipPlugin(chartData: ChartData, thresholds: ChartThresholds)
             const primary = sorted[0];
             // Truncate label from the left, keeping filename visible
             let label = primary.label;
-            if (label.length > 32) label = "\u2026" + label.slice(-29);
+            if (label.length > 32) label = "…" + label.slice(-29);
 
             content += `<div class="tt-event-sep"></div>`;
             content += `<div class="tt-event">`;
-            content += `<div class="tt-event-label" style="color:${typeColors[primary.marker_type] ?? '#6d28d9'}">${typeLabels[primary.marker_type] ?? primary.tool_name}: ${escapeHtml(label)}</div>`;
+            content += `<div class="tt-event-label" style="color:${typeColors[primary.marker_type] ?? CHART.purple}">${typeLabels[primary.marker_type] ?? primary.tool_name}: ${escapeHtml(label)}</div>`;
             if (primary.token_delta) {
               content += `<div class="tt-event-tokens">${primary.token_delta > 0 ? '+' : ''}${fmt(Math.abs(primary.token_delta))} tokens</div>`;
             }
@@ -482,11 +483,11 @@ export function crosshairPlugin(): uPlot.Plugin {
 function contextGradientFill(u: uPlot, _seriesIdx: number): string | CanvasGradient {
   const { top, height } = u.bbox;
   if (!height || !isFinite(top) || !isFinite(height)) {
-    return "rgba(109, 40, 217, 0.08)";
+    return CHART.purpleGradFill0;
   }
   const grad = u.ctx.createLinearGradient(0, top, 0, top + height);
-  grad.addColorStop(0, "rgba(109, 40, 217, 0.18)");
-  grad.addColorStop(1, "rgba(109, 40, 217, 0.02)");
+  grad.addColorStop(0, CHART.purpleGradStop0);
+  grad.addColorStop(1, CHART.purpleGradStop1);
   return grad;
 }
 
@@ -508,8 +509,8 @@ export function buildChartOpts(
         width: 0,
         stroke: "transparent",
         fill: (_u: uPlot, seriesIdx: number) => {
-          const fills = ["", "#6d28d9", "rgba(14,116,144,0.6)"];
-          return fills[seriesIdx] || "#888";
+          const fills = ["", CHART.purple, CHART.tealCursorFill];
+          return fills[seriesIdx] || CHART.grayMid;
         },
       },
     },
@@ -522,7 +523,7 @@ export function buildChartOpts(
     },
     axes: [
       {
-        stroke: "#a8a29e",
+        stroke: CHART.grayLight,
         grid: { show: false },
         ticks: { show: false },
         font: "10px IBM Plex Mono, monospace",
@@ -534,8 +535,8 @@ export function buildChartOpts(
           }),
       },
       {
-        stroke: "#a8a29e",
-        grid: { stroke: "rgba(232, 228, 223, 0.6)", width: 1 },
+        stroke: CHART.grayLight,
+        grid: { stroke: CHART.gridStroke, width: 1 },
         ticks: { show: false },
         font: "10px IBM Plex Mono, monospace",
         size: 36,
@@ -549,16 +550,16 @@ export function buildChartOpts(
       {}, // x-axis (timestamps)
       {
         label: "Context %",
-        stroke: "#6d28d9",
+        stroke: CHART.purple,
         width: 2,
         fill: contextGradientFill as any,
         points: { show: false },
       },
       {
         label: "Cache Read",
-        stroke: "rgba(14, 116, 144, 0.4)",
+        stroke: CHART.tealSeriesStroke,
         width: 1,
-        fill: "rgba(14, 116, 144, 0.08)",
+        fill: CHART.tealSeriesFill,
         points: { show: false },
       },
     ],

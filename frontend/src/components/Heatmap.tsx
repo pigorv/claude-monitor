@@ -28,12 +28,12 @@ function downsample(timeline: TokenDataPoint[], maxCells: number): number[] {
 }
 
 export function cellColor(pct: number): string {
-  if (pct < 20) return "rgba(21, 128, 61, 0.15)";
-  if (pct < 40) return "rgba(21, 128, 61, 0.35)";
-  if (pct < 55) return "rgba(161, 98, 7, 0.25)";
-  if (pct < 70) return "rgba(194, 65, 12, 0.35)";
-  if (pct < 80) return "rgba(194, 65, 12, 0.55)";
-  return "rgba(185, 28, 28, 0.6)";
+  if (pct < 20) return "color-mix(in srgb, var(--health-green) 15%, transparent)";
+  if (pct < 40) return "color-mix(in srgb, var(--health-green) 35%, transparent)";
+  if (pct < 55) return "color-mix(in srgb, var(--health-amber) 25%, transparent)";
+  if (pct < 70) return "color-mix(in srgb, var(--health-amber) 35%, transparent)";
+  if (pct < 80) return "color-mix(in srgb, var(--health-amber) 55%, transparent)";
+  return "color-mix(in srgb, var(--health-rose) 60%, transparent)";
 }
 
 export const HEATMAP_LEGEND_STEPS = [10, 30, 47, 62, 75, 85];

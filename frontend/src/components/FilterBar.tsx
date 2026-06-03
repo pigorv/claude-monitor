@@ -29,9 +29,9 @@ interface FilterBarProps {
 
 const MODEL_OPTIONS = [
   { value: "all",    label: "All models" },
-  { value: "opus",   label: "Opus",   swatch: "var(--purple)" },
-  { value: "sonnet", label: "Sonnet", swatch: "var(--accent)" },
-  { value: "haiku",  label: "Haiku",  swatch: "var(--text3)" },
+  { value: "opus",   label: "Opus",   swatch: "var(--color-interactive-selected-text)" },
+  { value: "sonnet", label: "Sonnet", swatch: "var(--color-accent)" },
+  { value: "haiku",  label: "Haiku",  swatch: "var(--color-text-tertiary)" },
 ];
 
 const SORT_OPTIONS = [
