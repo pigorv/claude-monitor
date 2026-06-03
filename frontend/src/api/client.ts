@@ -7,6 +7,13 @@ export interface EventsResponse {
   offset: number;
 }
 
+export interface EventTypeCounts {
+  all: number;
+  user_message: number;
+  assistant_message: number;
+  tool_call_start: number;
+}
+
 export async function fetchApi<T>(
   path: string,
   params?: Record<string, string | number | undefined>
@@ -44,6 +51,16 @@ export function fetchEvents(
 ): Promise<EventsResponse> {
   return fetchApi<EventsResponse>(
     `/api/sessions/${encodeURIComponent(sessionId)}/events`,
+    params
+  );
+}
+
+export function fetchEventCounts(
+  sessionId: string,
+  params?: Record<string, string | number | undefined>
+): Promise<{ counts: EventTypeCounts }> {
+  return fetchApi<{ counts: EventTypeCounts }>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/event-counts`,
     params
   );
 }

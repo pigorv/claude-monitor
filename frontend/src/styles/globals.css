@@ -305,28 +305,62 @@ nav a.active {
    ═══════════════════════════════════════════ */
 .chip {
   display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 12px;
   border-radius: var(--radius-pill);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   background: var(--color-background-primary);
   color: var(--color-text-secondary);
   cursor: pointer;
   border: 1px solid var(--color-border-primary);
   transition: all 0.15s;
-  box-shadow: var(--shadow-sm);
   user-select: none;
 }
 
 .chip:hover {
   border-color: var(--color-border-secondary);
+  color: var(--color-text-primary);
 }
 
 .chip.active {
-  background: var(--color-accent);
-  color: var(--color-text-inverse);
-  border-color: var(--color-accent);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-accent) 20%, transparent);
+  background: var(--color-interactive-selected-bg);
+  color: var(--color-interactive-selected-text);
+  border-color: var(--color-interactive-selected-border);
+  font-weight: 600;
+}
+
+/* Count badge inside a chip — mirrors the .tab .count pattern */
+.chip .count {
+  background: var(--color-background-tertiary);
+  color: var(--color-text-tertiary);
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.chip.active .count {
+  background: var(--color-interactive-count-bg-selected);
+  color: var(--color-interactive-selected-text);
+}
+
+/* Leading check on the active filter */
+.chip .chip-check {
+  display: inline-flex;
+  width: 0;
+  margin-left: -4px;
+  overflow: hidden;
+  opacity: 0;
+  transition: width 0.15s, opacity 0.15s, margin 0.15s;
+}
+
+.chip.active .chip-check {
+  width: 12px;
+  margin-left: 0;
+  opacity: 1;
 }
 
 .model-pill {

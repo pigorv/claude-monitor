@@ -1,9 +1,20 @@
 import { Hono } from 'hono';
-import { listEventsBySession } from '../../db/queries/events.js';
+import { listEventsBySession, getEventTypeCounts } from '../../db/queries/events.js';
 import { sessionExists } from '../../db/queries/sessions.js';
 import type { EventFilters } from '../../db/queries/events.js';
 
 const events = new Hono();
+
+events.get('/api/sessions/:id/event-counts', (c) => {
+  const sessionId = c.req.param('id');
+
+  if (!sessionExists(sessionId)) {
+    return c.json({ error: 'Session not found' }, 404);
+  }
+
+  const parentOnly = c.req.query('parent_only') === 'true';
+  return c.json({ counts: getEventTypeCounts(sessionId, parentOnly) });
+});
 
 events.get('/api/sessions/:id/events', (c) => {
   const sessionId = c.req.param('id');

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Unified all dashboard colors onto a single three-tier design-token system (five semantic color ramps, each owning one meaning) for consistent styling across every tab and view.
+- Session Detail timeline: the event-type filter (All / User / Assistant / Tools) is restyled to match the Timeline/Agents tab badges — each pill now carries a per-type event count, and the selected filter reads as a soft purple-tinted pill with a leading check instead of a heavy solid-purple fill. Counts are parent-only for sessions with sub-agents, matching the rows the timeline actually renders. The filter row also gets a little breathing room below the tab strip.
 
 ### Fixed
 
