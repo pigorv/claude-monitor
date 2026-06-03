@@ -8,7 +8,7 @@ import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { updateParams } from "../lib/url-state";
 import { migrateProjectFilterKey } from "../lib/migrate-project-filter";
 import { projectColor, formatTokenCount } from "../lib/format";
-import { resolveThresholds } from "../lib/chart-config";
+import { ctxLevel } from "../lib/ctx";
 import type { SessionSummary, ProjectInfo } from "../../../src/shared/types";
 import "../styles/pills.css";
 import "../styles/session-list.css";
@@ -102,14 +102,6 @@ function dateBucket(iso: string): { key: string; label: string } {
   if (diffDays < 7) return { key: "week", label: "THIS WEEK" };
   const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   return { key: ymd, label: ymd };
-}
-
-// Peak-context color class — same model thresholds the Context chart uses.
-function ctxClass(pct: number, model: string | null | undefined): string {
-  const t = resolveThresholds(model);
-  if (pct >= t.dangerPct) return "tel-ctx tel-red";
-  if (pct >= t.warningPct) return "tel-ctx tel-amber";
-  return "tel-ctx tel-green";
 }
 
 // Cache hit ratio: cache_read / (cache_read + cache_write + input). Null when
@@ -239,7 +231,7 @@ function SessionRow({ s, onOpen }: { s: SessionSummary; onOpen: (id: string) => 
             : null}
         </div>
         <div class="rail-tel">
-          <span class=${ctxClass(s.peak_context_pct, s.models_used?.[s.models_used.length - 1] ?? s.model)}>
+          <span class=${"ctx-pct " + ctxLevel(s.peak_context_pct)}>
             ${Math.round(s.peak_context_pct)}% ctx
           </span>
           <span class="tel-sep">·</span>

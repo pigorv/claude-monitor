@@ -3,6 +3,7 @@ import { html } from "htm/preact";
 import { updateParams } from "../lib/url-state";
 import { renderStructuredInner } from "../lib/markdown";
 import { computeGanttWindow, ganttPosition, computeTimeAxis, formatHMS } from "../lib/gantt";
+import { toolTagClass } from "../lib/tool-tags";
 import type { AgentRelationship, InternalToolCall, AgentEfficiencyAggregates, TokenDataPoint } from "../../../src/shared/types";
 
 interface AgentTreeProps {
@@ -40,18 +41,6 @@ function formatTokens(n: number | null): string {
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max) + "\u2026";
-}
-
-function toolBadgeClass(name: string): string {
-  const lower = name.toLowerCase();
-  if (lower.includes("read")) return "read";
-  if (lower.includes("write")) return "write";
-  if (lower.includes("edit")) return "edit";
-  if (lower.includes("bash")) return "bash";
-  if (lower.includes("grep")) return "grep";
-  if (lower.includes("glob")) return "glob";
-  if (lower.includes("agent")) return "agent";
-  return "";
 }
 
 function toolFillClass(name: string): string {
@@ -186,10 +175,10 @@ function AgentDetailPanel({
         <div class="stat">Started <strong>${formatOffset(agent.started_at, sessionStart)}</strong></div>
         <div class="stat">Duration <strong>${formatDuration(agent.duration_ms)}</strong></div>
         ${agent.input_tokens_total != null && html`
-          <div class="stat">Prompt <strong style="color:var(--teal)">${formatTokens(agent.input_tokens_total)}</strong></div>
+          <div class="stat">Prompt <strong style="color:var(--color-status-completed)">${formatTokens(agent.input_tokens_total)}</strong></div>
         `}
         ${agent.output_tokens_total != null && html`
-          <div class="stat">Result <strong style="color:var(--accent)">${formatTokens(agent.output_tokens_total)}</strong></div>
+          <div class="stat">Result <strong style="color:var(--color-accent)">${formatTokens(agent.output_tokens_total)}</strong></div>
         `}
         <div class="stat"><strong>${agent.tool_call_count}</strong> tool calls</div>
       </div>
@@ -223,7 +212,7 @@ function AgentDetailPanel({
           <span>Tool calls (${toolCalls.length})</span>
           ${totalEstTokens > 0 && html`
             <span class="tools-total">
-              Total loaded: <strong style="color:var(--text2)">${formatTokens(totalEstTokens)} tokens</strong>
+              Total loaded: <strong style="color:var(--color-text-secondary)">${formatTokens(totalEstTokens)} tokens</strong>
             </span>
           `}
         </div>
@@ -247,7 +236,7 @@ function AgentDetailPanel({
         `}
 
         ${isBackground && toolCalls.length === 0 && html`
-          <div style="font-size:11px;color:var(--text3);padding:8px 0">
+          <div style="font-size:11px;color:var(--color-text-tertiary);padding:8px 0">
             Background agent \u2014 internal activity not captured in parent transcript.
           </div>
         `}
@@ -257,12 +246,12 @@ function AgentDetailPanel({
             const isHeavy = (tc.estimated_tokens || 0) > 800;
             const isOpen = openTools.has(idx);
             const weightPct = totalEstTokens > 0 ? Math.min(100, ((tc.estimated_tokens || 0) / totalEstTokens) * 100) : 0;
-            const weightColor = isHeavy ? "#c2410c" : (weightPct > 8 ? "#a16207" : "var(--teal)");
+            const weightColor = isHeavy ? "var(--color-status-danger-text)" : (weightPct > 8 ? "var(--color-status-warning-text)" : "var(--color-status-completed)");
 
             return html`
               <div class=${"tool-row-exp" + (isHeavy ? " heavy" : "") + (isOpen ? " open" : "")}>
                 <div class="tool-row-header" onClick=${() => toggleTool(idx)}>
-                  <span class=${"tool-badge " + toolBadgeClass(tc.tool_name)}>${tc.tool_name}</span>
+                  <span class=${"tool-badge " + toolTagClass(tc.tool_name)}>${tc.tool_name}</span>
                   <code class="tool-path">${getToolDisplayPath(tc)}</code>
                   <span class=${"tool-tokens" + (isHeavy ? " heavy-tokens" : "")}>
                     ${tc.estimated_tokens ? formatTokens(tc.estimated_tokens) + " tok" : "\u2014"}
@@ -348,7 +337,7 @@ export function AgentTree({ agents, sessionStart, agentEfficiency, params }: Age
         <strong>${completed}</strong> completed
         ${failed > 0 && html`
           <span class="sep">\u00b7</span>
-          <strong>${failed}</strong> <span style="color:var(--red);font-weight:500">failed</span>
+          <strong>${failed}</strong> <span style="color:var(--color-status-danger-text);font-weight:500">failed</span>
         `}
         ${totalTokens > 0 && html`
           <span class="sep">\u00b7</span>
@@ -393,6 +382,7 @@ export function AgentTree({ agents, sessionStart, agentEfficiency, params }: Age
           const pos = sessionStart ? ganttPosition(agent, gantt.windowStartMs, gantt.duration) : { left: 0, width: 2 };
           const isSelected = (effectiveSelectedId) === agent.child_agent_id;
           const isFailed = agent.status === "error" || agent.status === "failed";
+          const isCompleted = agent.status === "completed";
           const isNarrow = pos.width < 6;
 
           return html`
@@ -408,7 +398,7 @@ export function AgentTree({ agents, sessionStart, agentEfficiency, params }: Age
                 <div class="gantt-gridlines">
                   ${ticks.map(() => html`<div class="gantt-gridline" />`)}
                 </div>
-                <div class=${"gantt-bar" + (isFailed ? " failed" : "") + (isNarrow ? " narrow" : "")} style=${"left:" + pos.left + "%;width:" + pos.width + "%"}>
+                <div class=${"gantt-bar" + (isFailed ? " failed" : isCompleted ? " completed" : " running") + (isNarrow ? " narrow" : "")} style=${"left:" + pos.left + "%;width:" + pos.width + "%"}>
                   <span class="gantt-bar-dur">${formatDuration(agent.duration_ms)}</span>
                 </div>
               </div>

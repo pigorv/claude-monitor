@@ -2,86 +2,79 @@
    DESIGN TOKENS
    ═══════════════════════════════════════════ */
 :root {
-  /* Surfaces */
-  --bg: #f7f5f2;
-  --bg-card: #fffffe;
-  --bg-hover: #f2eeea;
-  --bg-active: #f0edfa;
-  --bg-muted: #f3f0ec;
+  /* ═══ TIER 1 — PRIMITIVES (theme-independent; never reference directly) ═══ */
+  --purple-50:#EEEDFE; --purple-100:#CECBF6; --purple-200:#AFA9EC; --purple-400:#7F77DD; --purple-600:#534AB7; --purple-800:#3C3489; --purple-900:#26215C;
+  --teal-50:#E1F5EE; --teal-100:#9FE1CB; --teal-200:#5DCAA5; --teal-400:#1D9E75; --teal-600:#0F6E56; --teal-800:#085041; --teal-900:#04342C;
+  --amber-50:#FAEEDA; --amber-100:#FAC775; --amber-200:#EF9F27; --amber-400:#BA7517; --amber-600:#854F0B; --amber-800:#633806; --amber-900:#412402;
+  --red-50:#FCEBEB; --red-100:#F7C1C1; --red-200:#F09595; --red-400:#E24B4A; --red-600:#A32D2D; --red-800:#791F1F; --red-900:#501313;
+  --gray-50:#F1EFE8; --gray-100:#D3D1C7; --gray-200:#B4B2A9; --gray-400:#888780; --gray-600:#5F5E5A; --gray-800:#444441; --gray-900:#2C2C2A;
+  --blue-50:#E6F1FB; --blue-600:#1E5B9E; --blue-800:#0C447C;
+  --green-50:#EAF3DE; --green-600:#3B6D11; --green-800:#27500A;
 
-  /* Borders */
-  --border: #e8e4df;
-  --border-hover: #d6d1ca;
-  --border-accent: #d4c8f5;
-
+  /* ═══ TIER 2 — SEMANTIC (theme-aware; dark remaps THESE) ═══ */
   /* Text */
-  --text: #1c1917;
-  --text2: #6b6560;
-  --text3: #7d7872;
-  --text-inv: #fffffe;
+  --color-text-primary:#1c1917;    /* dark → var(--gray-50)  */
+  --color-text-secondary:#6b6560;  /* dark → var(--gray-200) */
+  --color-text-tertiary:#7d7872;   /* dark → var(--gray-400) */
+  --color-text-inverse:#fffffe;    /* dark → var(--gray-900) */
+  /* Background */
+  --color-background-primary:#fffffe;   /* dark → var(--gray-900) */
+  --color-background-secondary:#f7f5f2; /* dark → var(--gray-800) */
+  --color-background-tertiary:#f3f0ec;  /* dark → #3A3A37 */
+  --color-background-hover:#f2eeea;     /* dark → #34332F */
+  --color-background-active:#f0edfa;    /* dark → var(--purple-900) */
+  /* Border */
+  --color-border-primary:#e8e4df;       /* dark → #3A3A37 */
+  --color-border-secondary:#d6d1ca;     /* dark → #4A4945 */
+  --color-border-accent:var(--purple-200); /* dark → var(--purple-600) */
+  /* Accent (links, focus, generic interactive) */
+  --color-accent:var(--purple-600);     /* dark → var(--purple-200) */
+  --color-accent-tint:color-mix(in srgb, var(--purple-600) 12%, transparent); /* dark → color-mix(in srgb, var(--purple-200) 12%, transparent) */
+  /* Interactive selection */
+  --color-interactive-selected-bg:var(--purple-50);       /* dark → var(--purple-800) */
+  --color-interactive-selected-border:var(--purple-200);  /* dark → var(--purple-600) */
+  --color-interactive-selected-text:var(--purple-800);    /* dark → var(--purple-50)  */
+  --color-interactive-tab-active-line:var(--purple-600);  /* dark → var(--purple-200) */
+  --color-interactive-count-bg-selected:var(--purple-100);/* dark → var(--purple-600) */
+  /* Status */
+  --color-status-completed:var(--teal-400);      /* dark → var(--teal-200) */
+  --color-status-completed-bg:var(--teal-50);    /* dark → var(--teal-800) */
+  --color-status-completed-text:var(--teal-800); /* dark → var(--teal-50)  */
+  --color-status-running:var(--purple-600);      /* dark → var(--purple-200) */
+  --color-status-warning-bg:var(--amber-50);     /* dark → var(--amber-800) */
+  --color-status-warning-text:var(--amber-800);  /* dark → var(--amber-50)  */
+  --color-status-danger-bg:var(--red-50);        /* dark → var(--red-800)   */
+  --color-status-danger-text:var(--red-600);     /* dark → var(--red-100)   */
+  /* Tool tags */
+  --color-tool-bash-bg:var(--amber-50);   --color-tool-bash-text:var(--amber-800);
+  --color-tool-read-bg:var(--blue-50);    --color-tool-read-text:var(--blue-800);
+  --color-tool-edit-bg:var(--purple-50);  --color-tool-edit-text:var(--purple-800);
+  --color-tool-write-bg:var(--green-50);  --color-tool-write-text:var(--green-800);
+  --color-tool-default-bg:var(--gray-50); --color-tool-default-text:var(--gray-600);
+  /* Agent gantt bars */
+  --color-agent-bar-active:var(--purple-600); /* dark → var(--purple-400) */
+  --color-agent-bar-done:var(--teal-400);     /* dark → var(--teal-200)  */
+  /* Context graduated */
+  --color-ctx-safe-bg:var(--teal-50);   --color-ctx-safe-text:var(--teal-800);
+  --color-ctx-warn-bg:var(--amber-50);  --color-ctx-warn-text:var(--amber-800);
+  --color-ctx-danger-bg:var(--red-50);  --color-ctx-danger-text:var(--red-600);
 
-  /* Semantic colors */
-  --accent: #6d28d9;
-  --accent-light: #f0edfa;
-  --accent-border: #d4c8f5;
-
-  --green: #15803d;
-  --green-bg: #f0fdf4;
-  --green-border: #bbf7d0;
-
-  --yellow: #a16207;
-  --yellow-bg: #fefce8;
-  --yellow-border: #fef08a;
-
-  --orange: #c2410c;
-  --orange-bg: #fff7ed;
-  --orange-border: #fed7aa;
-
-  --red: #b91c1c;
-  --red-bg: #fef2f2;
-  --red-border: #fecaca;
-
-  --blue: #2563eb;
-  --blue-bg: rgba(59,130,246,0.04);
-  --blue-border: rgba(59,130,246,0.3);
-
-  --teal: #0e7490;
-  --teal-bg: #ecfeff;
-  --teal-border: #a5f3fc;
-
-  --purple: #6d28d9;
-  --purple-bg: #f5f3ff;
-  --purple-border: #ddd6fe;
-
-  /* Health strip (chart-tuned, distinct from semantic colors above) */
-  --health-green: #1f9d55;
-  --health-amber: #f0a000;
-  --health-rose: #e0457b;
-  --health-violet: #8b5cf6;
-
-  /* Tints (12% opacity for pill/badge backgrounds) */
-  --accent-tint: color-mix(in srgb, var(--accent) 12%, transparent);
-  --green-tint: color-mix(in srgb, var(--green) 12%, transparent);
-  --yellow-tint: color-mix(in srgb, var(--yellow) 12%, transparent);
-  --orange-tint: color-mix(in srgb, var(--orange) 12%, transparent);
-  --red-tint: color-mix(in srgb, var(--red) 12%, transparent);
-  --blue-tint: color-mix(in srgb, var(--blue) 12%, transparent);
-  --teal-tint: color-mix(in srgb, var(--teal) 12%, transparent);
+  /* Health (data-viz ramp — retained; mirrored in chart-palette.ts) */
+  --health-green:#1f9d55; --health-amber:#f0a000; --health-rose:#e0457b; --health-violet:#8b5cf6;
 
   /* Effects */
-  --shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.04);
-  --shadow: 0 1px 3px rgba(28, 25, 23, 0.06), 0 1px 2px rgba(28, 25, 23, 0.04);
-  --shadow-md: 0 4px 12px rgba(28, 25, 23, 0.08);
+  --shadow-sm:0 1px 2px rgba(28,25,23,0.04);
+  --shadow:0 1px 3px rgba(28,25,23,0.06),0 1px 2px rgba(28,25,23,0.04);
+  --shadow-md:0 4px 12px rgba(28,25,23,0.08);
 
-  /* Typography */
-  --mono: "IBM Plex Mono", monospace;
-  --sans: "Instrument Sans", sans-serif;
+  /* Radius / spacing / typography */
+  --radius-sm:4px; --radius-md:8px; --radius-lg:12px; --radius-pill:99px;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px;
+  --font-mono:"IBM Plex Mono", monospace; --font-sans:"Instrument Sans", sans-serif;
+  --font-size-h1:22px; --font-size-h2:18px; --font-size-h3:15px;
+  --font-size-body:13px; --font-size-meta:12px; --font-size-label:11px;
+  --font-weight-regular:400; --font-weight-medium:500; --font-weight-semibold:600; --font-weight-bold:700;
 
-  /* Radii */
-  --r: 12px;
-  --r-sm: 8px;
-  --r-xs: 6px;
-  --r-pill: 100px;
 }
 
 *,
@@ -93,16 +86,16 @@
 }
 
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--sans);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
 a {
-  color: var(--accent);
+  color: var(--color-accent);
   text-decoration: none;
 }
 
@@ -119,16 +112,16 @@ a:hover {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg);
+  background: var(--color-background-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-hover);
+  background: var(--color-border-secondary);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text3);
+  background: var(--color-text-tertiary);
 }
 
 /* ═══════════════════════════════════════════
@@ -139,8 +132,8 @@ nav {
   align-items: center;
   gap: 16px;
   padding: 12px 32px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
+  background: var(--color-background-primary);
+  border-bottom: 1px solid var(--color-border-primary);
   box-shadow: var(--shadow-sm);
   position: sticky;
   top: 0;
@@ -151,12 +144,12 @@ nav .brand {
   font-weight: 700;
   font-size: 16px;
   letter-spacing: -0.03em;
-  color: var(--text);
+  color: var(--color-text-primary);
 }
 
 nav .brand-accent {
   font-weight: 400;
-  color: var(--accent);
+  color: var(--color-accent);
 }
 
 nav .nav-links {
@@ -167,21 +160,21 @@ nav .nav-links {
 
 nav a {
   padding: 7px 16px;
-  border-radius: var(--r-sm);
-  color: var(--text2);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
   font-size: 13px;
   font-weight: 500;
   transition: all 0.15s;
 }
 
 nav a:hover {
-  background: var(--bg-hover);
+  background: var(--color-background-hover);
   opacity: 1;
 }
 
 nav a.active {
-  background: var(--accent-light);
-  color: var(--accent);
+  background: var(--color-interactive-selected-bg);
+  color: var(--color-interactive-selected-text);
   font-weight: 600;
 }
 
@@ -210,13 +203,13 @@ nav a.active {
 
 .page-sub {
   font-size: 13px;
-  color: var(--text2);
+  color: var(--color-text-secondary);
   margin-bottom: 28px;
 }
 
 .breadcrumb {
   font-size: 12px;
-  color: var(--text2);
+  color: var(--color-text-secondary);
   margin-bottom: 6px;
 }
 
@@ -240,9 +233,9 @@ nav a.active {
 .stat-card {
   position: relative;
   overflow: hidden;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
   padding: 16px 18px;
   box-shadow: var(--shadow-sm);
   transition: all 0.2s;
@@ -264,7 +257,7 @@ nav a.active {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--text3);
+  color: var(--color-text-tertiary);
   font-weight: 600;
   margin-bottom: 4px;
 }
@@ -278,7 +271,7 @@ nav a.active {
 
 .stat-card .detail {
   font-size: 11px;
-  color: var(--text2);
+  color: var(--color-text-secondary);
   margin-top: 3px;
 }
 
@@ -296,7 +289,7 @@ nav a.active {
 .progress {
   height: 4px;
   border-radius: 2px;
-  background: var(--bg-muted);
+  background: var(--color-background-tertiary);
   overflow: hidden;
   margin-top: 6px;
 }
@@ -313,57 +306,57 @@ nav a.active {
 .chip {
   display: inline-flex;
   padding: 4px 12px;
-  border-radius: var(--r-pill);
+  border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 500;
-  background: var(--bg-card);
-  color: var(--text2);
+  background: var(--color-background-primary);
+  color: var(--color-text-secondary);
   cursor: pointer;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border-primary);
   transition: all 0.15s;
   box-shadow: var(--shadow-sm);
   user-select: none;
 }
 
 .chip:hover {
-  border-color: var(--border-hover);
+  border-color: var(--color-border-secondary);
 }
 
 .chip.active {
-  background: var(--accent);
-  color: var(--text-inv);
-  border-color: var(--accent);
-  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.2);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  border-color: var(--color-accent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
 .model-pill {
   font-size: 10px;
   padding: 4px 12px;
-  border-radius: var(--r-sm);
+  border-radius: var(--radius-md);
   font-weight: 600;
   letter-spacing: 0.02em;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
 }
 
 .model-pill.opus {
-  background: var(--purple-bg);
-  color: var(--purple);
-  border: 1px solid var(--purple-border);
+  background: var(--color-interactive-selected-bg);
+  color: var(--color-interactive-selected-text);
+  border: 1px solid var(--color-interactive-selected-border);
 }
 
 .model-pill.sonnet {
-  background: var(--accent-light);
-  color: var(--accent);
-  border: 1px solid var(--accent-border);
+  background: var(--color-interactive-selected-bg);
+  color: var(--color-accent);
+  border: 1px solid var(--color-border-accent);
 }
 
 .model-pill.haiku {
-  background: var(--bg-muted);
-  color: var(--text2);
-  border: 1px solid var(--border);
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-primary);
 }
 
 .model-switch {
@@ -377,19 +370,16 @@ nav a.active {
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;
-  border-radius: var(--r-xs);
-  font-family: var(--mono);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
   display: inline-block;
 }
 
-.tool-badge.read, .tool-badge.tool-read { background: rgba(37, 99, 235, 0.08); color: #2563eb; }
-.tool-badge.write, .tool-badge.tool-write { background: rgba(21, 128, 61, 0.08); color: #15803d; }
-.tool-badge.bash, .tool-badge.tool-bash { background: rgba(161, 98, 7, 0.08); color: #a16207; }
-.tool-badge.agent, .tool-badge.tool-agent { background: var(--accent-tint); color: var(--accent); }
-.tool-badge.edit, .tool-badge.tool-edit { background: rgba(5, 150, 105, 0.08); color: #059669; }
-.tool-badge.grep, .tool-badge.tool-grep { background: rgba(79, 70, 229, 0.08); color: #4f46e5; }
-.tool-badge.glob, .tool-badge.tool-glob { background: rgba(14, 116, 144, 0.08); color: #0e7490; }
-.tool-badge.ask, .tool-badge.tool-ask { background: var(--purple-bg); color: var(--purple); }
+.tool-badge.tool-bash    { background: var(--color-tool-bash-bg);    color: var(--color-tool-bash-text); }
+.tool-badge.tool-read    { background: var(--color-tool-read-bg);    color: var(--color-tool-read-text); }
+.tool-badge.tool-edit    { background: var(--color-tool-edit-bg);    color: var(--color-tool-edit-text); }
+.tool-badge.tool-write   { background: var(--color-tool-write-bg);   color: var(--color-tool-write-text); }
+.tool-badge.tool-default { background: var(--color-tool-default-bg); color: var(--color-tool-default-text); }
 
 /* Signal badges */
 .signal-badge {
@@ -397,11 +387,11 @@ nav a.active {
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  border-radius: var(--r-sm);
+  border-radius: var(--radius-md);
   font-size: 11px;
   font-weight: 500;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
 }
 
 .signal-dot {
@@ -415,9 +405,9 @@ nav a.active {
    CARD
    ═══════════════════════════════════════════ */
 .card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
@@ -426,9 +416,9 @@ nav a.active {
    TABLE
    ═══════════════════════════════════════════ */
 .table-wrap {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
@@ -443,16 +433,16 @@ th {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--text3);
+  color: var(--color-text-tertiary);
   padding: 11px 18px;
   font-weight: 600;
-  background: var(--bg-muted);
-  border-bottom: 1px solid var(--border);
+  background: var(--color-background-tertiary);
+  border-bottom: 1px solid var(--color-border-primary);
 }
 
 td {
   padding: 13px 18px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border-primary);
   font-size: 13px;
   vertical-align: middle;
 }
@@ -467,7 +457,7 @@ tbody tr {
 }
 
 tbody tr:hover td {
-  background: var(--bg-hover);
+  background: var(--color-background-hover);
 }
 
 /* ═══════════════════════════════════════════
@@ -476,7 +466,7 @@ tbody tr:hover td {
 .tab-bar {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border-primary);
   margin-bottom: 0;
 }
 
@@ -484,71 +474,71 @@ tbody tr:hover td {
   padding: 10px 22px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text3);
+  color: var(--color-text-tertiary);
   cursor: pointer;
   border: none;
   background: none;
   border-bottom: 2px solid transparent;
   transition: all 0.15s;
   user-select: none;
-  font-family: var(--sans);
+  font-family: var(--font-sans);
 }
 
 .tab:hover {
-  color: var(--text);
+  color: var(--color-text-primary);
 }
 
 .tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+  color: var(--color-interactive-selected-text);
+  border-bottom-color: var(--color-interactive-tab-active-line);
   font-weight: 600;
 }
 
 .tab .count {
-  background: var(--bg-muted);
-  color: var(--text3);
+  background: var(--color-background-tertiary);
+  color: var(--color-text-tertiary);
   padding: 1px 7px;
-  border-radius: var(--r-pill);
+  border-radius: var(--radius-pill);
   font-size: 11px;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   margin-left: 4px;
   font-weight: 500;
 }
 
 .tab.active .count {
-  background: var(--accent-light);
-  color: var(--accent);
+  background: var(--color-interactive-count-bg-selected);
+  color: var(--color-interactive-selected-text);
 }
 
 /* ═══════════════════════════════════════════
    SEARCH
    ═══════════════════════════════════════════ */
 .search-input {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-md);
   padding: 9px 16px;
   font-size: 13px;
   width: 240px;
   outline: none;
-  color: var(--text);
-  font-family: var(--sans);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
   box-shadow: var(--shadow-sm);
   transition: all 0.15s;
 }
 
 .search-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.08);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
 /* ═══════════════════════════════════════════
    MONO HELPERS
    ═══════════════════════════════════════════ */
 .mono {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--text2);
+  color: var(--color-text-secondary);
 }
 
 /* ═══════════════════════════════════════════
@@ -559,28 +549,28 @@ tbody tr:hover td {
   align-items: center;
   justify-content: space-between;
   padding: 12px 18px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--color-border-primary);
   font-size: 12px;
-  color: var(--text2);
+  color: var(--color-text-secondary);
 }
 
 .pg-btn {
   padding: 6px 16px;
-  border-radius: var(--r-sm);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  color: var(--text2);
+  border-radius: var(--radius-md);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  color: var(--color-text-secondary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: all 0.15s;
-  font-family: var(--sans);
+  font-family: var(--font-sans);
 }
 
 .pg-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .pg-btn:disabled {
@@ -592,14 +582,14 @@ tbody tr:hover td {
    BUTTONS
    ═══════════════════════════════════════════ */
 .btn {
-  font-family: var(--sans);
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
   padding: 8px 20px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--text-inv);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
   cursor: pointer;
   transition: all 0.15s;
   box-shadow: var(--shadow-sm);
@@ -615,24 +605,24 @@ tbody tr:hover td {
 }
 
 .btn-secondary {
-  background: var(--bg-card);
-  color: var(--text);
-  border-color: var(--border);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-primary);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .btn-danger {
-  background: var(--bg-card);
-  color: var(--red);
-  border-color: var(--red-border);
+  background: var(--color-background-primary);
+  color: var(--color-status-danger-text);
+  border-color: var(--red-200);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: var(--red-bg);
+  background: var(--color-status-danger-bg);
 }
 
 /* ═══════════════════════════════════════════
@@ -644,40 +634,40 @@ tbody tr:hover td {
 .pg-btn:focus-visible,
 .action-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent);
 }
 
 .btn-danger:focus-visible {
-  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-status-danger-text) 15%, transparent);
 }
 
 /* Action buttons (stacked) */
 .action-btn {
   padding: 8px 20px;
-  border-radius: var(--r-sm);
+  border-radius: var(--radius-md);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
   box-shadow: var(--shadow-sm);
   transition: all 0.15s;
-  font-family: var(--sans);
+  font-family: var(--font-sans);
   display: block;
   width: 100%;
   text-align: left;
 }
 
 .action-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .action-btn.primary {
-  background: var(--accent);
-  color: var(--text-inv);
-  border-color: var(--accent);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  border-color: var(--color-accent);
 }
 
 .action-btn.primary:hover {
@@ -685,12 +675,12 @@ tbody tr:hover td {
 }
 
 .action-btn.danger {
-  color: var(--red);
-  border-color: var(--red-border);
+  color: var(--color-status-danger-text);
+  border-color: var(--red-200);
 }
 
 .action-btn.danger:hover {
-  background: var(--red-bg);
+  background: var(--color-status-danger-bg);
 }
 
 /* ═══════════════════════════════════════════
@@ -699,13 +689,13 @@ tbody tr:hover td {
 .status-text {
   padding: 32px 0;
   text-align: center;
-  color: var(--text2);
+  color: var(--color-text-secondary);
 }
 
 .error-text {
   padding: 32px 0;
   text-align: center;
-  color: var(--red);
+  color: var(--color-status-danger-text);
 }
 
 /* ═══════════════════════════════════════════

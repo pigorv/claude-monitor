@@ -15,6 +15,7 @@ import {
   formatAskQuestionForCopy,
 } from "../lib/ask-output";
 import { highlight } from "../lib/syntax";
+import { toolTagClass } from "../lib/tool-tags";
 
 interface EventCardProps {
   event: Event;
@@ -216,50 +217,38 @@ const TYPE_LABELS: Record<string, string> = {
 
 // CSS class for event type pill color
 const TYPE_PILL_CLASS: Record<string, string> = {
-  session_start: "pill-green",
+  session_start: "pill-teal",
   session_end: "pill-gray",
   tool_call_start: "pill-tool",
   tool_call_end: "pill-tool",
   subagent_start: "pill-teal",
   subagent_end: "pill-teal",
-  compaction: "pill-orange",
-  thinking: "pill-yellow",
+  compaction: "pill-amber",
+  thinking: "pill-amber",
   assistant_message: "pill-gray",
   user_message: "pill-purple",
   notification: "pill-gray",
 };
 
-// Tool-specific badge classes
-const TOOL_BADGE_CLASS: Record<string, string> = {
-  Read: "tool-read",
-  Write: "tool-write",
-  Edit: "tool-write",
-  Bash: "tool-bash",
-  Agent: "tool-agent",
-  Grep: "tool-grep",
-  Glob: "tool-glob",
-  AskUserQuestion: "tool-ask",
-};
-
 // Dot color per event type for the timeline rail
 const DOT_COLORS: Record<string, string> = {
-  user_message: "var(--purple)",
-  assistant_message: "var(--text2)",
+  user_message: "var(--color-interactive-selected-text)",
+  assistant_message: "var(--color-text-secondary)",
   tool_call_start: "transparent",
   tool_call_end: "transparent",
-  subagent_start: "var(--teal)",
-  subagent_end: "var(--teal)",
-  compaction: "var(--orange)",
+  subagent_start: "var(--color-status-completed)",
+  subagent_end: "var(--color-status-completed)",
+  compaction: "var(--color-status-warning-text)",
   thinking: "transparent",
-  session_start: "var(--green)",
-  session_end: "var(--text3)",
-  notification: "var(--text3)",
+  session_start: "var(--color-status-completed)",
+  session_end: "var(--color-text-tertiary)",
+  notification: "var(--color-text-tertiary)",
 };
 
 const DOT_BORDER_COLORS: Record<string, string> = {
-  tool_call_start: "var(--text3)",
-  tool_call_end: "var(--text3)",
-  thinking: "var(--yellow)",
+  tool_call_start: "var(--color-text-tertiary)",
+  tool_call_end: "var(--color-text-tertiary)",
+  thinking: "var(--color-status-warning-text)",
 };
 
 // Event types where we suppress the type pill. User/assistant now show an
@@ -268,12 +257,12 @@ const SUPPRESS_PILL_TYPES = new Set(["thinking"]);
 
 function getDotStyle(eventType: string, isSystemGenerated?: boolean, isSkillExpansion?: boolean): string {
   if (isSystemGenerated) {
-    return `background: var(--bg-muted); border: 1.5px dotted var(--text3);`;
+    return `background: var(--color-background-tertiary); border: 1.5px dotted var(--color-text-tertiary);`;
   }
   if (isSkillExpansion) {
-    return `background: transparent; border: 2px dashed var(--orange);`;
+    return `background: transparent; border: 2px dashed var(--color-interactive-selected-text);`;
   }
-  const bg = DOT_COLORS[eventType] || "var(--text3)";
+  const bg = DOT_COLORS[eventType] || "var(--color-text-tertiary)";
   const border = DOT_BORDER_COLORS[eventType];
   const isDashed = eventType === "thinking";
   if (border) {
@@ -372,7 +361,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
   const isRoleMsg = event.event_type === "user_message" || event.event_type === "assistant_message";
   const pillClass = TYPE_PILL_CLASS[event.event_type] || "pill-gray";
   const typeClass = `event-card event-${event.event_type.replace(/_/g, "-")}`;
-  const toolBadgeClass = event.tool_name ? (TOOL_BADGE_CLASS[event.tool_name] || "") : "";
+  const toolBadgeClass = event.tool_name ? toolTagClass(event.tool_name) : "";
 
   const meta = parseMetadata(event);
   const isCommand = meta?.command;
@@ -590,7 +579,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
               ${event.context_pct != null && event.context_pct >= 50 && html`
                 <span class="event-ctx">
                   <span class="ctx-minibar">
-                    <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--red)' : event.context_pct >= 60 ? 'var(--orange)' : 'var(--yellow)'}"></span>
+                    <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--color-status-danger-text)' : 'var(--color-status-warning-text)'}"></span>
                   </span>
                   <span class="mono">${Math.round(event.context_pct)}%</span>
                 </span>
@@ -602,7 +591,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
             <div class="event-card-rationale-row event-card-rationale-row-ctx-only">
               <span class="event-ctx">
                 <span class="ctx-minibar">
-                  <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--red)' : event.context_pct >= 60 ? 'var(--orange)' : 'var(--yellow)'}"></span>
+                  <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--color-status-danger-text)' : 'var(--color-status-warning-text)'}"></span>
                 </span>
                 <span class="mono">${Math.round(event.context_pct)}%</span>
               </span>
@@ -883,7 +872,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
         ${event.context_pct != null && event.context_pct >= 50 && html`
           <span class="event-ctx">
             <span class="ctx-minibar">
-              <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--red)' : event.context_pct >= 60 ? 'var(--orange)' : 'var(--yellow)'}"></span>
+              <span class="ctx-minibar-fill" style="width: ${Math.min(event.context_pct, 100)}%; background: ${event.context_pct >= 70 ? 'var(--color-status-danger-text)' : 'var(--color-status-warning-text)'}"></span>
             </span>
             <span class="mono">${Math.round(event.context_pct)}%</span>
           </span>

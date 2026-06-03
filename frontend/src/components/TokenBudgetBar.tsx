@@ -33,25 +33,25 @@ export function TokenBudgetBar({ parentTokens, agents }: TokenBudgetBarProps) {
       <div class="token-bar">
         <div
           class="token-seg"
-          style=${"flex:" + parentTokens + ";background:var(--accent)"}
+          style=${"flex:" + parentTokens + ";background:var(--color-accent)"}
           title=${"Parent session: " + formatTokens(parentTokens) + " tokens (" + parentPct + "%)"}
         >Parent ${formatTokens(parentTokens)}</div>
         ${agentTotal > 0 && html`
           <div
             class="token-seg"
-            style=${"flex:" + agentTotal + ";background:#3d6b80"}
+            style=${"flex:" + agentTotal + ";background:var(--color-status-completed)"}
             title=${"Agents: " + formatTokens(agentTotal) + " tokens across " + agentCount + " sub-agents (" + agentPct + "%)"}
           >Agents ${formatTokens(agentTotal)}${agentCount > 0 ? ` (${agentCount})` : ""}</div>
         `}
       </div>
       <div class="token-legend">
         <div class="token-legend-item">
-          <span class="token-legend-dot" style="background:var(--accent)"></span>
+          <span class="token-legend-dot" style="background:var(--color-accent)"></span>
           ${parentPct}% parent session
         </div>
         ${agentTotal > 0 && html`
           <div class="token-legend-item" style="margin-left:auto">
-            <span class="token-legend-dot" style="background:#3d6b80"></span>
+            <span class="token-legend-dot" style="background:var(--color-status-completed)"></span>
             ${agentPct}% across ${agentCount} sub-agent${agentCount !== 1 ? "s" : ""}
           </div>
         `}

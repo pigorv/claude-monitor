@@ -57,7 +57,7 @@ describe('Heatmap', () => {
   it('applies color based on context percentage', () => {
     const timeline = [makePoint(90)];
     const out = render(html`<${Heatmap} timeline=${timeline} />`);
-    assert.ok(out.includes('rgba(185, 28, 28'), 'high context should use red');
+    assert.ok(out.includes('var(--health-rose)'), 'high context should use the rose health token');
   });
 });
 
@@ -144,7 +144,8 @@ describe('EventCard', () => {
     const out = render(html`<${EventCard} event=${evt} />`);
     assert.ok(out.includes('ctx-minibar'), 'should render context minibar');
     assert.ok(out.includes('75%'), 'should show percentage');
-    assert.ok(out.includes('var(--red)'), 'context >= 70% should be red');
+    // DS migration: minibar now uses two-tier ctx tokens (>=70% danger, else warning)
+    assert.ok(out.includes('var(--color-status-danger-text)'), 'context >= 70% should be danger');
   });
 
   it('hides context mini-bar for low context', () => {
@@ -360,10 +361,10 @@ describe('EventCard AskUserQuestion card', () => {
     } as SessionEvent;
   }
 
-  it('renders the ask-card row with AskUserQuestion badge and tool-ask class', () => {
+  it('renders the ask-card row with AskUserQuestion badge and tool-edit class', () => {
     const out = render(html`<${EventCard} event=${makeAsk([{ question: 'Library?' }])} />`);
     assert.ok(out.includes('ask-card'), 'should apply ask-card class to the row');
-    assert.ok(out.includes('tool-ask'), 'should apply the tool-ask badge class');
+    assert.ok(out.includes('tool-edit'), 'should apply the tool-edit badge class (toolTagClass maps AskUserQuestion → tool-edit via ask keyword)');
     assert.ok(out.includes('AskUserQuestion'), 'badge text should be AskUserQuestion');
   });
 
@@ -588,19 +589,20 @@ describe('Signal badges (context mini-bars)', () => {
     assert.ok(!out.includes('ctx-minibar'), 'context < 50% should not render minibar');
   });
 
-  it('yellow for context 50-59%', () => {
+  // DS migration: minibar collapsed to two tiers — 50-69% → warning token, >=70% → danger token
+  it('warning token for context 50-59%', () => {
     const out = render(html`<${EventCard} event=${makeEvent(55)} />`);
-    assert.ok(out.includes('var(--yellow)'));
+    assert.ok(out.includes('var(--color-status-warning-text)'));
   });
 
-  it('orange for context 60-70%', () => {
+  it('warning token for context 60-70%', () => {
     const out = render(html`<${EventCard} event=${makeEvent(65)} />`);
-    assert.ok(out.includes('var(--orange)'));
+    assert.ok(out.includes('var(--color-status-warning-text)'));
   });
 
-  it('red for context >= 70%', () => {
+  it('danger token for context >= 70%', () => {
     const out = render(html`<${EventCard} event=${makeEvent(85)} />`);
-    assert.ok(out.includes('var(--red)'));
+    assert.ok(out.includes('var(--color-status-danger-text)'));
   });
 
   it('caps bar width at 100%', () => {
