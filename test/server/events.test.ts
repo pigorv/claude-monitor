@@ -113,4 +113,37 @@ describe('Events route', () => {
       assert.ok(body.events[i].sequence_num >= body.events[i - 1].sequence_num);
     }
   });
+
+  it('returns event-type counts for a session', async () => {
+    const res = await app.request('/api/sessions/sess-1/event-counts');
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    // sess-1 has 2 tool_call_start, 1 tool_call_end, 1 thinking, 1 compaction.
+    assert.deepEqual(body.counts, {
+      all: 5,
+      user_message: 0,
+      assistant_message: 0,
+      tool_call_start: 2,
+    });
+  });
+
+  it('returns 404 for unknown session on event-counts', async () => {
+    const res = await app.request('/api/sessions/nonexistent/event-counts');
+    assert.equal(res.status, 404);
+    const body = await res.json();
+    assert.equal(body.error, 'Session not found');
+  });
+
+  it('accepts parent_only on event-counts', async () => {
+    const res = await app.request('/api/sessions/sess-1/event-counts?parent_only=true');
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    // No sub-agent events in the fixture, so parent-only matches the default counts.
+    assert.deepEqual(body.counts, {
+      all: 5,
+      user_message: 0,
+      assistant_message: 0,
+      tool_call_start: 2,
+    });
+  });
 });
