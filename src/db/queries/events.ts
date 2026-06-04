@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
-import type { Event, TokenDataPoint, MiniTimelinePoint, EventAnnotation } from '../../shared/types.js';
+import type { Event, TokenDataPoint, MiniTimelinePoint, EventAnnotation, MessageMatch } from '../../shared/types.js';
 import { getDb, onDbClose } from '../connection.js';
+import { SNIPPET_MARK_START, SNIPPET_MARK_END } from '../../shared/search.js';
 
 // ── Cached prepared statements ──────────────────────────────────────
 let _insertEventStmt: Database.Statement | null = null;
@@ -291,6 +292,72 @@ export function getTurnCountsForSessions(sessionIds: string[]): Map<string, numb
 
   for (const sid of sessionIds) result.set(sid, 0);
   for (const row of rows) result.set(row.session_id, row.turn_count);
+  return result;
+}
+
+/**
+ * Batch-fetch one message-content search snippet per session (issue #67),
+ * given an FTS5 MATCH expression (see buildFtsMatch). Returns a map
+ * sessionId → { snippet, role }. The chosen hit follows the same priority as
+ * listSessions' tier ranking: a main-conversation user message wins over a main
+ * assistant message, which wins over a sub-agent's internal turn (agent_id NOT
+ * NULL); within a group, the earliest match (lowest sequence_num) is used. So
+ * the chip's role lines up with the row's rank. The snippet wraps matched
+ * tokens in the SNIPPET_MARK_* control chars so the frontend can render
+ * highlights without any HTML. Sessions with no message hit (e.g. a
+ * metadata-only match) are simply absent from the map.
+ *
+ * SQL is built with positional placeholders that vary by id count, so this is
+ * intentionally not statement-cached.
+ */
+export function getMessageMatchesForSessions(
+  sessionIds: string[],
+  ftsMatch: string,
+): Map<string, MessageMatch> {
+  const result = new Map<string, MessageMatch>();
+  if (sessionIds.length === 0) return result;
+
+  const db = getDb();
+  const placeholders = sessionIds.map(() => '?').join(',');
+  const rows = db.prepare(`
+    WITH matched AS (
+      SELECT e.session_id, e.event_type, e.sequence_num, e.agent_id,
+        CASE WHEN e.event_type = 'user_message'
+          THEN snippet(events_fts, 0, ?, ?, '…', 10)
+          ELSE snippet(events_fts, 1, ?, ?, '…', 10)
+        END AS snip
+      FROM events_fts f JOIN events e ON e.id = f.rowid
+      WHERE events_fts MATCH ? AND e.session_id IN (${placeholders})
+    ),
+    ranked AS (
+      SELECT session_id, event_type, agent_id, snip,
+        ROW_NUMBER() OVER (PARTITION BY session_id
+          ORDER BY
+            CASE WHEN agent_id IS NOT NULL THEN 2
+                 WHEN event_type = 'user_message' THEN 0
+                 ELSE 1 END,
+            sequence_num) AS rn
+      FROM matched
+    )
+    SELECT session_id,
+      CASE WHEN agent_id IS NOT NULL THEN 'subagent'
+           WHEN event_type = 'user_message' THEN 'user'
+           ELSE 'assistant' END AS role,
+      snip
+    FROM ranked WHERE rn = 1
+  `).all(
+    SNIPPET_MARK_START, SNIPPET_MARK_END,
+    SNIPPET_MARK_START, SNIPPET_MARK_END,
+    ftsMatch,
+    ...sessionIds,
+  ) as { session_id: string; role: 'user' | 'assistant' | 'subagent'; snip: string | null }[];
+
+  for (const r of rows) {
+    // snippet() is NULL when the chosen column is NULL (e.g. a user_message row
+    // whose match was actually in output_data) — skip those.
+    if (r.snip == null) continue;
+    result.set(r.session_id, { snippet: r.snip, role: r.role });
+  }
   return result;
 }
 

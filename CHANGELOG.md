@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Session List search now matches **message content**, not just session metadata. Typing in the search box finds sessions by what was actually said in them (user prompts and assistant replies), in addition to project name, path, and summary. Matches are ranked by where the hit landed — session title / first prompt first, then your other prompts, then assistant replies, and finally sub-agent turns last — and a content match shows a "matched in prompt / response / sub-agent" chip plus a highlighted snippet so it's clear why the session surfaced. Backed by a SQLite FTS5 index, so it stays fast as transcripts grow, and existing sessions are searchable immediately after upgrading (no reimport needed).
 - Design-system token guard (`npm run lint:tokens`) and a `design-system` steward skill that keep future UI changes on the shared color palette. The guard now also flags raw hex written as a string literal anywhere in a component (e.g. a color returned from a helper), not only on `style=` lines.
 
 ### Changed

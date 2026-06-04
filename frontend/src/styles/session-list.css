@@ -124,6 +124,64 @@
   color: var(--color-text-tertiary);
 }
 
+/* Message-content search hit (issue #67): a role-colored chip + highlighted
+   snippet, shown only when the active search matched this session's messages. */
+.srow-match {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  margin-top: 1px;
+}
+
+.srow-match-chip {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+/* User-message hit → Purple (the ramp that owns the user-message pill). */
+.srow-match-chip.is-user {
+  background: var(--color-interactive-selected-bg);
+  color: var(--color-interactive-selected-text);
+  border-color: var(--color-interactive-selected-border);
+}
+
+/* Assistant-message hit → Gray (the ramp that owns the assistant-message pill). */
+.srow-match-chip.is-assistant {
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-primary);
+}
+
+/* Sub-agent hit → Teal (the ramp that owns sub-agent pills & blocks). Ranked
+   lowest; labelled distinctly so it never reads as the user's own prompt. */
+.srow-match-chip.is-subagent {
+  background: var(--color-status-completed-bg);
+  color: var(--color-status-completed-text);
+}
+
+.srow-match-snippet {
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.srow-match-snippet mark.srow-hl {
+  background: var(--color-interactive-selected-bg);
+  color: var(--color-interactive-selected-text);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
 /* Active session: pulsing teal dot */
 .active-dot {
   width: 7px;

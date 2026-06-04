@@ -10,6 +10,7 @@ import { migrateProjectFilterKey } from "../lib/migrate-project-filter";
 import { projectColor, formatTokenCount } from "../lib/format";
 import { ctxLevel } from "../lib/ctx";
 import type { SessionSummary, ProjectInfo } from "../../../src/shared/types";
+import { SNIPPET_MARK_START, SNIPPET_MARK_END } from "../../../src/shared/search";
 import "../styles/pills.css";
 import "../styles/session-list.css";
 
@@ -155,6 +156,37 @@ function ModelPill({ s }: { s: SessionSummary }) {
 
 // ── Session row ─────────────────────────────────────────────────────
 
+/**
+ * Render a message-content search snippet (issue #67). The backend wraps
+ * matched tokens in the SNIPPET_MARK_* control chars; we split on them and emit
+ * the matched runs as real `<mark>` elements and everything else as plain text
+ * nodes. The message text is never interpreted as HTML, so a snippet containing
+ * markup (e.g. "<script>") renders inert.
+ */
+export function renderSnippet(snip: string): unknown[] {
+  const nodes: unknown[] = [];
+  let buf = "";
+  let marked = false;
+  const flush = () => {
+    if (!buf) return;
+    nodes.push(marked ? html`<mark class="srow-hl">${buf}</mark>` : buf);
+    buf = "";
+  };
+  for (const ch of snip) {
+    if (ch === SNIPPET_MARK_START) {
+      flush();
+      marked = true;
+    } else if (ch === SNIPPET_MARK_END) {
+      flush();
+      marked = false;
+    } else {
+      buf += ch;
+    }
+  }
+  flush();
+  return nodes;
+}
+
 function SessionRow({ s, onOpen }: { s: SessionSummary; onOpen: (id: string) => void }) {
   const summary = (s.summary ?? "").trim();
   const startedName = s.started_with?.name;
@@ -219,6 +251,20 @@ function SessionRow({ s, onOpen }: { s: SessionSummary; onOpen: (id: string) => 
               )
             : html`<span class="srow-sub-empty">—</span>`}
         </div>
+        ${s.message_match
+          ? html`<div class="srow-match">
+              <span class=${"srow-match-chip is-" + s.message_match.role}>
+                ${s.message_match.role === "user"
+                  ? "matched in prompt"
+                  : s.message_match.role === "assistant"
+                    ? "matched in response"
+                    : "matched in sub-agent"}
+              </span>
+              <span class="srow-match-snippet"
+                >${renderSnippet(s.message_match.snippet)}</span
+              >
+            </div>`
+          : null}
       </div>
       <div class="srow-rail">
         <div class="rail-time" title=${timeTitle}>
