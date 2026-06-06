@@ -342,6 +342,34 @@ describe('Sessions routes', () => {
     assert.equal(body.sessions.length, 0);
   });
 
+  it('matches by message content and returns a highlighted message_match (issue #67)', async () => {
+    // A token that appears only inside a user message, never in any metadata.
+    const db = getDb();
+    db.prepare(
+      "INSERT INTO sessions (id, project_path, project_name, model, source, status, started_at) VALUES (?,?,?,?,?,?,?)",
+    ).run('sess-fts', '/home/user/ftsproj', 'ftsproj', 'claude-sonnet-4-20250514', 'startup', 'completed', '2026-02-01T00:00:00Z');
+    db.prepare(
+      'INSERT INTO events (session_id, event_type, event_source, timestamp, sequence_num, input_data) VALUES (?,?,?,?,?,?)',
+    ).run('sess-fts', 'user_message', 'transcript_import', '2026-02-01T00:01:00Z', 1, 'lets discuss the pumpernickel migration plan');
+
+    const res = await app.request('/api/sessions?q=pumpernickel');
+    const body: SessionListResponse = await res.json();
+    assert.equal(body.total, 1, 'only the session whose message contains the token');
+    assert.equal(body.sessions[0].id, 'sess-fts');
+    const mm = body.sessions[0].message_match;
+    assert.ok(mm, 'message_match should be present for a content hit');
+    assert.equal(mm!.role, 'user');
+    assert.ok(mm!.snippet.includes('pumpernickel'), 'snippet contains the matched token');
+  });
+
+  it('omits message_match when there is no active query', async () => {
+    const res = await app.request('/api/sessions');
+    const body: SessionListResponse = await res.json();
+    for (const s of body.sessions) {
+      assert.equal(s.message_match, undefined);
+    }
+  });
+
   // ── Compaction details in session detail ──
 
   it('session detail includes compaction_details', async () => {

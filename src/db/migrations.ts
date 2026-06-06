@@ -191,6 +191,68 @@ function migration011DropRiskScore(db: Database.Database): void {
   }
 }
 
+function tableExists(db: Database.Database, name: string): boolean {
+  const row = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(name);
+  return row !== undefined;
+}
+
+/**
+ * Full-text search over message content (issue #67). An external-content FTS5
+ * table over `events` indexes only user/assistant message text — `input_data`
+ * for user turns, `output_data` for assistant turns. Tool events also populate
+ * those columns, so the index is filtered by `event_type` (both in the backfill
+ * and in the triggers) to keep results low-noise and the index small.
+ *
+ * Order matters: create the table, backfill existing rows, THEN add the
+ * triggers. Backfilling before the triggers exist avoids double-counting rows.
+ */
+function migration012EventsFts(db: Database.Database): void {
+  if (tableExists(db, 'events_fts')) return; // idempotent
+
+  db.exec(`
+    CREATE VIRTUAL TABLE events_fts USING fts5(
+      input_data, output_data, content='events', content_rowid='id'
+    );
+  `);
+
+  // Backfill existing message rows so search works without a forced reimport.
+  // Filtered to message types — NOT the FTS5 'rebuild' command, which would
+  // index every events row (including tool I/O).
+  db.exec(`
+    INSERT INTO events_fts(rowid, input_data, output_data)
+    SELECT id, input_data, output_data FROM events
+    WHERE event_type IN ('user_message', 'assistant_message');
+  `);
+
+  // Keep the index in sync. `events` is insert/delete-only — there is no
+  // UPDATE of input_data/output_data anywhere in the importer (re-import is
+  // deleteEventsBySession + bulk insert inside one transaction), so INSERT +
+  // DELETE triggers fully cover it.
+  //
+  // IMPORTANT: the external-content 'delete' command reads old.input_data /
+  // old.output_data and they MUST byte-match what was indexed. This holds only
+  // because the text columns are never UPDATEd. If a future change adds
+  // `UPDATE events SET input_data/output_data = ...`, an AFTER UPDATE trigger
+  // becomes mandatory or the FTS index will silently corrupt.
+  db.exec(`
+    CREATE TRIGGER events_fts_ai AFTER INSERT ON events
+    WHEN new.event_type IN ('user_message', 'assistant_message')
+    BEGIN
+      INSERT INTO events_fts(rowid, input_data, output_data)
+      VALUES (new.id, new.input_data, new.output_data);
+    END;
+
+    CREATE TRIGGER events_fts_ad AFTER DELETE ON events
+    WHEN old.event_type IN ('user_message', 'assistant_message')
+    BEGIN
+      INSERT INTO events_fts(events_fts, rowid, input_data, output_data)
+      VALUES ('delete', old.id, old.input_data, old.output_data);
+    END;
+  `);
+}
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -203,6 +265,7 @@ const MIGRATIONS: Migration[] = [
   { id: 9, name: '009-models-used', sql: MIGRATION_009_MODELS_USED },
   { id: 10, name: '010-session-pills', run: migration010SessionPills },
   { id: 11, name: '011-drop-risk-score', run: migration011DropRiskScore },
+  { id: 12, name: '012-events-fts', run: migration012EventsFts },
 ];
 
 export function runMigrations(db: Database.Database): void {

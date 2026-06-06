@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import type { Session, AgentRelationship, TokenDataPoint, LinkedSession, ProjectInfo } from '../../shared/types.js';
 import { getDb, onDbClose } from '../connection.js';
 import { MODEL_PRICING } from '../../shared/constants.js';
+import { buildFtsMatch } from './fts-match.js';
 
 // ── Cached prepared statements ──────────────────────────────────────
 let _insertSessionStmt: Database.Statement | null = null;
@@ -133,7 +134,9 @@ const SESSION_LIST_COLUMNS = `
   subagent_count, summary, end_reason, transcript_path, invocations, started_with
 `;
 
-export function listSessions(filters: SessionFilters = {}): { sessions: Session[]; total: number } {
+export function listSessions(
+  filters: SessionFilters = {},
+): { sessions: Session[]; total: number; ftsMatch: string | null } {
   const db = getDb();
   const conditions: string[] = [];
   const params: Record<string, unknown> = {};
@@ -161,13 +164,20 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
     conditions.push('started_at <= @until');
     params.until = filters.until;
   }
+
+  // Free-text query (issue #67). When the text yields an FTS expression we also
+  // search user/assistant message content and rank by where the hit landed
+  // (the `ftsMatch` branch below). When it doesn't (no `q`, or all-punctuation
+  // `q` like "!!!"), it stays a metadata-only substring match — unchanged.
+  const metadataMatch = '(project_name LIKE @q OR project_path LIKE @q OR summary LIKE @q)';
+  const ftsMatch = filters.q ? buildFtsMatch(filters.q) : null;
   if (filters.q) {
     // LIKE with leading % cannot use indexes — acceptable for <10K sessions
-    conditions.push('(project_name LIKE @q OR project_path LIKE @q OR summary LIKE @q)');
     params.q = `%${filters.q}%`;
   }
-
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  if (filters.q && !ftsMatch) {
+    conditions.push(metadataMatch);
+  }
 
   const orderExpr =
     filters.sort === 'cost_estimate_usd'
@@ -179,6 +189,62 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
 
+  if (ftsMatch) {
+    // Rank sessions by their best (lowest-number) match tier:
+    //   1 = metadata hit OR a hit in the session's first (main) user message
+    //   2 = other main user-message hits   3 = main assistant-message hits
+    //   4 = sub-agent message hits (agent_id NOT NULL) — internal orchestration
+    //       turns, always ranked last
+    // then fall back to the caller's sort. The FTS MATCH uses the events_fts
+    // index (verified via EXPLAIN QUERY PLAN) rather than scanning `events`.
+    // `firstuser` is restricted to main-session turns (agent_id IS NULL) so
+    // "first user message" means the session's opening prompt — mirroring the
+    // agent_id IS NULL convention in getTurnCountsForSessions.
+    params.fts = ftsMatch;
+    const extra = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
+    const rows = db.prepare(`
+      WITH matched AS (
+        SELECT e.session_id, e.event_type, e.sequence_num, e.agent_id
+        FROM events_fts f JOIN events e ON e.id = f.rowid
+        WHERE events_fts MATCH @fts
+      ),
+      firstuser AS (
+        SELECT session_id, MIN(sequence_num) AS first_seq FROM events
+        WHERE event_type = 'user_message' AND agent_id IS NULL
+          AND session_id IN (SELECT DISTINCT session_id FROM matched)
+        GROUP BY session_id
+      ),
+      content_rank AS (
+        -- Tier priority (user > assistant > sub-agent) is mirrored by
+        -- getMessageMatchesForSessions' snippet ranking — keep them in sync.
+        SELECT m.session_id,
+          MIN(CASE
+            WHEN m.agent_id IS NOT NULL THEN 4
+            WHEN m.event_type = 'user_message' AND m.sequence_num = fu.first_seq THEN 1
+            WHEN m.event_type = 'user_message' THEN 2
+            ELSE 3 END) AS content_tier
+        FROM matched m LEFT JOIN firstuser fu ON fu.session_id = m.session_id
+        GROUP BY m.session_id
+      )
+      SELECT ${SESSION_LIST_COLUMNS},
+        min(
+          CASE WHEN ${metadataMatch} THEN 1 ELSE 99 END,
+          coalesce(cr.content_tier, 99)
+        ) AS match_tier,
+        COUNT(*) OVER() AS _total
+      FROM sessions s
+      LEFT JOIN content_rank cr ON cr.session_id = s.id
+      WHERE (${metadataMatch} OR cr.session_id IS NOT NULL) ${extra}
+      ORDER BY match_tier ASC, ${orderExpr} ${sortOrder}, id ASC
+      LIMIT @limit OFFSET @offset
+    `).all({ ...params, limit, offset }) as (Session & { _total: number; match_tier: number })[];
+
+    const total = rows.length > 0 ? rows[0]._total : 0;
+    return { sessions: rows, total, ftsMatch };
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
   // Single query with window function to get total count + paginated rows in one
   // pass. `id` is a stable tiebreaker so pagination stays deterministic when the
   // primary key has ties (e.g. many sessions at 0% peak context).
@@ -188,7 +254,7 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
 
   const total = rows.length > 0 ? rows[0]._total : 0;
 
-  return { sessions: rows, total };
+  return { sessions: rows, total, ftsMatch };
 }
 
 export function updateSession(id: string, updates: Partial<Omit<Session, 'id'>>): void {

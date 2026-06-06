@@ -202,6 +202,15 @@ export interface MiniTimelinePoint {
   is_compaction: boolean;
 }
 
+/** A message-content search hit surfaced on a session row (issue #67). The
+ * snippet wraps matched tokens in the SNIPPET_MARK_* control chars. `role`
+ * reflects where the hit landed: a main-conversation user prompt, a main
+ * assistant reply, or a sub-agent's internal turn (ranked lowest). */
+export interface MessageMatch {
+  snippet: string;
+  role: 'user' | 'assistant' | 'subagent';
+}
+
 export interface SessionSummary {
   id: string;
   project_name: string;
@@ -226,6 +235,9 @@ export interface SessionSummary {
   mini_timeline?: MiniTimelinePoint[];
   invocations?: Invocation[];
   started_with?: Invocation;
+  /** Present only when the active search matched this session's message
+   * content rather than (or in addition to) its metadata. */
+  message_match?: MessageMatch;
 }
 
 export interface SessionListResponse {

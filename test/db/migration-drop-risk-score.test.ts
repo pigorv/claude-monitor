@@ -33,6 +33,7 @@ describe('migration 011-drop-risk-score', () => {
         invocations TEXT,
         started_with TEXT
       );
+      CREATE TABLE events (id INTEGER PRIMARY KEY, session_id TEXT, event_type TEXT, sequence_num INTEGER, input_data TEXT, output_data TEXT, metadata TEXT);
     `);
     // Pre-record migrations 1–10 so only 011 runs.
     for (let i = 1; i <= 10; i++) {
@@ -68,6 +69,7 @@ describe('migration 011-drop-risk-score', () => {
     db.exec(`
       CREATE TABLE _migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL DEFAULT (datetime('now')));
       CREATE TABLE sessions (id TEXT PRIMARY KEY, summary TEXT, metadata TEXT, invocations TEXT, started_with TEXT);
+      CREATE TABLE events (id INTEGER PRIMARY KEY, session_id TEXT, event_type TEXT, sequence_num INTEGER, input_data TEXT, output_data TEXT, metadata TEXT);
     `);
     for (let i = 1; i <= 10; i++) {
       db.prepare('INSERT INTO _migrations (id, name) VALUES (?, ?)').run(i, `mig-${i}`);

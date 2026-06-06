@@ -9,9 +9,10 @@ import type {
   Invocation,
 } from '../../shared/types.js';
 import { getSession, listSessions, listProjects, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions } from '../../db/queries/sessions.js';
-import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getTurnCountsForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
+import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getTurnCountsForSessions, getMessageMatchesForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
 import { getSessionStats, getToolFrequency, getFileActivity, getPeakParentTokens, getPeakParentTokensForSessions } from '../../db/queries/stats.js';
 import type { SessionFilters } from '../../db/queries/sessions.js';
+import type { MessageMatch } from '../../shared/types.js';
 import { MODEL_PRICING } from '../../shared/constants.js';
 import { analyzeCompactions } from '../../analysis/compaction-analysis.js';
 
@@ -66,6 +67,7 @@ function sessionToSummary(
   miniTimeline?: import('../../shared/types.js').MiniTimelinePoint[],
   peakTokens?: number,
   turnCount?: number,
+  messageMatch?: MessageMatch,
 ): SessionSummary {
   return {
     id: session.id,
@@ -91,6 +93,7 @@ function sessionToSummary(
     mini_timeline: miniTimeline ?? [],
     invocations: parseInvocations(session.invocations),
     started_with: parseStartedWith(session.started_with),
+    message_match: messageMatch,
   };
 }
 
@@ -121,7 +124,7 @@ sessions.get('/api/sessions', (c) => {
     if (!isNaN(v) && v >= 0) filters.offset = v;
   }
 
-  const { sessions: rows, total } = listSessions(filters);
+  const { sessions: rows, total, ftsMatch } = listSessions(filters);
 
   // Batch-fetch mini timelines and peak parent tokens for all sessions
   const sessionIds = rows.map((s) => s.id);
@@ -129,8 +132,15 @@ sessions.get('/api/sessions', (c) => {
   const peakTokensBySession = getPeakParentTokensForSessions(sessionIds);
   const turnCountsBySession = getTurnCountsForSessions(sessionIds);
 
+  // Message-content search hits (issue #67). `ftsMatch` is computed once by
+  // listSessions and reused here — non-null only when the query has a
+  // searchable term; a content match surfaces a highlighted snippet on the row.
+  const messageMatches = ftsMatch
+    ? getMessageMatchesForSessions(sessionIds, ftsMatch)
+    : new Map<string, MessageMatch>();
+
   const response: SessionListResponse = {
-    sessions: rows.map((s) => sessionToSummary(s, miniTimelines.get(s.id), peakTokensBySession.get(s.id), turnCountsBySession.get(s.id))),
+    sessions: rows.map((s) => sessionToSummary(s, miniTimelines.get(s.id), peakTokensBySession.get(s.id), turnCountsBySession.get(s.id), messageMatches.get(s.id))),
     total,
     limit: filters.limit ?? 50,
     offset: filters.offset ?? 0,
