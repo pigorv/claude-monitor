@@ -85,6 +85,64 @@ Options for `start`: `--port, -p <number>`, `--no-open`, `--verbose`
 Options for `import`: `--force` (re-import existing sessions)
 <!-- cli:end -->
 
+## Status line link
+
+Add a clickable **🔗 monitor** link to your Claude Code [status line](https://code.claude.com/docs/en/statusline) that opens the current session straight in the dashboard. Claude Code hands your status line command the live `session_id`, and that id is exactly what the dashboard routes on — so the link always points at the session you're in (`http://localhost:4173/#/session/<id>`).
+
+**Requirements:** a terminal that renders OSC 8 hyperlinks (iTerm2, Kitty, WezTerm — not Apple Terminal; tmux/SSH may strip them), `jq`, and a running `claude-monitor start`. The port defaults to `4173`; override it with `CLAUDE_MONITOR_PORT`.
+
+### Set it up from scratch
+
+No status line yet? This gets you one that shows just the link, in three steps.
+
+1. **Install `jq`** if you don't have it — `brew install jq` (macOS), or your package manager.
+
+2. **Create** `~/.claude/statusline.sh`:
+
+   ```bash
+   #!/usr/bin/env bash
+   INPUT=$(cat)
+   SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
+   if [ -n "$SID" ]; then
+     printf '\033]8;;http://localhost:%s/#/session/%s\a🔗 monitor\033]8;;\a\n' "${CLAUDE_MONITOR_PORT:-4173}" "$SID"
+   fi
+   ```
+
+3. **Register it** in `~/.claude/settings.json` (create the file if it doesn't exist):
+
+   ```json
+   {
+     "statusLine": {
+       "type": "command",
+       "command": "bash ~/.claude/statusline.sh"
+     }
+   }
+   ```
+
+Start a session with `claude-monitor start` running, then **Cmd+click** (macOS) / **Ctrl+click** the `🔗 monitor` chip — it opens that session in the dashboard. From here you can grow the script however you like (folder, git branch, tokens…).
+
+### Already have a status line?
+
+You know your own script — drop this block in wherever you want the link to sit (it assumes stdin is already captured, e.g. `INPUT=$(cat)`):
+
+```bash
+# clickable Claude Monitor link (OSC 8)
+SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
+if [ -n "$SID" ]; then
+  printf '  \033]8;;http://localhost:%s/#/session/%s\a🔗 monitor\033]8;;\a' "${CLAUDE_MONITOR_PORT:-4173}" "$SID"
+fi
+```
+
+### Or let Claude do it
+
+Don't want to touch shell scripts? Ask Claude Code to wire it up — in any session, say something like:
+
+> Add a clickable Claude Monitor link to my Claude Code status line that opens `http://localhost:4173/#/session/<session_id>` for the current session, using the `session_id` Claude Code passes to the status line command. Update my status line script (or create `~/.claude/statusline.sh`) and `~/.claude/settings.json`.
+
+It'll read your current setup, drop in the OSC 8 snippet, and update `settings.json` for you.
+
+> A brand-new session is imported on a ~5s poll, so the link may briefly show "session not found" until its first import lands.
+
 ## Uninstall
 
 claude-monitor stores all its state in a single directory and registers no system services, daemons, or login items. To remove it completely:
