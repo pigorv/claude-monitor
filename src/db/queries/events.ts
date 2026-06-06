@@ -330,6 +330,9 @@ export function getMessageMatchesForSessions(
       WHERE events_fts MATCH ? AND e.session_id IN (${placeholders})
     ),
     ranked AS (
+      -- Priority MUST stay aligned with listSessions' content_rank tiers
+      -- (user > assistant > sub-agent, earliest sequence_num wins) so the
+      -- chip's role matches the row's rank. Keep these two in sync.
       SELECT session_id, event_type, agent_id, snip,
         ROW_NUMBER() OVER (PARTITION BY session_id
           ORDER BY

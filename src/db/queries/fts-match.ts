@@ -7,6 +7,13 @@
  * ("git workt" already matches "git worktree"), staying consistent with the
  * substring behaviour of the metadata search.
  *
+ * The prefix `*` is only added when the last word has at least
+ * MIN_PREFIX_LEN alphanumeric characters. A 1-char prefix like `a*` matches a
+ * term in nearly every message, so on a growing transcript corpus each
+ * debounced keystroke would turn into a near-full scan of the FTS index. Below
+ * the floor the last word stays an exact term — still searchable, just not
+ * expanded into a runaway prefix.
+ *
  * Each token is wrapped as an FTS5 string literal with embedded double-quotes
  * doubled, so arbitrary user input (punctuation, quotes, operators like `OR`,
  * `NEAR`) is matched literally and can never inject FTS query syntax.
@@ -15,6 +22,8 @@
  * no letters/numbers such as `!!!`). Callers treat `null` as "skip content
  * search" and fall back to metadata-only matching.
  */
+const MIN_PREFIX_LEN = 2;
+
 export function buildFtsMatch(input: string): string | null {
   const trimmed = (input ?? '').trim();
   if (!trimmed) return null;
@@ -22,10 +31,12 @@ export function buildFtsMatch(input: string): string | null {
   const tokens = trimmed.split(/\s+/).filter((t) => /[\p{L}\p{N}]/u.test(t));
   if (tokens.length === 0) return null;
 
+  const lastIdx = tokens.length - 1;
   return tokens
     .map((t, i) => {
       const literal = '"' + t.replace(/"/g, '""') + '"';
-      return i === tokens.length - 1 ? literal + '*' : literal;
+      const alnumLen = (t.match(/[\p{L}\p{N}]/gu) ?? []).length;
+      return i === lastIdx && alnumLen >= MIN_PREFIX_LEN ? literal + '*' : literal;
     })
     .join(' ');
 }

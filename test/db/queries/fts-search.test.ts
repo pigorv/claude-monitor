@@ -76,6 +76,17 @@ describe('buildFtsMatch', () => {
     assert.equal(buildFtsMatch('workt'), '"workt"*');
   });
 
+  it('does not prefix a last word shorter than the floor (avoids a runaway 1-char scan)', () => {
+    // A 1-char last token stays an exact term, never `"a"*`.
+    assert.equal(buildFtsMatch('a'), '"a"');
+    // Multi-word: only the last word is gated; earlier words are exact anyway.
+    assert.equal(buildFtsMatch('worktree a'), '"worktree" "a"');
+    // The floor counts alphanumerics, not raw length — punctuation doesn't pad it.
+    assert.equal(buildFtsMatch('a.'), '"a."');
+    // Two alphanumerics is enough to expand.
+    assert.equal(buildFtsMatch('ab'), '"ab"*');
+  });
+
   it('escapes embedded double quotes so input is matched literally', () => {
     assert.equal(buildFtsMatch('foo"bar'), '"foo""bar"*');
   });

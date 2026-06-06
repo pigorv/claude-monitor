@@ -134,7 +134,9 @@ const SESSION_LIST_COLUMNS = `
   subagent_count, summary, end_reason, transcript_path, invocations, started_with
 `;
 
-export function listSessions(filters: SessionFilters = {}): { sessions: Session[]; total: number } {
+export function listSessions(
+  filters: SessionFilters = {},
+): { sessions: Session[]; total: number; ftsMatch: string | null } {
   const db = getDb();
   const conditions: string[] = [];
   const params: Record<string, unknown> = {};
@@ -213,6 +215,8 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
         GROUP BY session_id
       ),
       content_rank AS (
+        -- Tier priority (user > assistant > sub-agent) is mirrored by
+        -- getMessageMatchesForSessions' snippet ranking — keep them in sync.
         SELECT m.session_id,
           MIN(CASE
             WHEN m.agent_id IS NOT NULL THEN 4
@@ -236,7 +240,7 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
     `).all({ ...params, limit, offset }) as (Session & { _total: number; match_tier: number })[];
 
     const total = rows.length > 0 ? rows[0]._total : 0;
-    return { sessions: rows, total };
+    return { sessions: rows, total, ftsMatch };
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -250,7 +254,7 @@ export function listSessions(filters: SessionFilters = {}): { sessions: Session[
 
   const total = rows.length > 0 ? rows[0]._total : 0;
 
-  return { sessions: rows, total };
+  return { sessions: rows, total, ftsMatch };
 }
 
 export function updateSession(id: string, updates: Partial<Omit<Session, 'id'>>): void {
