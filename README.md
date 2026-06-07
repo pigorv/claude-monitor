@@ -8,7 +8,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
 <!-- hero:start -->
-<!-- hero captured-on: v0.4.0 -->
+<!-- hero captured-on: v0.5.0 -->
 <p align="center">
   <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/hero.gif" alt="claude-monitor walkthrough — session list with date-group headers and Sort dropdown, Timeline with Write/Edit full-cards showing code and diffs, Context chart, and 5-agent Gantt" style="max-width: 100%;" />
 </p>
@@ -44,7 +44,7 @@ npx @pigorv/claude-monitor start
 <!-- features:start -->
 ## Features
 
-**Session List** — Filterable, sortable table with a recognition-first row layout: task intent as the bold title, project name as a small label, and turns/sub-agents/tools/skills/compaction in a muted subtitle. Every row has a right-rail telemetry ledger showing relative-start → ended clock (full timestamps on hover), model pill, duration · estimated cost, and peak-context % color-coded against the model's threshold. Rows group under TODAY / YESTERDAY / THIS WEEK headers when sorted by start time. Single filter bar with Project, Model, and Sort dropdowns (including "Highest/Lowest ctx %" and "Most expensive/Cheapest" options); press `/` to focus search from anywhere. Sessions started with a `/command` or skill show the command/skill pill inline before the session title.
+**Session List** — Filterable, sortable table with a recognition-first row layout: task intent as the bold title, project name as a small label, and turns/sub-agents/tools/skills/compaction in a muted subtitle. Every row has a right-rail telemetry ledger showing relative-start → ended clock (full timestamps on hover), model pill, duration · estimated cost, and peak-context % color-coded against the model's threshold. Rows group under TODAY / YESTERDAY / THIS WEEK headers when sorted by start time. Single filter bar with Project, Model, and Sort dropdowns (including "Highest/Lowest ctx %" and "Most expensive/Cheapest" options); press `/` to focus search from anywhere — and search matches **message content** (the actual prompts and replies, not just project, path, and summary), ranking hits by where they landed and tagging each with a "matched in prompt / response / sub-agent" chip plus a highlighted snippet. Sessions started with a `/command` or skill show the command/skill pill inline before the session title.
 
 <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-list.png" alt="Session list with recognition-first row layout: bold session titles with project name labels, right-rail telemetry ledger showing timestamps, model pills, duration and estimated cost, color-coded peak-context %, and TODAY / YESTERDAY date-group headers" width="700" />
 
