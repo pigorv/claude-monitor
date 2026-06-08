@@ -14,6 +14,10 @@
 </p>
 <!-- hero:end -->
 
+## Contents
+
+[Why?](#why) · [Quick Start](#quick-start) · [Features](#features) · [How It Works](#how-it-works) · [CLI Reference](#cli-reference) · [Status line link](#status-line-link) · [Uninstall](#uninstall) · [Built With](#built-with) · [Development](#development)
+
 ## Why?
 
 Claude Code sessions generate rich transcript data, but you can't see what's happening under the hood:
@@ -87,6 +91,9 @@ Options for `import`: `--force` (re-import existing sessions)
 
 ## Status line link
 
+<details>
+<summary><b>Add a clickable 🔗 monitor link to your Claude Code status line</b> — requirements and three setup paths</summary>
+
 Add a clickable **🔗 monitor** link to your Claude Code [status line](https://code.claude.com/docs/en/statusline) that opens the current session straight in the dashboard. Claude Code hands your status line command the live `session_id`, and that id is exactly what the dashboard routes on — so the link always points at the session you're in (`http://localhost:4173/#/session/<id>`).
 
 **Requirements:** a terminal that renders OSC 8 hyperlinks (iTerm2, Kitty, WezTerm — not Apple Terminal; tmux/SSH may strip them), `jq`, and a running `claude-monitor start`. The port defaults to `4173`; override it with `CLAUDE_MONITOR_PORT`.
@@ -143,7 +150,12 @@ It'll read your current setup, drop in the OSC 8 snippet, and update `settings.j
 
 > A brand-new session is imported on a ~5s poll, so the link may briefly show "session not found" until its first import lands.
 
+</details>
+
 ## Uninstall
+
+<details>
+<summary><b>Remove claude-monitor completely</b> — stop the process, delete data, uninstall the package</summary>
 
 claude-monitor stores all its state in a single directory and registers no system services, daemons, or login items. To remove it completely:
 
@@ -168,6 +180,8 @@ npm uninstall -g @pigorv/claude-monitor
 
 That's everything. claude-monitor never writes outside `~/.claude-monitor/`, and **`~/.claude/projects/` belongs to Claude Code itself — leave it alone unless you also want to delete your transcripts.**
 
+</details>
+
 ## Built With
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -177,6 +191,9 @@ That's everything. claude-monitor never writes outside `~/.claude-monitor/`, and
 [![uPlot](https://img.shields.io/badge/uPlot-charts-4C566A)](https://github.com/leeoniya/uPlot)
 
 ## Development
+
+<details>
+<summary><b>Build and run from source</b> — clone, build, and the dev scripts</summary>
 
 ```bash
 git clone https://github.com/pigorv/claude-monitor.git
@@ -189,6 +206,8 @@ npm run dev:frontend   # Vite dev server on :5173 with HMR (proxies /api → :41
 npm test               # Run tests
 npm run typecheck      # TypeScript type checking
 ```
+
+</details>
 
 ## Contributing
 

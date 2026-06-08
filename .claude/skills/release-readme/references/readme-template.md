@@ -13,10 +13,15 @@ The canonical layout the skill assumes. Anything outside the marker pairs is the
 [![Node](…)](…)
 
 <!-- hero:start -->
+<!-- hero captured-on: vX.Y.Z -->
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/<id>" controls muted style="max-width: 100%;"></video>
+  <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/hero.gif" alt="claude-monitor walkthrough" style="max-width: 100%;" />
 </p>
 <!-- hero:end -->
+
+## Contents
+
+…manual linked TOC of the section headings — not touched by the skill…
 
 ## Why?
 
@@ -45,19 +50,19 @@ npx @pigorv/claude-monitor start
 
 **Session List** — Filterable, sortable table with model filter chips, search, sparkline previews, and color-coded compaction counts.
 
-<img src="docs/images/session-list.png" alt="Session list showing 10 sessions across 4 projects with sparkline charts, model badges, compaction counts, and agent counts" width="700" />
+<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-list.png" alt="Session list showing 10 sessions across 4 projects with sparkline charts, model badges, compaction counts, and agent counts" width="700" />
 
 **Context Pressure** — Interactive token chart (uPlot) with input/output/cache breakdown, model-specific thresholds, compaction markers, and drag-to-zoom.
 
-<img src="docs/images/session-detail-context.png" alt="Context utilization chart showing token pressure climbing over time with two compaction drops and warning/danger threshold zones" width="700" />
+<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-context.png" alt="Context utilization chart showing token pressure climbing over time with two compaction drops and warning/danger threshold zones" width="700" />
 
 **Thinking Inspection** — Expandable thinking blocks in the event timeline. See exactly where Claude's reasoning chain took a wrong turn.
 
-<img src="docs/images/session-detail-timeline.png" alt="Timeline view showing chronological event cards with tool calls, thinking blocks, and a token budget bar at 94% context utilization" width="700" />
+<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-timeline.png" alt="Timeline view showing chronological event cards with tool calls, thinking blocks, and a token budget bar at 94% context utilization" width="700" />
 
 **Agent Tree** — Full sub-agent visibility with Gantt timeline, per-agent token costs, tool call breakdowns, compression ratios, and result classification.
 
-<img src="docs/images/session-detail-agents.png" alt="Agent tree with Gantt chart showing 5 sub-agents with timeline bars, token counts, tool call counts, and status badges" width="700" />
+<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-agents.png" alt="Agent tree with Gantt chart showing 5 sub-agents with timeline bars, token counts, tool call counts, and status badges" width="700" />
 
 **File Tracking** — Every file loaded into context, how many times it was re-read, and how many tokens each file consumed. Spot wasteful re-reads.
 <!-- features:end -->
@@ -72,10 +77,10 @@ npx @pigorv/claude-monitor start
 | Command | Description |
 |---------|-------------|
 | `claude-monitor start` | Start dashboard + auto-import (default port: 4173) |
-| `claude-monitor import <path>` | One-time import of transcripts |
+| `claude-monitor import [path]` | One-time import of transcripts (defaults to `~/.claude/projects/`) |
 | `claude-monitor status` | Show database stats and server status |
 
-Options for `start`: `--port, -p <number>`, `--no-open`, `--db <path>`, `--verbose`
+Options for `start`: `--port, -p <number>`, `--no-open`, `--verbose`
 
 Options for `import`: `--force` (re-import existing sessions)
 <!-- cli:end -->
@@ -97,10 +102,13 @@ Options for `import`: `--force` (re-import existing sessions)
 - Title (`# claude-monitor`)
 - Tagline blockquote
 - Badges row
+- "Contents" (TOC)
 - "Why?" section
 - "How It Works" section
+- "Status line link" section (folded in `<details>`)
+- "Uninstall" section (folded in `<details>`)
 - "Built With" section
-- "Development" section
+- "Development" section (folded in `<details>`)
 - "Contributing" section
 - "License" section
 

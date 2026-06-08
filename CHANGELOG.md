@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- README: added a Contents table of contents and folded the Status line, Uninstall, and Development sections into collapsible `<details>` for easier scanning.
+
 ## [0.5.0] - 2026-06-07
 
 ### Added

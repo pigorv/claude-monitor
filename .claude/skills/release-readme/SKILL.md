@@ -159,10 +159,10 @@ For the hero block, keep `<!-- hero captured-on: vX.Y.Z -->` inside `old_string`
 Never touch:
 
 - Headings or content outside marker blocks
-- The "Why?", "How It Works", "Built With", "Development", "Contributing", "License" sections
+- The "Contents" (TOC), "Why?", "How It Works", "Status line link", "Uninstall", "Built With", "Development", "Contributing", "License" sections
 - The `<!-- hero captured-on: ... -->` annotation, **unless** step 3 actually recaptured the hero
 
-Preserve `<p align="center">`, `<img width="…">`, and alt text formatting. Use relative paths for images. Match the existing alt-text style (one descriptive sentence; ~120 chars).
+Preserve `<p align="center">`, `<img width="…">`, and alt text formatting. Use **absolute** `https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/…` URLs for every image `src` — npm's registry strips relative image paths, so they render blank on npmjs.com (this was the v0.3.4 fix). Match the existing alt-text style (one descriptive sentence; ~120 chars).
 
 ### 5. Verify
 
@@ -234,7 +234,7 @@ Marker placement examples are in `references/readme-template.md`.
 - Edit `package.json` version
 - Move `[Unreleased]` to a dated header in `CHANGELOG.md`
 - Create git tags or push commits
-- Rewrite "Why?", "How It Works", "Built With", "Development", "Contributing", "License"
+- Rewrite the "Contents" (TOC), "Why?", "How It Works", "Status line link", "Uninstall", "Built With", "Development", "Contributing", "License" sections
 - Auto-capture screenshots without confirming with the user first
 - Rewrite the `captured-on` annotation unless a hero recapture actually happened in this run
 
@@ -243,10 +243,11 @@ Marker placement examples are in `references/readme-template.md`.
 ## Quick reference: existing media
 
 ```
+docs/images/hero.gif
 docs/images/session-list.png
 docs/images/session-detail-context.png
 docs/images/session-detail-timeline.png
 docs/images/session-detail-agents.png
 ```
 
-Hero is a `<video src="https://github.com/user-attachments/...">`. Replace the `src=` URL when the verdict is REQUIRED and the user has approved the new asset.
+Hero is a committed `docs/images/hero.gif`, referenced via an absolute `<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/hero.gif" …>`. Replace the GIF (and bump the `captured-on` annotation) when the verdict is REQUIRED and the user has approved the new asset.

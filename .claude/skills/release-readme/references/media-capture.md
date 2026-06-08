@@ -7,9 +7,9 @@ Recipes for screenshots and short videos/GIFs of the dashboard, plus the **hero 
 | File                                  | Page                              | What's on screen                                                                       |
 |---------------------------------------|-----------------------------------|----------------------------------------------------------------------------------------|
 | `docs/images/session-list.png`        | `/#/`                             | Filterable session table — at least one project chip selected, ≥6 rows visible.        |
-| `docs/images/session-detail-context.png` | `/#/sessions/<id>` Context tab | Token chart with at least one compaction marker visible, threshold zones shaded.       |
-| `docs/images/session-detail-timeline.png` | `/#/sessions/<id>` Timeline tab | Several event cards expanded, including a thinking block and a tool call.              |
-| `docs/images/session-detail-agents.png` | `/#/sessions/<id>` Agents tab  | Gantt with ≥3 agents, at least one nested.                                             |
+| `docs/images/session-detail-context.png` | `/#/session/<id>` Context tab | Token chart with at least one compaction marker visible, threshold zones shaded.       |
+| `docs/images/session-detail-timeline.png` | `/#/session/<id>` Timeline tab | Several event cards expanded, including a thinking block and a tool call.              |
+| `docs/images/session-detail-agents.png` | `/#/session/<id>` Agents tab  | Gantt with ≥3 agents, at least one nested.                                             |
 | Hero (video or GIF)                   | Walkthrough                       | 6–10 seconds: list → click row → switch tabs.                                           |
 
 ---
@@ -23,7 +23,7 @@ The skill must output one verdict per run: **REQUIRED**, **RECOMMENDED**, or **N
 1. The hero's **captured-on** version, read from the `<!-- hero captured-on: vX.Y.Z -->` annotation inside `<!-- hero:start -->`. If absent, treat as `v0.0.0`.
 2. The list of routes/surfaces the hero walkthrough traverses. For claude-monitor today this is:
    - `/#/`  (Session List)
-   - `/#/sessions/<id>`  (Session Detail header + each tab the hero shows: Context, Timeline, Agents)
+   - `/#/session/<id>`  (Session Detail header + each tab the hero shows: Context, Timeline, Agents)
    - Any chip/filter/button that's prominently visible during the walkthrough
 3. The CHANGELOG range slice the user asked for (`since=<ver>` etc.). The relevant comparison range is **max(captured-on, range-start) → HEAD**.
 
@@ -70,7 +70,7 @@ After capture, update the annotation to:
 
 ### When the user replaces the hero
 
-- The new asset can be a GitHub user-attachments URL (current pattern), a local `docs/images/hero.gif`, or `docs/images/hero.mp4`. The skill writes whichever the user provides into the marker block.
+- The new asset can be a committed `docs/images/hero.gif` (current pattern — referenced via an absolute `raw.githubusercontent.com` URL), a `docs/images/hero.mp4`, or a GitHub user-attachments URL. The skill writes whichever the user provides into the marker block.
 - Update the annotation to the version that's about to ship (usually the version under `[Unreleased]` once the user has decided what it'll be — or `package.json`'s current version if they haven't bumped yet, with a note in the report).
 
 ---
@@ -79,14 +79,14 @@ After capture, update the annotation to:
 
 The dashboard reads from `~/.claude-monitor/data.sqlite`. For nice screenshots you want sessions with realistic length, a compaction or two, and at least one Task/Agent call.
 
-1. **Real data**: pick an interesting session you've already run. Note its ID; the URL is `/#/sessions/<id>`.
+1. **Real data**: pick an interesting session you've already run. Note its ID; the URL is `/#/session/<id>`.
 2. **Demo seed**: if `npm run demo:seed` exists, run it to populate a separate demo DB. Confirm the script exists in `package.json` before assuming.
 
 Then start the server in a terminal that stays up while Playwright drives it:
 
 ```bash
 npm run build
-node dist/index.js start --no-open --port 4173 --db ~/.claude-monitor/data.sqlite
+node dist/index.js start --no-open --port 4173
 ```
 
 ## Screenshot recipe (per page)
@@ -100,7 +100,7 @@ playwright-cli snapshot
 playwright-cli click <ref-of-project-chip>
 playwright-cli screenshot --filename docs/images/session-list.png
 
-playwright-cli goto "http://localhost:4173/#/sessions/<id>"
+playwright-cli goto "http://localhost:4173/#/session/<id>"
 playwright-cli click <tab-ref>
 playwright-cli screenshot --filename docs/images/session-detail-<tab>.png
 ```
@@ -125,7 +125,7 @@ pngquant --quality=70-90 --skip-if-larger --output <out>.png <in>.png
 
 ## Hero recipe (video or GIF)
 
-### Option A — Playwright video → ffmpeg → GIF
+### Option A — Playwright video → ffmpeg → GIF (current pattern)
 
 Drive a 6–10s walkthrough via the playwright Node API (the CLI snapshot mode is too step-by-step). The canonical recipe lives in `.claude/skills/playwright-cli/references/video-recording.md`. Convert the resulting MP4:
 
@@ -139,7 +139,7 @@ ffmpeg -i walk.webm -vf "fps=12,scale=900:-1:flags=lanczos,split[s0][s1];[s0]pal
 
 Target: ≤5 MB GIF, ≤8 MB MP4. If the GIF is over budget, prefer MP4 and embed via `<video>`.
 
-### Option B — GitHub user-attachments URL (current pattern)
+### Option B — GitHub user-attachments URL (alternative)
 
 1. Open a **draft PR** on the repo (issues don't have a draft state — use a PR or a regular issue you'll close after copying the URL).
 2. Drag the new `.mp4` into the comment box; GitHub uploads it and rewrites the markdown as `https://github.com/user-attachments/assets/<id>`. Copy that URL.
@@ -157,4 +157,4 @@ This avoids committing large binaries.
 
 ## Alt text
 
-One descriptive sentence per image, ~120 chars, describing what's literally on screen. Match the existing examples in the README — see lines 43, 47, 51, 55 of the current file.
+One descriptive sentence per image, ~120 chars, describing what's literally on screen. Match the existing `<img>` alt-text style in the README's features block.
