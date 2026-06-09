@@ -253,6 +253,15 @@ function migration012EventsFts(db: Database.Database): void {
   `);
 }
 
+// Per-session mtime of the transcript file at its last successful import.
+// The watcher seeds its in-memory mtime map from this on startup so that
+// sessions created or appended-to while the server was down are (re)imported,
+// while unchanged ones are skipped without a full re-parse. Stored as REAL to
+// preserve the fractional-millisecond mtimeMs exactly across restarts.
+const MIGRATION_013_SESSION_IMPORTED_MTIME = `
+ALTER TABLE sessions ADD COLUMN last_imported_mtime REAL;
+`;
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -266,6 +275,7 @@ const MIGRATIONS: Migration[] = [
   { id: 10, name: '010-session-pills', run: migration010SessionPills },
   { id: 11, name: '011-drop-risk-score', run: migration011DropRiskScore },
   { id: 12, name: '012-events-fts', run: migration012EventsFts },
+  { id: 13, name: '013-session-imported-mtime', sql: MIGRATION_013_SESSION_IMPORTED_MTIME },
 ];
 
 export function runMigrations(db: Database.Database): void {

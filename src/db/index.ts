@@ -7,6 +7,8 @@ export {
   updateSession,
   deleteSession,
   sessionExists,
+  setSessionImportedMtime,
+  getImportedMtimes,
   getAgentRelationships,
 } from './queries/sessions.js';
 export type { SessionFilters } from './queries/sessions.js';

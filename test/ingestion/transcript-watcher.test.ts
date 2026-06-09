@@ -1,6 +1,14 @@
 import { describe, it, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, copyFileSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+  mkdirSync,
+  copyFileSync,
+  writeFileSync,
+  readFileSync,
+  utimesSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getDb, closeDb } from '../../src/db/index.js';
@@ -21,6 +29,26 @@ async function waitFor(fn: () => boolean, timeoutMs = 5000, intervalMs = 100): P
 }
 
 const FIXTURE = join(import.meta.dirname!, '..', 'fixtures', 'sample-session.jsonl');
+
+/** Materialize the sample transcript under a chosen session id (the fixture bakes "sess-001"). */
+function writeTranscriptWithId(destPath: string, sessionId: string): void {
+  const rewritten = readFileSync(FIXTURE, 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => {
+      // The fixture intentionally contains a malformed line to exercise the
+      // parser's resilience — pass anything that isn't JSON through untouched.
+      try {
+        const obj = JSON.parse(line);
+        if (obj.sessionId) obj.sessionId = sessionId;
+        return JSON.stringify(obj);
+      } catch {
+        return line;
+      }
+    })
+    .join('\n');
+  writeFileSync(destPath, rewritten + '\n');
+}
 
 describe('transcript-watcher', () => {
   let tmpDir: string;
@@ -84,6 +112,81 @@ describe('transcript-watcher', () => {
       assert.ok(session);
     } finally {
       watcher.stop();
+    }
+  });
+
+  it('imports a transcript already on disk before start() (regression: #62)', async () => {
+    // A transcript that appeared while the server was down: it exists on disk
+    // BEFORE the watcher starts and has never been imported. It must import on
+    // the first scan, not get silently skipped by mtime seeding.
+    const projDir = join(projectsDir, '-tmp-cold-start');
+    mkdirSync(projDir, { recursive: true });
+    writeTranscriptWithId(join(projDir, 'sess-cold.jsonl'), 'sess-cold');
+
+    assert.equal(getSession('sess-cold'), undefined, 'precondition: not yet imported');
+
+    const watcher = createTranscriptWatcher({
+      projectsPath: projectsDir,
+      pollIntervalMs: 200,
+    });
+    watcher.start();
+
+    try {
+      await waitFor(() => getSession('sess-cold') !== undefined);
+      const session = getSession('sess-cold');
+      assert.ok(session, 'Transcript present before start() should import on first scan');
+      assert.equal(session.id, 'sess-cold');
+    } finally {
+      watcher.stop();
+    }
+  });
+
+  it('re-imports a session appended-to while the watcher was down (regression: #62)', async () => {
+    const projDir = join(projectsDir, '-tmp-append-while-down');
+    mkdirSync(projDir, { recursive: true });
+    const file = join(projDir, 'sess-append.jsonl');
+    writeTranscriptWithId(file, 'sess-append');
+
+    // First run: import the session, then stop the watcher.
+    const first = createTranscriptWatcher({ projectsPath: projectsDir, pollIntervalMs: 200 });
+    first.start();
+    await waitFor(() => getSession('sess-append') !== undefined);
+    const before = getSession('sess-append');
+    assert.ok(before);
+    first.stop();
+    await sleep(250); // let any in-flight scan settle
+
+    // While "down", append a later message and force a newer mtime so the change
+    // is unambiguous regardless of filesystem mtime resolution.
+    const appended =
+      JSON.stringify({
+        parentUuid: 'x',
+        cwd: '/tmp/project',
+        sessionId: 'sess-append',
+        version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'a message added while the watcher was down' },
+        timestamp: '2026-12-31T00:00:00.000Z',
+        uuid: 'uuid-appended-while-down',
+      }) + '\n';
+    writeFileSync(file, readFileSync(file, 'utf8') + appended);
+    const future = new Date('2031-01-01T00:00:00.000Z');
+    utimesSync(file, future, future);
+
+    // A fresh watcher (empty in-memory state) seeds from the persisted mtime,
+    // sees the file is newer, and re-imports — reflecting the appended message.
+    const second = createTranscriptWatcher({ projectsPath: projectsDir, pollIntervalMs: 200 });
+    second.start();
+    try {
+      await waitFor(() => getSession('sess-append')?.ended_at !== before!.ended_at);
+      const after = getSession('sess-append');
+      assert.equal(
+        after?.ended_at,
+        '2026-12-31T00:00:00.000Z',
+        'appended message should be picked up after restart',
+      );
+    } finally {
+      second.stop();
     }
   });
 

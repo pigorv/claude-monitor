@@ -51,6 +51,9 @@ export interface Session {
   agent_pressure_events: number;
   agent_compacted_count: number;
   peak_concurrency: number;
+  // mtime of the transcript file at its last successful import (watcher bookkeeping).
+  // Optional: written via a dedicated UPDATE, not part of insert/upsert payloads.
+  last_imported_mtime?: number | null;
 }
 
 export interface Invocation {
