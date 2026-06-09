@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - README: added a Contents table of contents and folded the Status line, Uninstall, and Development sections into collapsible `<details>` for easier scanning.
 
+### Fixed
+
+- The watcher now imports sessions that were created or modified while claude-monitor was stopped, instead of silently skipping them until the next live edit. On startup it seeds from each session's last-imported transcript mtime (now persisted), so new-while-down sessions appear on first load and appended-while-down sessions update — while unchanged sessions are still skipped without a full re-parse.
+
 ## [0.5.0] - 2026-06-07
 
 ### Added

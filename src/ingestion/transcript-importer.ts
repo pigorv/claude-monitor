@@ -1,8 +1,8 @@
 import { basename, dirname, join, resolve } from 'node:path';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { getDb } from '../db/connection.js';
 import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
-import { sessionExists, upsertSession } from '../db/queries/sessions.js';
+import { sessionExists, upsertSession, setSessionImportedMtime } from '../db/queries/sessions.js';
 import * as logger from '../shared/logger.js';
 import type { Event, Invocation, Session, TextBlock, TranscriptMessage } from '../shared/types.js';
 import { parseTranscript, extractAiTitle } from './jsonl-parser.js';
@@ -48,6 +48,17 @@ export async function importTranscript(
     return { sessionId: '', eventCount: 0, skipped: true };
   }
 
+  // Capture the file's mtime BEFORE parsing. If the file is appended to between
+  // here and the read below, this stored value stays conservatively older, so the
+  // next scan re-imports (idempotent) rather than skipping the new tail. The watcher
+  // seeds knownMtimes from this on startup to avoid re-parsing unchanged sessions.
+  let fileMtimeMs: number | null = null;
+  try {
+    fileMtimeMs = statSync(filePath).mtimeMs;
+  } catch {
+    // ignore — file may have vanished; we simply won't persist an mtime
+  }
+
   // Collect all messages from the file
   const messages: TranscriptMessage[] = [];
   for await (const msg of parseTranscript(filePath)) {
@@ -66,6 +77,10 @@ export async function importTranscript(
 
   // Check idempotency
   if (!options.force && sessionExists(sessionId)) {
+    // Record the mtime even when skipping so the watcher can seed from it on the
+    // next startup and avoid re-parsing this already-imported session (lazy
+    // backfill for sessions imported before last_imported_mtime existed).
+    if (fileMtimeMs !== null) setSessionImportedMtime(sessionId, fileMtimeMs);
     logger.debug('Session already imported, skipping', { sessionId, filePath });
     return { sessionId, eventCount: 0, skipped: true };
   }
@@ -301,6 +316,10 @@ export async function importTranscript(
     session.started_at,
     session.ended_at,
   );
+
+  // Persist the transcript mtime so the watcher skips this session on the next
+  // startup unless the file changes again.
+  if (fileMtimeMs !== null) setSessionImportedMtime(sessionId, fileMtimeMs);
 
   const totalEvents = eventRecords.length + subagentEventCount;
   logger.info('Imported transcript', {

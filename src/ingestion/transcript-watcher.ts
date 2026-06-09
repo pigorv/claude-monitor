@@ -2,6 +2,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DEFAULT_CONFIG } from '../shared/constants.js';
 import { importTranscript } from './transcript-importer.js';
+import { getImportedMtimes } from '../db/queries/sessions.js';
 import * as logger from '../shared/logger.js';
 
 export interface TranscriptWatcher {
@@ -129,15 +130,33 @@ export function createTranscriptWatcher(options?: {
       if (running) return;
       running = true;
 
-      // Seed known mtimes from existing files so we don't re-import everything on startup.
-      // The import function itself is idempotent (skips existing sessions),
-      // but scanning all files avoids unnecessary work.
-      const files = collectFiles();
-      for (const filePath of files) {
-        try {
-          knownMtimes.set(filePath, statSync(filePath).mtimeMs);
-        } catch {
-          // ignore
+      // Seed knownMtimes from each session's last-imported mtime (persisted in the
+      // DB) rather than the live filesystem. A session created OR appended-to while
+      // the server was down then has no entry (or an older one) than its current
+      // file mtime, so the first scan imports it; unchanged sessions match exactly
+      // and are skipped without a full re-parse.
+      //
+      // Subagent files have no session row of their own — keep seeding them from the
+      // filesystem so we don't blindly re-parse them every startup. They're imported
+      // via their parent (and importSubagentFile is idempotent), so a missed subagent
+      // change is recovered whenever the parent re-imports.
+      const persisted = new Map<string, number>();
+      for (const row of getImportedMtimes()) {
+        persisted.set(resolve(row.transcript_path), row.last_imported_mtime);
+      }
+      for (const filePath of collectFiles()) {
+        const isSubagent =
+          filePath.includes('/subagents/') || filePath.includes('\\subagents\\');
+        if (isSubagent) {
+          try {
+            knownMtimes.set(filePath, statSync(filePath).mtimeMs);
+          } catch {
+            // ignore
+          }
+        } else {
+          const mtime = persisted.get(filePath);
+          // Leave unseeded when absent → first scan imports it (new while down).
+          if (mtime !== undefined) knownMtimes.set(filePath, mtime);
         }
       }
 

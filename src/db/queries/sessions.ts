@@ -10,6 +10,8 @@ let _upsertSessionStmt: Database.Statement | null = null;
 let _getSessionStmt: Database.Statement | null = null;
 let _deleteSessionStmt: Database.Statement | null = null;
 let _sessionExistsStmt: Database.Statement | null = null;
+let _setImportedMtimeStmt: Database.Statement | null = null;
+let _getImportedMtimesStmt: Database.Statement | null = null;
 let _getAgentRelStmt: Database.Statement | null = null;
 let _agentTokenTimelineStmt: Database.Statement | null = null;
 let _allAgentTokenTimelinesStmt: Database.Statement | null = null;
@@ -22,7 +24,8 @@ let _listProjectsStmt: Database.Statement | null = null;
 
 onDbClose(() => {
   _insertSessionStmt = _upsertSessionStmt = _getSessionStmt = _deleteSessionStmt =
-    _sessionExistsStmt = _getAgentRelStmt = _agentTokenTimelineStmt =
+    _sessionExistsStmt = _setImportedMtimeStmt = _getImportedMtimesStmt =
+    _getAgentRelStmt = _agentTokenTimelineStmt =
     _allAgentTokenTimelinesStmt = _insertSessionLinkStmt = _getLinkedSourceStmt =
     _getLinkedTargetStmt = _agentToolCallsStmt = _allAgentToolCallsStmt =
     _listProjectsStmt = null;
@@ -283,6 +286,28 @@ export function sessionExists(id: string): boolean {
   _sessionExistsStmt ??= db.prepare('SELECT 1 FROM sessions WHERE id = ?');
   const row = _sessionExistsStmt.get(id);
   return row !== undefined;
+}
+
+/**
+ * Record the transcript file's mtime at the time of a successful (or skipped-as-
+ * already-present) import. The watcher seeds from these values on startup.
+ */
+export function setSessionImportedMtime(id: string, mtimeMs: number): void {
+  const db = getDb();
+  _setImportedMtimeStmt ??= db.prepare('UPDATE sessions SET last_imported_mtime = ? WHERE id = ?');
+  _setImportedMtimeStmt.run(mtimeMs, id);
+}
+
+/**
+ * Return the persisted transcript path + last-imported mtime for every session
+ * that has both, so the watcher can decide which files changed while it was down.
+ */
+export function getImportedMtimes(): { transcript_path: string; last_imported_mtime: number }[] {
+  const db = getDb();
+  _getImportedMtimesStmt ??= db.prepare(
+    'SELECT transcript_path, last_imported_mtime FROM sessions WHERE transcript_path IS NOT NULL AND last_imported_mtime IS NOT NULL',
+  );
+  return _getImportedMtimesStmt.all() as { transcript_path: string; last_imported_mtime: number }[];
 }
 
 export function listProjects(): ProjectInfo[] {
