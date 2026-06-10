@@ -17,6 +17,20 @@ describe('generateSessionSummary', () => {
     assert.ok(summary.startsWith('Opus session'), `Expected to start with "Opus session", got: ${summary}`);
   });
 
+  it('extracts Fable model name', () => {
+    const summary = generateSessionSummary({
+      model: 'claude-fable-5',
+      durationMs: 60_000,
+      toolCallCount: 10,
+      topTools: ['Read', 'Edit'],
+      compactionCount: 0,
+      subagentCount: 0,
+      peakContextPct: 40,
+    });
+
+    assert.ok(summary.startsWith('Fable session'), `Expected to start with "Fable session", got: ${summary}`);
+  });
+
   it('formats duration correctly', () => {
     const summary = generateSessionSummary({
       model: 'claude-sonnet-4-5',
