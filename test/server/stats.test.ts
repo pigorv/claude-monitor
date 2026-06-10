@@ -88,16 +88,25 @@ describe('Stats route', () => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run('sess-cost-2', '/tmp/d', 'completed', '2026-01-17T11:00:00Z',
       'claude-opus-4-20250514', 1000000, 500000, 0, 0, 0, 0, 0, 2000);
+    db.prepare(`
+      INSERT INTO sessions (id, project_path, status, started_at, model,
+        total_input_tokens, total_output_tokens, total_cache_read_tokens,
+        total_cache_write_tokens, compaction_count, tool_call_count, subagent_count,
+        duration_ms)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('sess-cost-3', '/tmp/e', 'completed', '2026-01-17T12:00:00Z',
+      'claude-fable-5', 1000000, 500000, 0, 0, 0, 0, 0, 3000);
 
     const res = await app.request('/api/stats');
     const body = await res.json();
 
     // Sonnet: (1M/1M)*3 + (500K/1M)*15 = 3 + 7.5 = 10.5
     // Opus: (1M/1M)*15 + (500K/1M)*75 = 15 + 37.5 = 52.5
-    // Total from these two: 63.0 (plus whatever the original 2 sessions contribute)
-    assert.ok(body.total_cost_estimate_usd >= 63.0);
+    // Fable: (1M/1M)*10 + (500K/1M)*50 = 10 + 25 = 35.0
+    // Total from these three: 98.0 (plus whatever the original 2 sessions contribute)
+    assert.ok(body.total_cost_estimate_usd >= 98.0);
 
     // Cleanup
-    db.prepare('DELETE FROM sessions WHERE id IN (?, ?)').run('sess-cost-1', 'sess-cost-2');
+    db.prepare('DELETE FROM sessions WHERE id IN (?, ?, ?)').run('sess-cost-1', 'sess-cost-2', 'sess-cost-3');
   });
 });

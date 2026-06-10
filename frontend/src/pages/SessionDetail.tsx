@@ -9,6 +9,7 @@ import { CopyButton } from "../components/CopyButton";
 import { updateParams } from "../lib/url-state";
 import type { SessionDetailResponse } from "../../../src/shared/types";
 import { resolveThresholds } from "../lib/chart-config";
+import { modelClass, modelLabel, isLargeContext } from "../lib/model-meta";
 import "../styles/pills.css";
 import "../styles/session-detail.css";
 
@@ -37,29 +38,6 @@ function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
-}
-
-function modelLabel(model: string | null): string {
-  if (!model) return "Unknown";
-  const lower = model.toLowerCase();
-  if (lower.includes("opus")) return "Opus";
-  if (lower.includes("sonnet")) return "Sonnet";
-  if (lower.includes("haiku")) return "Haiku";
-  return model;
-}
-
-function modelClass(model: string | null): string {
-  if (!model) return "";
-  const m = model.toLowerCase();
-  if (m.includes("opus")) return "opus";
-  if (m.includes("sonnet")) return "sonnet";
-  if (m.includes("haiku")) return "haiku";
-  return "";
-}
-
-function isLargeContext(model: string | null): boolean {
-  if (!model) return false;
-  return model.toLowerCase().includes("opus");
 }
 
 function formatEndTime(endedAt: string | null): string {
@@ -214,14 +192,14 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
             ? html`
               <span class="model-pill ${modelClass(modelsUsed[modelsUsed.length - 1])}">
                 ${modelsUsed.map((m: string, i: number) => html`
-                  ${i > 0 ? html`<span class="model-switch">→</span>` : null}${modelLabel(m)}
+                  ${i > 0 ? html`<span class="model-switch">→</span>` : null}${modelLabel(m, "Unknown")}
                 `)}
                 ${isLargeContext(modelsUsed[modelsUsed.length - 1]) ? html` <span class="ctx-label">1M</span>` : null}
               </span>
             `
             : html`
               <span class="model-pill ${modelClass(s.model)}">
-                ${modelLabel(s.model)}
+                ${modelLabel(s.model, "Unknown")}
                 ${isLargeContext(s.model) ? html` <span class="ctx-label">1M</span>` : null}
               </span>
             `

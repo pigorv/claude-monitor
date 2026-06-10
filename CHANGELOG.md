@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support for the **Fable 5** model (`claude-fable-5`). Fable sessions are now measured against their 1M-token context window (correct context-pressure % and chart threshold lines), show a cost estimate ($10/$50 per MTok) in the session list and `/api/stats` totals, render a styled **Fable** pill with a 1M badge, and can be isolated with a Fable model filter. Fable sessions imported before this version were measured against a 200K window — use Reimport in Settings (or `POST /api/reimport`) to recompute them.
+
 ### Changed
 
 - README: added a Contents table of contents and folded the Status line, Uninstall, and Development sections into collapsible `<details>` for easier scanning.
