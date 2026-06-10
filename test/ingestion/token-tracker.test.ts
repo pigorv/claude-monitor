@@ -54,6 +54,12 @@ describe('resolveThreshold', () => {
     assert.equal(t.maxTokens, 1_000_000);
   });
 
+  it('resolves fable from model string', () => {
+    const t = resolveThreshold('claude-fable-5');
+    assert.equal(t.model, 'fable');
+    assert.equal(t.maxTokens, 1_000_000);
+  });
+
   it('resolves sonnet from model string', () => {
     const t = resolveThreshold('claude-sonnet-4-6');
     assert.equal(t.model, 'sonnet');

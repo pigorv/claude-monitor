@@ -137,6 +137,7 @@ function extractModelName(model: string | null): string {
   if (!model) return 'Unknown';
 
   const lower = model.toLowerCase();
+  if (lower.includes('fable')) return 'Fable';
   if (lower.includes('opus')) return 'Opus';
   if (lower.includes('sonnet')) return 'Sonnet';
   if (lower.includes('haiku')) return 'Haiku';

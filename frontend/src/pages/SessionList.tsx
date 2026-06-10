@@ -9,6 +9,7 @@ import { updateParams } from "../lib/url-state";
 import { migrateProjectFilterKey } from "../lib/migrate-project-filter";
 import { projectColor, formatTokenCount } from "../lib/format";
 import { ctxLevel } from "../lib/ctx";
+import { modelClass, modelLabel, isLargeContext } from "../lib/model-meta";
 import type { SessionSummary, ProjectInfo } from "../../../src/shared/types";
 import { SNIPPET_MARK_START, SNIPPET_MARK_END } from "../../../src/shared/search";
 import "../styles/pills.css";
@@ -37,31 +38,6 @@ function formatTokens(n: number | null | undefined): string {
 function formatCost(usd: number | null | undefined): string {
   if (usd == null || usd === 0) return "";
   return `~$${usd.toFixed(2)}`;
-}
-
-function modelClass(model: string | null | undefined): string {
-  if (!model) return "";
-  const m = model.toLowerCase();
-  if (m.includes("opus")) return "opus";
-  if (m.includes("sonnet")) return "sonnet";
-  if (m.includes("haiku")) return "haiku";
-  return "";
-}
-
-function modelLabel(model: string | null | undefined): string {
-  if (!model) return "—";
-  const m = model.toLowerCase();
-  if (m.includes("opus")) return "Opus";
-  if (m.includes("sonnet")) return "Sonnet";
-  if (m.includes("haiku")) return "Haiku";
-  return model;
-}
-
-function isLargeContext(model: string | null | undefined): boolean {
-  if (!model) return false;
-  const m = model.toLowerCase();
-  // Opus 4.6+ supports 1M context window
-  return m.includes("opus");
 }
 
 // Compact token glyph: "12K" / "142K"; raw for tiny counts, "0" for none.
@@ -314,7 +290,7 @@ const SORT_COLUMN_TO_API: Record<SortColumn, string> = {
 const VALID_SORT_COLS: SortColumn[] = [
   "started_at", "project_name", "model", "duration_ms", "peak_context_pct", "cost_estimate_usd",
 ];
-const VALID_CHIPS: ChipFilter[] = ["all", "opus", "sonnet", "haiku"];
+const VALID_CHIPS: ChipFilter[] = ["all", "fable", "opus", "sonnet", "haiku"];
 
 const PAGE_SIZE = 25;
 
@@ -327,7 +303,7 @@ const LS_SORT = "cm.sessionList.sort";
 // module load so usePersistentState sees the new value on first mount.
 migrateProjectFilterKey();
 
-type ChipFilter = "all" | "opus" | "sonnet" | "haiku";
+type ChipFilter = "all" | "fable" | "opus" | "sonnet" | "haiku";
 
 interface SortPref {
   col: SortColumn;
@@ -498,6 +474,9 @@ export function SessionList({ params }: { params: URLSearchParams }) {
     if (selectedProject) queryParams.project_path = selectedProject;
 
     switch (chipFilter) {
+      case "fable":
+        queryParams.model = "fable";
+        break;
       case "opus":
         queryParams.model = "opus";
         break;

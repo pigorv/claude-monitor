@@ -58,6 +58,10 @@
   --color-ctx-safe-bg:var(--teal-50);   --color-ctx-safe-text:var(--teal-800);
   --color-ctx-warn-bg:var(--amber-50);  --color-ctx-warn-text:var(--amber-800);
   --color-ctx-danger-bg:var(--red-50);  --color-ctx-danger-text:var(--red-600);
+  /* Model pill — Fable (top tier; borrows the amber ramp under a dedicated name) */
+  --color-model-fable-bg:var(--amber-50);      /* dark → var(--amber-800) */
+  --color-model-fable-text:var(--amber-800);   /* dark → var(--amber-50)  */
+  --color-model-fable-border:var(--amber-200); /* dark → var(--amber-600) */
 
   /* Health (data-viz ramp — retained; mirrored in chart-palette.ts) */
   --health-green:#1f9d55; --health-amber:#f0a000; --health-rose:#e0457b; --health-violet:#8b5cf6;
@@ -391,6 +395,12 @@ nav a.active {
   background: var(--color-background-tertiary);
   color: var(--color-text-secondary);
   border: 1px solid var(--color-border-primary);
+}
+
+.model-pill.fable {
+  background: var(--color-model-fable-bg);
+  color: var(--color-model-fable-text);
+  border: 1px solid var(--color-model-fable-border);
 }
 
 .model-switch {

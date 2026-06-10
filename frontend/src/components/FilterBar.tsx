@@ -29,6 +29,7 @@ interface FilterBarProps {
 
 const MODEL_OPTIONS = [
   { value: "all",    label: "All models" },
+  { value: "fable",  label: "Fable",  swatch: "var(--color-model-fable-text)" },
   { value: "opus",   label: "Opus",   swatch: "var(--color-interactive-selected-text)" },
   { value: "sonnet", label: "Sonnet", swatch: "var(--color-accent)" },
   { value: "haiku",  label: "Haiku",  swatch: "var(--color-text-tertiary)" },
