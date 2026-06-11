@@ -13,6 +13,9 @@ import { computeAgentEfficiency, inferExecutionModes, analyzeAgentFileReads } fr
 import { getAllAgentTokenTimelines, updateAgentRelationship } from '../db/queries/sessions.js';
 import { detectAndLinkSessions } from './session-linker.js';
 
+// Reset commands that should never become a fallback session title.
+const RESET_COMMANDS = new Set(['clear', 'compact']);
+
 // ── Import result ──────────────────────────────────────────────────
 
 export interface ImportResult {
@@ -122,27 +125,36 @@ export async function importTranscript(
   let firstUserMessage: string | undefined;
   if (!aiTitle) {
     // Skip synthetic CLI messages (local-command-caveat/stdout/stderr) that aren't real user intent.
-    // Prefer slash-command messages (<command-name> tag) over plain text.
+    // Prefer plain-text user messages over slash commands; reset commands (/clear, /compact) never win.
     const getMessageText = (m: TranscriptMessage): string =>
       m.content.filter((b): b is TextBlock => b.type === 'text').map((b) => b.text).join('\n');
 
-    let slashMsg: TranscriptMessage | undefined;
+    const isResetCommand = (text: string): boolean => {
+      const match = /<command-name>([^<]*)<\/command-name>/.exec(text);
+      if (!match) return false;
+      const name = match[1].trim().replace(/^\//, '').toLowerCase();
+      return RESET_COMMANDS.has(name);
+    };
+
     let fallbackMsg: TranscriptMessage | undefined;
+    let slashMsg: TranscriptMessage | undefined;
     for (const m of messages) {
       if (m.type !== 'user') continue;
       const text = getMessageText(m);
-      if (!slashMsg && text.includes('<command-name>')) {
-        slashMsg = m;
-        break;
-      }
-      if (!fallbackMsg) {
+      if (text.includes('<command-name>')) {
+        // Slash command — skip reset commands entirely; record the first non-reset one.
+        if (!slashMsg && !isResetCommand(text)) {
+          slashMsg = m;
+        }
+      } else if (!fallbackMsg) {
         const trimmed = text.trim();
         if (trimmed && !/^<local-command-(?:caveat|stdout|stderr)>/.test(trimmed)) {
           fallbackMsg = m;
         }
       }
+      if (fallbackMsg && slashMsg) break;
     }
-    const titleUserMsg = slashMsg ?? fallbackMsg;
+    const titleUserMsg = fallbackMsg ?? slashMsg;
     if (titleUserMsg) {
       firstUserMessage = getMessageText(titleUserMsg) || undefined;
     }

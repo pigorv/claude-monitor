@@ -212,6 +212,78 @@ describe('importTranscript', () => {
     assert.ok(session);
     assert.equal(session.summary, 'Read project files');
   });
+
+  it('prefers a plain-text user message over a leading /clear for the fallback title', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'fallback-plain', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/clear</command-name>' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'fallback-plain', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Fix the broken login flow' },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'fallback-plain', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'On it.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'fallback-plain.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('fallback-plain');
+    assert.ok(session);
+    assert.equal(session.summary, 'Fix the broken login flow');
+  });
+
+  it('falls back to the first non-reset slash command when there is no plain-text user message', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'fallback-slash', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/clear</command-name>' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'fallback-slash', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/review</command-name>' }] },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'fallback-slash', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Reviewing.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'fallback-slash.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('fallback-slash');
+    assert.ok(session);
+    assert.equal(session.summary, '/review');
+  });
 });
 
 describe('importTranscripts (batch)', () => {
