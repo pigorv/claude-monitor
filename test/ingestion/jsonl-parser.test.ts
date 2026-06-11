@@ -262,4 +262,41 @@ describe('extractAiTitle', () => {
     const title = await extractAiTitle(filePath);
     assert.equal(title, null);
   });
+
+  it('returns the last aiTitle when multiple ai-title lines exist', async () => {
+    const filePath = join(TEST_DIR, 'multi-ai-title.jsonl');
+    const lines = [
+      JSON.stringify({ type: 'ai-title', aiTitle: 'First AI title', sessionId: 'sess-1', timestamp: '2026-01-01T00:00:00.000Z' }),
+      JSON.stringify({
+        type: 'user', uuid: 'u1', parentUuid: null,
+        timestamp: '2026-01-01T00:00:00.000Z', sessionId: 'sess-1',
+        message: { role: 'user', content: 'Hello' },
+      }),
+      JSON.stringify({ type: 'ai-title', aiTitle: 'Updated AI title', sessionId: 'sess-1', timestamp: '2026-01-01T00:01:00.000Z' }),
+    ].join('\n');
+    writeFileSync(filePath, lines);
+    const title = await extractAiTitle(filePath);
+    assert.equal(title, 'Updated AI title');
+  });
+
+  it('prefers customTitle over a later ai-title (user rename wins regardless of order)', async () => {
+    const filePath = join(TEST_DIR, 'custom-then-ai.jsonl');
+    const lines = [
+      JSON.stringify({ type: 'custom-title', customTitle: 'User renamed', sessionId: 'sess-1' }),
+      JSON.stringify({ type: 'ai-title', aiTitle: 'AI generated', sessionId: 'sess-1', timestamp: '2026-01-01T00:01:00.000Z' }),
+    ].join('\n');
+    writeFileSync(filePath, lines);
+    const title = await extractAiTitle(filePath);
+    assert.equal(title, 'User renamed');
+  });
+
+  it('returns null for whitespace-only aiTitle when it is the only candidate', async () => {
+    const filePath = join(TEST_DIR, 'empty-ai-title.jsonl');
+    const lines = [
+      JSON.stringify({ type: 'ai-title', aiTitle: '   ', sessionId: 'sess-1', timestamp: '2026-01-01T00:00:00.000Z' }),
+    ].join('\n');
+    writeFileSync(filePath, lines);
+    const title = await extractAiTitle(filePath);
+    assert.equal(title, null);
+  });
 });

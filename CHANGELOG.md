@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Session titles now import from modern `ai-title` transcript records (not just the legacy `custom-title` format), so AI-generated titles appear again. A manual rename still takes precedence over the AI title.
+
 ## [0.5.1] - 2026-06-10
 
 ### Added
