@@ -5,3 +5,4 @@ dist/
 .claude-monitor/
 .DS_Store
 .playwright-cli/
+.work/
