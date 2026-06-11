@@ -52,9 +52,16 @@ reimport.post('/api/reimport', async (c) => {
 });
 
 reimport.post('/api/clear', (c) => {
-  const confirm = c.req.query('confirm');
-  if (confirm !== 'true') {
-    return c.json({ error: 'Missing confirm=true query parameter. This action deletes all data.' }, 400);
+  // Security fix: Replaced trivial 'confirm=true' check with a secure Admin API key 
+  // requirement to prevent unauthorized database deletion (auth bypass).
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (!adminKey) {
+    return c.json({ error: 'Server misconfiguration: ADMIN_API_KEY is not set.' }, 500);
+  }
+
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader || authHeader !== `Bearer ${adminKey}`) {
+    return c.json({ error: 'Unauthorized: Invalid or missing admin API key.' }, 401);
   }
 
   const db = getDb();
