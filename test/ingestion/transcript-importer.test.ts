@@ -212,6 +212,344 @@ describe('importTranscript', () => {
     assert.ok(session);
     assert.equal(session.summary, 'Read project files');
   });
+
+  it('prefers a plain-text user message over a leading /clear for the fallback title', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'fallback-plain', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/clear</command-name>' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'fallback-plain', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Fix the broken login flow' },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'fallback-plain', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'On it.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'fallback-plain.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('fallback-plain');
+    assert.ok(session);
+    assert.equal(session.summary, 'Fix the broken login flow');
+  });
+
+  it('falls back to the first non-reset slash command when there is no plain-text user message', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'fallback-slash', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/clear</command-name>' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'fallback-slash', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/review</command-name>' }] },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'fallback-slash', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Reviewing.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'fallback-slash.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('fallback-slash');
+    assert.ok(session);
+    assert.equal(session.summary, '/review');
+  });
+
+  it('keeps the opening slash command as the title when plain text only comes later', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'cmd-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/dev-flow</command-name>' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'cmd-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'yes, go ahead' },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'cmd-first', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Proceeding.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'cmd-first.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('cmd-first');
+    assert.ok(session);
+    assert.equal(session.summary, '/dev-flow');
+  });
+
+  it('keeps the opening plain text as the title when a slash command only comes later', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'text-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Speed up the importer' },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'text-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/review</command-name>' }] },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'text-first', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'On it.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'text-first.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('text-first');
+    assert.ok(session);
+    assert.equal(session.summary, 'Speed up the importer');
+  });
+
+  it('never titles a session from a skill-expansion message', async () => {
+    // The expansion is the first candidate the fallback loop reaches (the
+    // leading /clear is reset-skipped), so this fails if the skill_expansion
+    // exclusion is removed from the importer.
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'skill-expansion', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/clear</command-name>' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'skill-expansion', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: 'Base directory for this skill: /home/user/.claude/skills/code-review\n\n# Code review\n\nYou review pre-merge work.' }] },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'skill-expansion', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Fix the login flow' },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'u-3',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-3', cwd: '/tmp/project', sessionId: 'skill-expansion', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Reviewing.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:03.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'skill-expansion.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('skill-expansion');
+    assert.ok(session);
+    assert.equal(session.summary, 'Fix the login flow');
+  });
+
+  it('never titles a session from system-reminder or task-notification messages', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'synthetic-msgs', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<system-reminder>Plan mode is active.</system-reminder>' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'synthetic-msgs', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<task-notification>Agent completed</task-notification>' }] },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'synthetic-msgs', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Refactor the importer' },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'u-3',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-3', cwd: '/tmp/project', sessionId: 'synthetic-msgs', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'On it.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:03.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'synthetic-msgs.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('synthetic-msgs');
+    assert.ok(session);
+    assert.equal(session.summary, 'Refactor the importer');
+  });
+
+  it('never titles a session from an interrupt marker', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'interrupt-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'interrupt-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Resume the migration work' },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'interrupt-first', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Resuming.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'interrupt-first.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('interrupt-first');
+    assert.ok(session);
+    assert.equal(session.summary, 'Resume the migration work');
+  });
+
+  it('excludes /compact from the fallback title and started_with like /clear', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'compact-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/compact</command-name>' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'compact-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Tidy up the token tracker' },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'compact-first', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Done.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'compact-first.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('compact-first');
+    assert.ok(session);
+    assert.equal(session.summary, 'Tidy up the token tracker');
+    assert.equal(session.started_with, null);
+    assert.equal(session.invocations, null, '/compact should not be an invocation');
+  });
+
+  it('falls back to a generated summary when the only user messages are reset commands', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'reset-only', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/clear</command-name>' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'reset-only', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Cleared.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'reset-only.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('reset-only');
+    assert.ok(session);
+    assert.match(session.summary!, /^Opus session/, 'expected the generated stats summary');
+    assert.ok(!session.summary!.includes('/clear'), 'reset command must not become the title');
+    assert.equal(session.started_with, null);
+    assert.equal(session.invocations, null, 'reset-only sessions should have no invocations');
+  });
 });
 
 describe('importTranscripts (batch)', () => {
@@ -422,6 +760,50 @@ describe('importTranscript invocations aggregation', () => {
       type: 'command',
       name: '/review',
     });
+  });
+
+  it('skips a leading /clear and uses the first meaningful command for started_with', async () => {
+    const CLEAR_FIRST_JSONL = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'clear-first-1', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/clear</command-name>' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'clear-first-1', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/review</command-name>' }] },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'clear-first-1', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Reviewing.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'clear-first.jsonl');
+    writeFileSync(filePath, CLEAR_FIRST_JSONL);
+
+    await importTranscript(filePath);
+
+    const session = getSession('clear-first-1');
+    assert.ok(session);
+    // started_with skips the reset command and points at /review
+    assert.deepEqual(JSON.parse(session.started_with!), {
+      type: 'command',
+      name: '/review',
+    });
+    // /clear is not recorded as an invocation either
+    const invocations = JSON.parse(session.invocations ?? '[]') as { type: string; name: string }[];
+    assert.ok(!invocations.some((i) => i.name === '/clear'), '/clear should not be an invocation');
+    assert.ok(invocations.some((i) => i.name === '/review'), '/review should be an invocation');
   });
 
   it('leaves started_with null when the first user message is plain text', async () => {

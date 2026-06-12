@@ -4,14 +4,24 @@ import { getDb } from '../db/connection.js';
 import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
 import { sessionExists, upsertSession, setSessionImportedMtime } from '../db/queries/sessions.js';
 import * as logger from '../shared/logger.js';
-import type { Event, Invocation, Session, TextBlock, TranscriptMessage } from '../shared/types.js';
-import { parseTranscript, extractAiTitle } from './jsonl-parser.js';
+import type { Event, Invocation, Session, TranscriptMessage } from '../shared/types.js';
+import { parseTranscript, extractSessionTitle } from './jsonl-parser.js';
 import { extractAllEvents, mergeToolCallEvents, assignAgentIds, type ParsedEvent } from './thinking-extractor.js';
 import { buildTokenSnapshots, computeAggregates, estimateContextPct } from './token-tracker.js';
 import { generateSessionSummary } from '../analysis/session-summary.js';
 import { computeAgentEfficiency, inferExecutionModes, analyzeAgentFileReads } from '../analysis/agent-efficiency.js';
 import { getAllAgentTokenTimelines, updateAgentRelationship } from '../db/queries/sessions.js';
 import { detectAndLinkSessions } from './session-linker.js';
+
+// Reset commands that wipe or compact context. They start a session mechanically
+// but never describe it, so they're excluded from the fallback title, the
+// "started with" pill, and the invocation list.
+const RESET_COMMANDS = new Set(['clear', 'compact']);
+
+/** True when a slash-command name (with or without a leading "/") is a reset command. */
+function isResetCommandName(name: string): boolean {
+  return RESET_COMMANDS.has(name.trim().replace(/^\//, '').toLowerCase());
+}
 
 // ── Import result ──────────────────────────────────────────────────
 
@@ -116,39 +126,36 @@ export async function importTranscript(
 
   const durationMs = new Date(messages[messages.length - 1].timestamp).getTime() - new Date(messages[0].timestamp).getTime();
 
-  // Use AI-generated session title if available; fall back to first user message
-  const aiTitle = await extractAiTitle(filePath);
+  // Use the transcript-recorded title (user rename or AI title) if available;
+  // fall back to first user message
+  const sessionTitle = await extractSessionTitle(filePath);
 
   let firstUserMessage: string | undefined;
-  if (!aiTitle) {
-    // Skip synthetic CLI messages (local-command-caveat/stdout/stderr) that aren't real user intent.
-    // Prefer slash-command messages (<command-name> tag) over plain text.
-    const getMessageText = (m: TranscriptMessage): string =>
-      m.content.filter((b): b is TextBlock => b.type === 'text').map((b) => b.text).join('\n');
-
-    let slashMsg: TranscriptMessage | undefined;
-    let fallbackMsg: TranscriptMessage | undefined;
-    for (const m of messages) {
-      if (m.type !== 'user') continue;
-      const text = getMessageText(m);
-      if (!slashMsg && text.includes('<command-name>')) {
-        slashMsg = m;
-        break;
+  if (!sessionTitle) {
+    // Fall back to the first meaningful user event in transcript order: either a
+    // non-reset slash command or a plain-text prompt, whichever the user did first.
+    // Synthetic events never qualify — system_generated/skill_expansion subtypes
+    // come from the extractor; <system-reminder>-only messages and user-side
+    // interrupt markers carry no subtype (the extractor only tags interrupts on
+    // assistant events), so those are excluded by prefix.
+    const syntheticPrefix = /^(?:<(?:local-command-(?:caveat|stdout|stderr)|task-notification|system-reminder)>|\[request interrupted)/i;
+    for (const evt of parsedEvents) {
+      if (evt.event_type !== 'user_message') continue;
+      const meta = evt.metadata;
+      if (meta?.subtype === 'system_generated' || meta?.subtype === 'skill_expansion') continue;
+      const command = typeof meta?.command === 'string' ? meta.command : null;
+      if (command) {
+        if (isResetCommandName(command)) continue;
+      } else {
+        const trimmed = (evt.input_data ?? '').trim();
+        if (!trimmed || syntheticPrefix.test(trimmed)) continue;
       }
-      if (!fallbackMsg) {
-        const trimmed = text.trim();
-        if (trimmed && !/^<local-command-(?:caveat|stdout|stderr)>/.test(trimmed)) {
-          fallbackMsg = m;
-        }
-      }
-    }
-    const titleUserMsg = slashMsg ?? fallbackMsg;
-    if (titleUserMsg) {
-      firstUserMessage = getMessageText(titleUserMsg) || undefined;
+      firstUserMessage = evt.input_data || undefined;
+      break;
     }
   }
 
-  const summary = aiTitle || generateSessionSummary({
+  const summary = sessionTitle || generateSessionSummary({
     model,
     durationMs: durationMs > 0 ? durationMs : null,
     toolCallCount,
@@ -621,6 +628,9 @@ function deriveStartedWith(events: ParsedEvent[]): Invocation | null {
     const meta = evt.metadata;
     if (meta?.subtype === 'system_generated') continue;
     if (meta && typeof meta.command === 'string') {
+      // Reset commands (/clear, /compact) don't define the session — keep looking
+      // for the first command/skill that actually says what the session is about.
+      if (isResetCommandName(meta.command)) continue;
       return { type: 'command', name: meta.command };
     }
     if (meta?.subtype === 'skill_expansion' && typeof meta.skill_name === 'string') {
@@ -639,6 +649,7 @@ function deriveInvocations(events: ParsedEvent[]): Invocation[] {
     const meta = evt.metadata;
     const command = typeof meta.command === 'string' ? meta.command : null;
     if (command) {
+      if (isResetCommandName(command)) continue;   // reset commands aren't meaningful invocations
       const key = `command:${command}`;
       if (!seen.has(key)) {
         seen.add(key);

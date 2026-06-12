@@ -175,8 +175,12 @@ function SessionRow({ s, onOpen }: { s: SessionSummary; onOpen: (id: string) => 
     : summary || "—";
 
   const meta = buildMeta(s);
+  // The pill name is "/x" for command starts but "x" for skill starts; a
+  // slash-launched skill imports as command "/x" + skill invocation "x", so
+  // compare against the slash-stripped name to dedup the badge in both shapes.
+  const startedBase = startedName?.replace(/^\//, "");
   const skills = (s.invocations ?? [])
-    .filter((i) => i.type === "skill")
+    .filter((i) => i.type === "skill" && i.name !== startedBase)
     .map((i) => i.name);
   const compacted =
     s.compaction_count > 0 ? `${s.compaction_count}× compacted` : null;

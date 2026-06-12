@@ -128,18 +128,23 @@ function extractUsage(rawUsage: Record<string, unknown> | undefined): UsageInfo 
 }
 
 /**
- * Extract the AI-generated session title from a JSONL transcript file.
- * Scans for lines with type "custom-title" (Claude Code's native format) and
- * returns the last customTitle value found (last wins, so renames override the
- * original). Returns null if none found.
+ * Extract the session title from a JSONL transcript file.
+ * Recognizes two record types emitted by Claude Code:
+ *   - "custom-title" (customTitle field) — a user rename of the session.
+ *   - "ai-title" (aiTitle field) — the AI-generated session title.
+ * Within each kind the last non-empty value wins (renames override the
+ * original). A user rename always takes precedence over an AI title,
+ * regardless of which appears later in the file. Empty/whitespace values are
+ * ignored. Returns null if neither record yields a title.
  */
-export async function extractAiTitle(filePath: string): Promise<string | null> {
+export async function extractSessionTitle(filePath: string): Promise<string | null> {
   const rl = createInterface({
     input: createReadStream(filePath, { encoding: 'utf-8' }),
     crlfDelay: Infinity,
   });
 
-  let title: string | null = null;
+  let customTitle: string | null = null;
+  let aiTitle: string | null = null;
 
   for await (const line of rl) {
     const trimmed = line.trim();
@@ -147,13 +152,15 @@ export async function extractAiTitle(filePath: string): Promise<string | null> {
     try {
       const raw = JSON.parse(trimmed) as Record<string, unknown>;
       if (raw['type'] === 'custom-title' && typeof raw['customTitle'] === 'string' && raw['customTitle'].trim()) {
-        title = raw['customTitle'].trim();
+        customTitle = raw['customTitle'].trim();
+      } else if (raw['type'] === 'ai-title' && typeof raw['aiTitle'] === 'string' && raw['aiTitle'].trim()) {
+        aiTitle = raw['aiTitle'].trim();
       }
     } catch {
       // skip malformed lines
     }
   }
-  return title;
+  return customTitle ?? aiTitle;
 }
 
 /**
