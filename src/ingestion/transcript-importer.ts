@@ -4,7 +4,7 @@ import { getDb } from '../db/connection.js';
 import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
 import { sessionExists, upsertSession, setSessionImportedMtime } from '../db/queries/sessions.js';
 import * as logger from '../shared/logger.js';
-import type { Event, Invocation, Session, TextBlock, TranscriptMessage } from '../shared/types.js';
+import type { Event, Invocation, Session, TranscriptMessage } from '../shared/types.js';
 import { parseTranscript, extractAiTitle } from './jsonl-parser.js';
 import { extractAllEvents, mergeToolCallEvents, assignAgentIds, type ParsedEvent } from './thinking-extractor.js';
 import { buildTokenSnapshots, computeAggregates, estimateContextPct } from './token-tracker.js';
@@ -131,37 +131,25 @@ export async function importTranscript(
 
   let firstUserMessage: string | undefined;
   if (!aiTitle) {
-    // Skip synthetic CLI messages (local-command-caveat/stdout/stderr) that aren't real user intent.
-    // Prefer plain-text user messages over slash commands; reset commands (/clear, /compact) never win.
-    const getMessageText = (m: TranscriptMessage): string =>
-      m.content.filter((b): b is TextBlock => b.type === 'text').map((b) => b.text).join('\n');
-
-    const isResetCommand = (text: string): boolean => {
-      const match = /<command-name>([^<]*)<\/command-name>/.exec(text);
-      return match ? isResetCommandName(match[1]) : false;
-    };
-
-    let fallbackMsg: TranscriptMessage | undefined;
-    let slashMsg: TranscriptMessage | undefined;
-    for (const m of messages) {
-      if (m.type !== 'user') continue;
-      const text = getMessageText(m);
-      if (text.includes('<command-name>')) {
-        // Slash command — skip reset commands entirely; record the first non-reset one.
-        if (!slashMsg && !isResetCommand(text)) {
-          slashMsg = m;
-        }
-      } else if (!fallbackMsg) {
-        const trimmed = text.trim();
-        if (trimmed && !/^<local-command-(?:caveat|stdout|stderr)>/.test(trimmed)) {
-          fallbackMsg = m;
-        }
+    // Fall back to the first meaningful user event in transcript order: either a
+    // non-reset slash command or a plain-text prompt, whichever the user did first.
+    // Synthetic events never qualify — system_generated/skill_expansion subtypes
+    // come from the extractor; <system-reminder>-only messages carry no subtype
+    // (the extractor strips but doesn't tag them), so those are excluded by prefix.
+    const syntheticPrefix = /^<(?:local-command-(?:caveat|stdout|stderr)|task-notification|system-reminder)>/;
+    for (const evt of parsedEvents) {
+      if (evt.event_type !== 'user_message') continue;
+      const meta = evt.metadata;
+      if (meta?.subtype === 'system_generated' || meta?.subtype === 'skill_expansion') continue;
+      const command = typeof meta?.command === 'string' ? meta.command : null;
+      if (command) {
+        if (isResetCommandName(command)) continue;
+      } else {
+        const trimmed = (evt.input_data ?? '').trim();
+        if (!trimmed || syntheticPrefix.test(trimmed)) continue;
       }
-      if (fallbackMsg && slashMsg) break;
-    }
-    const titleUserMsg = fallbackMsg ?? slashMsg;
-    if (titleUserMsg) {
-      firstUserMessage = getMessageText(titleUserMsg) || undefined;
+      firstUserMessage = evt.input_data || undefined;
+      break;
     }
   }
 

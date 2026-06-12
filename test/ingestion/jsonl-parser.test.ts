@@ -299,4 +299,26 @@ describe('extractAiTitle', () => {
     const title = await extractAiTitle(filePath);
     assert.equal(title, null);
   });
+
+  it('prefers customTitle even when the ai-title appears first in the file', async () => {
+    const filePath = join(TEST_DIR, 'ai-then-custom.jsonl');
+    const lines = [
+      JSON.stringify({ type: 'ai-title', aiTitle: 'AI generated', sessionId: 'sess-1', timestamp: '2026-01-01T00:00:00.000Z' }),
+      JSON.stringify({ type: 'custom-title', customTitle: 'User renamed', sessionId: 'sess-1' }),
+    ].join('\n');
+    writeFileSync(filePath, lines);
+    const title = await extractAiTitle(filePath);
+    assert.equal(title, 'User renamed');
+  });
+
+  it('falls back to the aiTitle when the only customTitle is whitespace', async () => {
+    const filePath = join(TEST_DIR, 'blank-custom-valid-ai.jsonl');
+    const lines = [
+      JSON.stringify({ type: 'custom-title', customTitle: '   ', sessionId: 'sess-1' }),
+      JSON.stringify({ type: 'ai-title', aiTitle: 'AI generated', sessionId: 'sess-1', timestamp: '2026-01-01T00:00:00.000Z' }),
+    ].join('\n');
+    writeFileSync(filePath, lines);
+    const title = await extractAiTitle(filePath);
+    assert.equal(title, 'AI generated');
+  });
 });

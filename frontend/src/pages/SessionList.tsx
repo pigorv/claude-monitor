@@ -176,7 +176,11 @@ function SessionRow({ s, onOpen }: { s: SessionSummary; onOpen: (id: string) => 
 
   const meta = buildMeta(s);
   const skills = (s.invocations ?? [])
-    .filter((i) => i.type === "skill" && i.name !== startedName)
+    .filter(
+      (i) =>
+        i.type === "skill" &&
+        !(s.started_with?.type === "skill" && i.name === startedName),
+    )
     .map((i) => i.name);
   const compacted =
     s.compaction_count > 0 ? `${s.compaction_count}× compacted` : null;
