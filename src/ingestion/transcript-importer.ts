@@ -5,7 +5,7 @@ import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
 import { sessionExists, upsertSession, setSessionImportedMtime } from '../db/queries/sessions.js';
 import * as logger from '../shared/logger.js';
 import type { Event, Invocation, Session, TranscriptMessage } from '../shared/types.js';
-import { parseTranscript, extractAiTitle } from './jsonl-parser.js';
+import { parseTranscript, extractSessionTitle } from './jsonl-parser.js';
 import { extractAllEvents, mergeToolCallEvents, assignAgentIds, type ParsedEvent } from './thinking-extractor.js';
 import { buildTokenSnapshots, computeAggregates, estimateContextPct } from './token-tracker.js';
 import { generateSessionSummary } from '../analysis/session-summary.js';
@@ -126,17 +126,19 @@ export async function importTranscript(
 
   const durationMs = new Date(messages[messages.length - 1].timestamp).getTime() - new Date(messages[0].timestamp).getTime();
 
-  // Use AI-generated session title if available; fall back to first user message
-  const aiTitle = await extractAiTitle(filePath);
+  // Use the transcript-recorded title (user rename or AI title) if available;
+  // fall back to first user message
+  const sessionTitle = await extractSessionTitle(filePath);
 
   let firstUserMessage: string | undefined;
-  if (!aiTitle) {
+  if (!sessionTitle) {
     // Fall back to the first meaningful user event in transcript order: either a
     // non-reset slash command or a plain-text prompt, whichever the user did first.
     // Synthetic events never qualify — system_generated/skill_expansion subtypes
-    // come from the extractor; <system-reminder>-only messages carry no subtype
-    // (the extractor strips but doesn't tag them), so those are excluded by prefix.
-    const syntheticPrefix = /^<(?:local-command-(?:caveat|stdout|stderr)|task-notification|system-reminder)>/;
+    // come from the extractor; <system-reminder>-only messages and user-side
+    // interrupt markers carry no subtype (the extractor only tags interrupts on
+    // assistant events), so those are excluded by prefix.
+    const syntheticPrefix = /^(?:<(?:local-command-(?:caveat|stdout|stderr)|task-notification|system-reminder)>|\[request interrupted)/i;
     for (const evt of parsedEvents) {
       if (evt.event_type !== 'user_message') continue;
       const meta = evt.metadata;
@@ -153,7 +155,7 @@ export async function importTranscript(
     }
   }
 
-  const summary = aiTitle || generateSessionSummary({
+  const summary = sessionTitle || generateSessionSummary({
     model,
     durationMs: durationMs > 0 ? durationMs : null,
     toolCallCount,

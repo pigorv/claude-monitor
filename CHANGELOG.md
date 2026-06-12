@@ -11,9 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Session titles now import from modern `ai-title` transcript records (not just the legacy `custom-title` format), so AI-generated titles appear again. A manual rename still takes precedence over the AI title.
 - When no AI title exists, the session title falls back to the first meaningful user message — plain text or a slash command, whichever came first — and reset commands like `/clear` and `/compact` can never become the title.
-- Synthetic transcript messages (system reminders, task notifications, skill expansions) can no longer become the session title.
+- Synthetic transcript messages (system reminders, task notifications, skill expansions, interrupt markers) can no longer become the session title.
 - The session-list "started with" pill skips reset commands (`/clear`, `/compact`) and shows the first meaningful command or skill instead, so sessions opened with `/clear` no longer display a `/clear` pill.
-- Skill badges in the session list no longer hide behind a same-named "started with" command pill, and no longer duplicate the pill when the session started with that skill.
+- Skill badges in the session list no longer duplicate the "started with" pill — whether the session started with the skill directly or via its same-named slash command.
 
 ## [0.5.1] - 2026-06-10
 

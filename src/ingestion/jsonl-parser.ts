@@ -137,7 +137,7 @@ function extractUsage(rawUsage: Record<string, unknown> | undefined): UsageInfo 
  * regardless of which appears later in the file. Empty/whitespace values are
  * ignored. Returns null if neither record yields a title.
  */
-export async function extractAiTitle(filePath: string): Promise<string | null> {
+export async function extractSessionTitle(filePath: string): Promise<string | null> {
   const rl = createInterface({
     input: createReadStream(filePath, { encoding: 'utf-8' }),
     crlfDelay: Infinity,

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { parseLine, parseTranscript, extractAiTitle } from '../../src/ingestion/jsonl-parser.js';
+import { parseLine, parseTranscript, extractSessionTitle } from '../../src/ingestion/jsonl-parser.js';
 
 const FIXTURE_PATH = join(import.meta.dirname, '..', 'fixtures', 'sample-session.jsonl');
 
@@ -203,7 +203,7 @@ describe('parseTranscript', () => {
   });
 });
 
-describe('extractAiTitle', () => {
+describe('extractSessionTitle', () => {
   const TEST_DIR = join(tmpdir(), `claude-monitor-parser-test-${Date.now()}`);
 
   beforeEach(() => {
@@ -215,7 +215,7 @@ describe('extractAiTitle', () => {
   });
 
   it('returns customTitle from the fixture file', async () => {
-    const title = await extractAiTitle(FIXTURE_PATH);
+    const title = await extractSessionTitle(FIXTURE_PATH);
     assert.equal(title, 'Read project index file');
   });
 
@@ -226,7 +226,7 @@ describe('extractAiTitle', () => {
       timestamp: '2026-01-01T00:00:00.000Z', sessionId: 'sess-1',
       message: { role: 'user', content: 'Hello' },
     }));
-    const title = await extractAiTitle(filePath);
+    const title = await extractSessionTitle(filePath);
     assert.equal(title, null);
   });
 
@@ -242,7 +242,7 @@ describe('extractAiTitle', () => {
       JSON.stringify({ type: 'custom-title', customTitle: 'Renamed title', sessionId: 'sess-1' }),
     ].join('\n');
     writeFileSync(filePath, lines);
-    const title = await extractAiTitle(filePath);
+    const title = await extractSessionTitle(filePath);
     assert.equal(title, 'Renamed title');
   });
 
@@ -252,14 +252,14 @@ describe('extractAiTitle', () => {
       JSON.stringify({ type: 'custom-title', customTitle: '   ', sessionId: 'sess-1' }),
     ].join('\n');
     writeFileSync(filePath, lines);
-    const title = await extractAiTitle(filePath);
+    const title = await extractSessionTitle(filePath);
     assert.equal(title, null);
   });
 
   it('returns null when customTitle field is missing', async () => {
     const filePath = join(TEST_DIR, 'missing-field.jsonl');
     writeFileSync(filePath, JSON.stringify({ type: 'custom-title', sessionId: 'sess-1' }));
-    const title = await extractAiTitle(filePath);
+    const title = await extractSessionTitle(filePath);
     assert.equal(title, null);
   });
 
@@ -275,7 +275,7 @@ describe('extractAiTitle', () => {
       JSON.stringify({ type: 'ai-title', aiTitle: 'Updated AI title', sessionId: 'sess-1', timestamp: '2026-01-01T00:01:00.000Z' }),
     ].join('\n');
     writeFileSync(filePath, lines);
-    const title = await extractAiTitle(filePath);
+    const title = await extractSessionTitle(filePath);
     assert.equal(title, 'Updated AI title');
   });
 
@@ -286,7 +286,7 @@ describe('extractAiTitle', () => {
       JSON.stringify({ type: 'ai-title', aiTitle: 'AI generated', sessionId: 'sess-1', timestamp: '2026-01-01T00:01:00.000Z' }),
     ].join('\n');
     writeFileSync(filePath, lines);
-    const title = await extractAiTitle(filePath);
+    const title = await extractSessionTitle(filePath);
     assert.equal(title, 'User renamed');
   });
 
@@ -296,7 +296,7 @@ describe('extractAiTitle', () => {
       JSON.stringify({ type: 'ai-title', aiTitle: '   ', sessionId: 'sess-1', timestamp: '2026-01-01T00:00:00.000Z' }),
     ].join('\n');
     writeFileSync(filePath, lines);
-    const title = await extractAiTitle(filePath);
+    const title = await extractSessionTitle(filePath);
     assert.equal(title, null);
   });
 
@@ -307,7 +307,7 @@ describe('extractAiTitle', () => {
       JSON.stringify({ type: 'custom-title', customTitle: 'User renamed', sessionId: 'sess-1' }),
     ].join('\n');
     writeFileSync(filePath, lines);
-    const title = await extractAiTitle(filePath);
+    const title = await extractSessionTitle(filePath);
     assert.equal(title, 'User renamed');
   });
 
@@ -318,7 +318,7 @@ describe('extractAiTitle', () => {
       JSON.stringify({ type: 'ai-title', aiTitle: 'AI generated', sessionId: 'sess-1', timestamp: '2026-01-01T00:00:00.000Z' }),
     ].join('\n');
     writeFileSync(filePath, lines);
-    const title = await extractAiTitle(filePath);
+    const title = await extractSessionTitle(filePath);
     assert.equal(title, 'AI generated');
   });
 });

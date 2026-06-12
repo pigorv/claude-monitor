@@ -321,12 +321,51 @@ describe('importTranscript', () => {
     assert.equal(session.summary, '/dev-flow');
   });
 
-  it('does not let a skill-expansion message beat the slash-command title', async () => {
+  it('keeps the opening plain text as the title when a slash command only comes later', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'text-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Speed up the importer' },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'text-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/review</command-name>' }] },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'text-first', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'On it.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'text-first.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('text-first');
+    assert.ok(session);
+    assert.equal(session.summary, 'Speed up the importer');
+  });
+
+  it('never titles a session from a skill-expansion message', async () => {
+    // The expansion is the first candidate the fallback loop reaches (the
+    // leading /clear is reset-skipped), so this fails if the skill_expansion
+    // exclusion is removed from the importer.
     const jsonl = [
       JSON.stringify({
         parentUuid: null, cwd: '/tmp/project', sessionId: 'skill-expansion', version: '2.1.0',
         type: 'user',
-        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/code-review</command-name>' }] },
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/clear</command-name>' }] },
         timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
       }),
       JSON.stringify({
@@ -337,13 +376,19 @@ describe('importTranscript', () => {
       }),
       JSON.stringify({
         parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'skill-expansion', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Fix the login flow' },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'u-3',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-3', cwd: '/tmp/project', sessionId: 'skill-expansion', version: '2.1.0',
         type: 'assistant',
         message: {
           model: 'claude-opus-4-6', role: 'assistant',
           content: [{ type: 'text', text: 'Reviewing.' }],
           usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
         },
-        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+        timestamp: '2026-01-01T00:01:03.000Z', uuid: 'a-1',
       }),
     ].join('\n');
 
@@ -354,7 +399,7 @@ describe('importTranscript', () => {
 
     const session = getSession('skill-expansion');
     assert.ok(session);
-    assert.equal(session.summary, '/code-review');
+    assert.equal(session.summary, 'Fix the login flow');
   });
 
   it('never titles a session from system-reminder or task-notification messages', async () => {
@@ -399,6 +444,42 @@ describe('importTranscript', () => {
     assert.equal(session.summary, 'Refactor the importer');
   });
 
+  it('never titles a session from an interrupt marker', async () => {
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'interrupt-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'interrupt-first', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Resume the migration work' },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'interrupt-first', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Resuming.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'interrupt-first.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const session = getSession('interrupt-first');
+    assert.ok(session);
+    assert.equal(session.summary, 'Resume the migration work');
+  });
+
   it('excludes /compact from the fallback title and started_with like /clear', async () => {
     const jsonl = [
       JSON.stringify({
@@ -434,8 +515,7 @@ describe('importTranscript', () => {
     assert.ok(session);
     assert.equal(session.summary, 'Tidy up the token tracker');
     assert.equal(session.started_with, null);
-    const invocations = JSON.parse(session.invocations ?? '[]') as { type: string; name: string }[];
-    assert.ok(!invocations.some((i) => i.name === '/compact'), '/compact should not be an invocation');
+    assert.equal(session.invocations, null, '/compact should not be an invocation');
   });
 
   it('falls back to a generated summary when the only user messages are reset commands', async () => {
@@ -465,11 +545,10 @@ describe('importTranscript', () => {
 
     const session = getSession('reset-only');
     assert.ok(session);
-    assert.ok(session.summary, 'expected a non-empty generated summary');
+    assert.match(session.summary!, /^Opus session/, 'expected the generated stats summary');
     assert.ok(!session.summary!.includes('/clear'), 'reset command must not become the title');
     assert.equal(session.started_with, null);
-    const invocations = JSON.parse(session.invocations ?? '[]') as { type: string; name: string }[];
-    assert.equal(invocations.length, 0, 'reset-only sessions should have no invocations');
+    assert.equal(session.invocations, null, 'reset-only sessions should have no invocations');
   });
 });
 
