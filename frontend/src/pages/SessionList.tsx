@@ -176,7 +176,7 @@ function SessionRow({ s, onOpen }: { s: SessionSummary; onOpen: (id: string) => 
 
   const meta = buildMeta(s);
   const skills = (s.invocations ?? [])
-    .filter((i) => i.type === "skill")
+    .filter((i) => i.type === "skill" && i.name !== startedName)
     .map((i) => i.name);
   const compacted =
     s.compaction_count > 0 ? `${s.compaction_count}× compacted` : null;

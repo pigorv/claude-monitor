@@ -13,8 +13,15 @@ import { computeAgentEfficiency, inferExecutionModes, analyzeAgentFileReads } fr
 import { getAllAgentTokenTimelines, updateAgentRelationship } from '../db/queries/sessions.js';
 import { detectAndLinkSessions } from './session-linker.js';
 
-// Reset commands that should never become a fallback session title.
+// Reset commands that wipe or compact context. They start a session mechanically
+// but never describe it, so they're excluded from the fallback title, the
+// "started with" pill, and the invocation list.
 const RESET_COMMANDS = new Set(['clear', 'compact']);
+
+/** True when a slash-command name (with or without a leading "/") is a reset command. */
+function isResetCommandName(name: string): boolean {
+  return RESET_COMMANDS.has(name.trim().replace(/^\//, '').toLowerCase());
+}
 
 // ── Import result ──────────────────────────────────────────────────
 
@@ -131,9 +138,7 @@ export async function importTranscript(
 
     const isResetCommand = (text: string): boolean => {
       const match = /<command-name>([^<]*)<\/command-name>/.exec(text);
-      if (!match) return false;
-      const name = match[1].trim().replace(/^\//, '').toLowerCase();
-      return RESET_COMMANDS.has(name);
+      return match ? isResetCommandName(match[1]) : false;
     };
 
     let fallbackMsg: TranscriptMessage | undefined;
@@ -633,6 +638,9 @@ function deriveStartedWith(events: ParsedEvent[]): Invocation | null {
     const meta = evt.metadata;
     if (meta?.subtype === 'system_generated') continue;
     if (meta && typeof meta.command === 'string') {
+      // Reset commands (/clear, /compact) don't define the session — keep looking
+      // for the first command/skill that actually says what the session is about.
+      if (isResetCommandName(meta.command)) continue;
       return { type: 'command', name: meta.command };
     }
     if (meta?.subtype === 'skill_expansion' && typeof meta.skill_name === 'string') {
@@ -651,6 +659,7 @@ function deriveInvocations(events: ParsedEvent[]): Invocation[] {
     const meta = evt.metadata;
     const command = typeof meta.command === 'string' ? meta.command : null;
     if (command) {
+      if (isResetCommandName(command)) continue;   // reset commands aren't meaningful invocations
       const key = `command:${command}`;
       if (!seen.has(key)) {
         seen.add(key);

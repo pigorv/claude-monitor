@@ -496,6 +496,50 @@ describe('importTranscript invocations aggregation', () => {
     });
   });
 
+  it('skips a leading /clear and uses the first meaningful command for started_with', async () => {
+    const CLEAR_FIRST_JSONL = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'clear-first-1', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/clear</command-name>' }] },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-1', cwd: '/tmp/project', sessionId: 'clear-first-1', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: '<command-name>/review</command-name>' }] },
+        timestamp: '2026-01-01T00:01:01.000Z', uuid: 'u-2',
+      }),
+      JSON.stringify({
+        parentUuid: 'u-2', cwd: '/tmp/project', sessionId: 'clear-first-1', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Reviewing.' }],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:01:02.000Z', uuid: 'a-1',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'clear-first.jsonl');
+    writeFileSync(filePath, CLEAR_FIRST_JSONL);
+
+    await importTranscript(filePath);
+
+    const session = getSession('clear-first-1');
+    assert.ok(session);
+    // started_with skips the reset command and points at /review
+    assert.deepEqual(JSON.parse(session.started_with!), {
+      type: 'command',
+      name: '/review',
+    });
+    // /clear is not recorded as an invocation either
+    const invocations = JSON.parse(session.invocations ?? '[]') as { type: string; name: string }[];
+    assert.ok(!invocations.some((i) => i.name === '/clear'), '/clear should not be an invocation');
+    assert.ok(invocations.some((i) => i.name === '/review'), '/review should be an invocation');
+  });
+
   it('leaves started_with null when the first user message is plain text', async () => {
     const filePath = join(TEST_DIR, 'plain.jsonl');
     writeFileSync(filePath, SAMPLE_JSONL);
