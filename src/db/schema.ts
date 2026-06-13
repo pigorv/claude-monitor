@@ -26,7 +26,6 @@ CREATE TABLE sessions (
 CREATE TABLE events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    parent_event_id INTEGER REFERENCES events(id),
     agent_id TEXT,
     event_type TEXT NOT NULL,
     event_source TEXT NOT NULL DEFAULT 'transcript_import',

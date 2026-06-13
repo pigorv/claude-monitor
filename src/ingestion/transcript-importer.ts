@@ -780,7 +780,6 @@ function buildEventRecords(
 
     return {
       session_id: sessionId,
-      parent_event_id: null,
       agent_id: parsed.agent_id ?? null,
       event_type: parsed.event_type,
       event_source: 'transcript_import' as const,

@@ -25,12 +25,12 @@ export function insertEvent(event: Omit<Event, 'id'>): number {
   const db = getDb();
   _insertEventStmt ??= db.prepare(`
     INSERT INTO events (
-      session_id, parent_event_id, agent_id, event_type, event_source, tool_name,
+      session_id, agent_id, event_type, event_source, tool_name,
       timestamp, sequence_num, input_tokens, output_tokens, cache_read_tokens,
       cache_write_tokens, context_pct, input_preview, input_data, output_preview, output_data,
       thinking_summary, thinking_text, duration_ms, metadata
     ) VALUES (
-      @session_id, @parent_event_id, @agent_id, @event_type, @event_source, @tool_name,
+      @session_id, @agent_id, @event_type, @event_source, @tool_name,
       @timestamp, @sequence_num, @input_tokens, @output_tokens, @cache_read_tokens,
       @cache_write_tokens, @context_pct, @input_preview, @input_data, @output_preview, @output_data,
       @thinking_summary, @thinking_text, @duration_ms, @metadata
@@ -46,12 +46,12 @@ export function insertEvents(events: Omit<Event, 'id'>[]): number[] {
   // insertEvent's cached stmt is reused inside the transaction
   const stmt = _insertEventStmt ?? db.prepare(`
     INSERT INTO events (
-      session_id, parent_event_id, agent_id, event_type, event_source, tool_name,
+      session_id, agent_id, event_type, event_source, tool_name,
       timestamp, sequence_num, input_tokens, output_tokens, cache_read_tokens,
       cache_write_tokens, context_pct, input_preview, input_data, output_preview, output_data,
       thinking_summary, thinking_text, duration_ms, metadata
     ) VALUES (
-      @session_id, @parent_event_id, @agent_id, @event_type, @event_source, @tool_name,
+      @session_id, @agent_id, @event_type, @event_source, @tool_name,
       @timestamp, @sequence_num, @input_tokens, @output_tokens, @cache_read_tokens,
       @cache_write_tokens, @context_pct, @input_preview, @input_data, @output_preview, @output_data,
       @thinking_summary, @thinking_text, @duration_ms, @metadata
@@ -114,7 +114,7 @@ export function listEventsBySession(
 
   const columns = filters.includeThinking
     ? '*'
-    : 'id, session_id, parent_event_id, agent_id, event_type, event_source, tool_name, timestamp, sequence_num, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, context_pct, input_preview, input_data, output_preview, output_data, thinking_summary, duration_ms, metadata';
+    : 'id, session_id, agent_id, event_type, event_source, tool_name, timestamp, sequence_num, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, context_pct, input_preview, input_data, output_preview, output_data, thinking_summary, duration_ms, metadata';
 
   const limit = filters.limit ?? 100;
   const offset = filters.offset ?? 0;

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Re-importing transcripts no longer slows down quadratically on large corpora. A dead self-referencing column on the events table forced a full table scan on every event delete during re-import; it has been removed.
 - Session titles now import from modern `ai-title` transcript records (not just the legacy `custom-title` format), so AI-generated titles appear again. A manual rename still takes precedence over the AI title.
 - When no AI title exists, the session title falls back to the first meaningful user message — plain text or a slash command, whichever came first — and reset commands like `/clear` and `/compact` can never become the title.
 - Synthetic transcript messages (system reminders, task notifications, skill expansions, interrupt markers) can no longer become the session title.

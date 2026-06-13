@@ -191,6 +191,16 @@ function migration011DropRiskScore(db: Database.Database): void {
   }
 }
 
+function migration014DropEventParentFk(db: Database.Database): void {
+  // Drop the dead self-referencing FK `events.parent_event_id`. Every row was
+  // always NULL and nothing reads it, but with `PRAGMA foreign_keys = ON` the
+  // unindexed FK forced a full events scan on every DELETE — making re-import
+  // (delete-then-reinsert) quadratic on large corpora. Guarded for idempotency.
+  if (tableHasColumn(db, 'events', 'parent_event_id')) {
+    db.exec('ALTER TABLE events DROP COLUMN parent_event_id');
+  }
+}
+
 function tableExists(db: Database.Database, name: string): boolean {
   const row = db
     .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
@@ -276,6 +286,7 @@ const MIGRATIONS: Migration[] = [
   { id: 11, name: '011-drop-risk-score', run: migration011DropRiskScore },
   { id: 12, name: '012-events-fts', run: migration012EventsFts },
   { id: 13, name: '013-session-imported-mtime', sql: MIGRATION_013_SESSION_IMPORTED_MTIME },
+  { id: 14, name: '014-drop-event-parent-fk', run: migration014DropEventParentFk },
 ];
 
 export function runMigrations(db: Database.Database): void {
