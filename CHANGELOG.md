@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Re-importing an unchanged subagent transcript is now skipped without re-parsing or rewriting the database, by comparing the file's modification time against the value stored at last import.
+- Batch imports (including Reimport in Settings and `POST /api/reimport`) no longer process a subagent transcript twice when its parent transcript is in the same batch — the parent's import already covers it.
 
 ### Fixed
 

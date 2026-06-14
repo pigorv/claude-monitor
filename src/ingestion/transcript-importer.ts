@@ -361,7 +361,9 @@ export async function importTranscripts(
 ): Promise<ImportResult[]> {
   const results: ImportResult[] = [];
 
-  for (const filePath of filePaths) {
+  const filtered = filterCoveredSubagents(filePaths);
+
+  for (const filePath of filtered) {
     try {
       const result = await importTranscript(filePath, options);
       results.push(result);
@@ -382,6 +384,33 @@ export async function importTranscripts(
  */
 function isSubagentFile(filePath: string): boolean {
   return filePath.includes('/subagents/') || filePath.includes('\\subagents\\');
+}
+
+/**
+ * Compute the parent transcript path for a subagent file — the inverse of
+ * discoverSubagentFiles. Subagent: {projectDir}/{sessionId}/subagents/agent-*.jsonl
+ * Parent:   {projectDir}/{sessionId}.jsonl
+ */
+function parentTranscriptPathForSubagent(subFile: string): string {
+  const subagentsDir = dirname(subFile); // .../{sessionId}/subagents
+  const sessionDir = dirname(subagentsDir); // .../{sessionId}
+  return sessionDir + '.jsonl'; // .../{sessionId}.jsonl
+}
+
+/**
+ * Drop subagent files whose parent transcript is also in the batch. In a batch
+ * run the parent's import already covers its subagents, so iterating the subagent
+ * file standalone would re-import it. Non-subagent files are always kept, and so
+ * are subagents whose parent is NOT in the batch (e.g. the watcher's incremental
+ * single-file case, which goes through importTranscript directly).
+ */
+export function filterCoveredSubagents(filePaths: string[]): string[] {
+  const present = new Set(filePaths.map((p) => resolve(p)));
+  return filePaths.filter((p) => {
+    if (!isSubagentFile(p)) return true;
+    const parent = resolve(parentTranscriptPathForSubagent(p));
+    return !present.has(parent);
+  });
 }
 
 /**
