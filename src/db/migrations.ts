@@ -272,6 +272,18 @@ const MIGRATION_013_SESSION_IMPORTED_MTIME = `
 ALTER TABLE sessions ADD COLUMN last_imported_mtime REAL;
 `;
 
+// Per-subagent mtime of the child transcript file at its last successful import.
+// Stored alongside child_transcript_path so a standalone subagent re-import can be
+// skipped without re-parsing when the file is unchanged. REAL preserves the
+// fractional-millisecond mtimeMs exactly. Guarded with run() (like 014) because
+// some partial-schema test fixtures omit the agent_relationships table entirely.
+function migration015AgentRelChildMtime(db: Database.Database): void {
+  if (!tableExists(db, 'agent_relationships')) return;
+  if (!tableHasColumn(db, 'agent_relationships', 'child_imported_mtime')) {
+    db.exec('ALTER TABLE agent_relationships ADD COLUMN child_imported_mtime REAL');
+  }
+}
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -287,6 +299,7 @@ const MIGRATIONS: Migration[] = [
   { id: 12, name: '012-events-fts', run: migration012EventsFts },
   { id: 13, name: '013-session-imported-mtime', sql: MIGRATION_013_SESSION_IMPORTED_MTIME },
   { id: 14, name: '014-drop-event-parent-fk', run: migration014DropEventParentFk },
+  { id: 15, name: '015-agent-rel-child-mtime', run: migration015AgentRelChildMtime },
 ];
 
 export function runMigrations(db: Database.Database): void {

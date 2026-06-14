@@ -25,6 +25,17 @@ export function parseLine(line: string): TranscriptMessage | null {
     return null;
   }
 
+  return parseMessageObject(raw);
+}
+
+/**
+ * Build a TranscriptMessage from an already-parsed JSON object, or null if the
+ * object is not a transcript message (non-message line type, missing wrapper,
+ * etc.). Split out of parseLine so callers that already have the parsed object
+ * (e.g. the single-pass title parser) can reuse the normalization without a
+ * second JSON.parse.
+ */
+function parseMessageObject(raw: Record<string, unknown>): TranscriptMessage | null {
   const type = raw['type'] as string | undefined;
   if (!type) return null;
 
@@ -128,42 +139,6 @@ function extractUsage(rawUsage: Record<string, unknown> | undefined): UsageInfo 
 }
 
 /**
- * Extract the session title from a JSONL transcript file.
- * Recognizes two record types emitted by Claude Code:
- *   - "custom-title" (customTitle field) — a user rename of the session.
- *   - "ai-title" (aiTitle field) — the AI-generated session title.
- * Within each kind the last non-empty value wins (renames override the
- * original). A user rename always takes precedence over an AI title,
- * regardless of which appears later in the file. Empty/whitespace values are
- * ignored. Returns null if neither record yields a title.
- */
-export async function extractSessionTitle(filePath: string): Promise<string | null> {
-  const rl = createInterface({
-    input: createReadStream(filePath, { encoding: 'utf-8' }),
-    crlfDelay: Infinity,
-  });
-
-  let customTitle: string | null = null;
-  let aiTitle: string | null = null;
-
-  for await (const line of rl) {
-    const trimmed = line.trim();
-    if (trimmed === '') continue;
-    try {
-      const raw = JSON.parse(trimmed) as Record<string, unknown>;
-      if (raw['type'] === 'custom-title' && typeof raw['customTitle'] === 'string' && raw['customTitle'].trim()) {
-        customTitle = raw['customTitle'].trim();
-      } else if (raw['type'] === 'ai-title' && typeof raw['aiTitle'] === 'string' && raw['aiTitle'].trim()) {
-        aiTitle = raw['aiTitle'].trim();
-      }
-    } catch {
-      // skip malformed lines
-    }
-  }
-  return customTitle ?? aiTitle;
-}
-
-/**
  * Streaming async generator that reads a JSONL transcript file and yields
  * normalized TranscriptMessage objects.
  */
@@ -179,4 +154,50 @@ export async function* parseTranscript(filePath: string): AsyncGenerator<Transcr
       yield message;
     }
   }
+}
+
+/**
+ * Single-pass read of a JSONL transcript that collects normalized messages and
+ * the session title in one stream, so the import path reads each transcript
+ * once. Recognizes two title records Claude Code emits: "custom-title"
+ * (customTitle — a user rename) and "ai-title" (aiTitle — the AI-generated
+ * title). A user rename always wins over an AI title regardless of order;
+ * within each kind the last non-empty value wins; empty/whitespace values are
+ * ignored. Returns title: null if neither record yields one.
+ */
+export async function parseTranscriptWithTitle(
+  filePath: string,
+): Promise<{ messages: TranscriptMessage[]; title: string | null }> {
+  const rl = createInterface({
+    input: createReadStream(filePath, { encoding: 'utf-8' }),
+    crlfDelay: Infinity,
+  });
+
+  const messages: TranscriptMessage[] = [];
+  let customTitle: string | null = null;
+  let aiTitle: string | null = null;
+
+  for await (const line of rl) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+
+    let raw: Record<string, unknown>;
+    try {
+      raw = JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+      // skip malformed lines silently
+      continue;
+    }
+
+    if (raw['type'] === 'custom-title' && typeof raw['customTitle'] === 'string' && raw['customTitle'].trim()) {
+      customTitle = raw['customTitle'].trim();
+    } else if (raw['type'] === 'ai-title' && typeof raw['aiTitle'] === 'string' && raw['aiTitle'].trim()) {
+      aiTitle = raw['aiTitle'].trim();
+    } else {
+      const message = parseMessageObject(raw);
+      if (message !== null) messages.push(message);
+    }
+  }
+
+  return { messages, title: customTitle ?? aiTitle };
 }
