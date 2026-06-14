@@ -25,6 +25,17 @@ export function parseLine(line: string): TranscriptMessage | null {
     return null;
   }
 
+  return parseMessageObject(raw);
+}
+
+/**
+ * Build a TranscriptMessage from an already-parsed JSON object, or null if the
+ * object is not a transcript message (non-message line type, missing wrapper,
+ * etc.). Split out of parseLine so callers that already have the parsed object
+ * (e.g. the single-pass title parser) can reuse the normalization without a
+ * second JSON.parse.
+ */
+function parseMessageObject(raw: Record<string, unknown>): TranscriptMessage | null {
   const type = raw['type'] as string | undefined;
   if (!type) return null;
 
@@ -179,4 +190,50 @@ export async function* parseTranscript(filePath: string): AsyncGenerator<Transcr
       yield message;
     }
   }
+}
+
+/**
+ * Single-pass read of a JSONL transcript that collects normalized messages and
+ * the session title in one stream. Folds in the title extraction that
+ * `extractSessionTitle` used to do as a separate read, so the import path only
+ * reads each transcript once. Title precedence matches `extractSessionTitle`: a
+ * user rename via "custom-title" always wins over an "ai-title", regardless of
+ * order; within each kind the last non-empty value wins; empty/whitespace
+ * values are ignored.
+ */
+export async function parseTranscriptWithTitle(
+  filePath: string,
+): Promise<{ messages: TranscriptMessage[]; title: string | null }> {
+  const rl = createInterface({
+    input: createReadStream(filePath, { encoding: 'utf-8' }),
+    crlfDelay: Infinity,
+  });
+
+  const messages: TranscriptMessage[] = [];
+  let customTitle: string | null = null;
+  let aiTitle: string | null = null;
+
+  for await (const line of rl) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+
+    let raw: Record<string, unknown>;
+    try {
+      raw = JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+      // skip malformed lines (matches extractSessionTitle's silent skip)
+      continue;
+    }
+
+    if (raw['type'] === 'custom-title' && typeof raw['customTitle'] === 'string' && raw['customTitle'].trim()) {
+      customTitle = raw['customTitle'].trim();
+    } else if (raw['type'] === 'ai-title' && typeof raw['aiTitle'] === 'string' && raw['aiTitle'].trim()) {
+      aiTitle = raw['aiTitle'].trim();
+    } else {
+      const message = parseMessageObject(raw);
+      if (message !== null) messages.push(message);
+    }
+  }
+
+  return { messages, title: customTitle ?? aiTitle };
 }

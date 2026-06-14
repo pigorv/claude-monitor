@@ -5,7 +5,7 @@ import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
 import { sessionExists, upsertSession, setSessionImportedMtime } from '../db/queries/sessions.js';
 import * as logger from '../shared/logger.js';
 import type { Event, Invocation, Session, TranscriptMessage } from '../shared/types.js';
-import { parseTranscript, extractSessionTitle } from './jsonl-parser.js';
+import { parseTranscript, parseTranscriptWithTitle } from './jsonl-parser.js';
 import { extractAllEvents, mergeToolCallEvents, assignAgentIds, type ParsedEvent } from './thinking-extractor.js';
 import { buildTokenSnapshots, computeAggregates, estimateContextPct } from './token-tracker.js';
 import { generateSessionSummary } from '../analysis/session-summary.js';
@@ -69,11 +69,10 @@ export async function importTranscript(
     // ignore — file may have vanished; we simply won't persist an mtime
   }
 
-  // Collect all messages from the file
-  const messages: TranscriptMessage[] = [];
-  for await (const msg of parseTranscript(filePath)) {
-    messages.push(msg);
-  }
+  // Collect all messages and the session title from the file in a single pass.
+  // Use the transcript-recorded title (user rename or AI title) if available;
+  // fall back to first user message below.
+  const { messages, title: sessionTitle } = await parseTranscriptWithTitle(filePath);
 
   if (messages.length === 0) {
     return { sessionId: '', eventCount: 0, skipped: true, error: 'No messages found in file' };
@@ -125,10 +124,6 @@ export async function importTranscript(
   const aggregates = computeAggregates(buildTokenSnapshots(messages, model));
 
   const durationMs = new Date(messages[messages.length - 1].timestamp).getTime() - new Date(messages[0].timestamp).getTime();
-
-  // Use the transcript-recorded title (user rename or AI title) if available;
-  // fall back to first user message
-  const sessionTitle = await extractSessionTitle(filePath);
 
   let firstUserMessage: string | undefined;
   if (!sessionTitle) {
