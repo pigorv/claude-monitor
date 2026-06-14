@@ -502,6 +502,7 @@ export function getEventTypeCounts(sessionId: string, parentOnly = false): Event
 interface AnnotationEventRow {
   sequence_num: number;
   event_type: string;
+  timestamp: string;
   tool_name: string | null;
   file_path: string | null;
   input_preview: string | null;
@@ -542,7 +543,7 @@ export function getTokenTimelineAnnotations(sessionId: string): EventAnnotation[
   const db = getDb();
   _annotationEventsStmt ??= db.prepare(`
     SELECT
-      sequence_num, event_type, tool_name,
+      sequence_num, event_type, timestamp, tool_name,
       json_extract(input_data, '$.file_path') as file_path,
       input_preview,
       length(output_data) as output_chars
@@ -555,27 +556,16 @@ export function getTokenTimelineAnnotations(sessionId: string): EventAnnotation[
   const rows = _annotationEventsStmt.all(sessionId) as AnnotationEventRow[];
 
   const annotations: EventAnnotation[] = [];
-  let pendingTools: AnnotationEventRow[] = [];
-  let timelineIndex = 0;
 
   for (const row of rows) {
-    if (row.event_type === 'tool_call_start') {
-      pendingTools.push(row);
-    } else {
-      // assistant_message or compaction — emit annotations for preceding tools
-      for (const tool of pendingTools) {
-        if (!tool.tool_name) continue;
-        annotations.push({
-          index: timelineIndex,
-          marker_type: classifyTool(tool.tool_name),
-          tool_name: tool.tool_name,
-          label: extractLabel(tool),
-          token_delta: tool.output_chars != null ? Math.round(tool.output_chars / 4) : undefined,
-        });
-      }
-      pendingTools = [];
-      timelineIndex++;
-    }
+    if (row.event_type !== 'tool_call_start' || !row.tool_name) continue;
+    annotations.push({
+      timestamp: row.timestamp,
+      marker_type: classifyTool(row.tool_name),
+      tool_name: row.tool_name,
+      label: extractLabel(row),
+      token_delta: row.output_chars != null ? Math.round(row.output_chars / 4) : undefined,
+    });
   }
 
   return annotations;
