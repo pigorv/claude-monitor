@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Re-importing an unchanged subagent transcript is now skipped without re-parsing or rewriting the database, by comparing the file's modification time against the value stored at last import.
+
 ### Fixed
 
 - Re-importing transcripts no longer slows down quadratically on large corpora. A dead self-referencing column on the events table forced a full table scan on every event delete during re-import; it has been removed.
