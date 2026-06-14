@@ -8,7 +8,8 @@ import { AgentTree } from '../../frontend/src/components/AgentTree.js';
 import { groupTimelineItems } from '../../frontend/src/components/Timeline.js';
 import { Dropdown } from '../../frontend/src/components/Dropdown.js';
 import { FilterBar } from '../../frontend/src/components/FilterBar.js';
-import type { Event as SessionEvent, AgentRelationship, TokenDataPoint, ProjectInfo } from '../../src/shared/types.js';
+import { transformTimeline } from '../../frontend/src/lib/chart-config.js';
+import type { Event as SessionEvent, AgentRelationship, TokenDataPoint, ProjectInfo, EventAnnotation } from '../../src/shared/types.js';
 
 // ─── Heatmap ────────────────────────────────────────────
 
@@ -772,6 +773,56 @@ describe('groupTimelineItems', () => {
     // agent_id event is skipped, leaving two non-consecutive Reads → 2 standalone events
     assert.equal(items.length, 2);
     assert.ok(items.every(i => i.type === 'event'));
+  });
+});
+
+// ─── transformTimeline (annotation alignment) ──────────
+
+describe('transformTimeline annotation alignment', () => {
+  function makePoint(timestamp: string, context_pct = 30): TokenDataPoint {
+    return {
+      timestamp,
+      input_tokens: 100,
+      output_tokens: 50,
+      cache_read_tokens: 10,
+      cache_write_tokens: 5,
+      context_pct,
+      event_type: 'assistant_message',
+      is_compaction: false,
+    };
+  }
+
+  it('resolves each annotation timestamp to the nearest timeline index (Behavior #6)', () => {
+    const timeline = [
+      makePoint('2026-01-15T10:00:00Z'),
+      makePoint('2026-01-15T10:01:00Z'),
+      makePoint('2026-01-15T10:02:00Z'),
+    ];
+    // This annotation's timestamp is closest to the middle point (index 1).
+    const annotations: EventAnnotation[] = [
+      {
+        timestamp: '2026-01-15T10:01:05Z',
+        marker_type: 'file_read',
+        tool_name: 'Read',
+        label: '/tmp/foo.ts',
+      },
+    ];
+    const data = transformTimeline(timeline, 200000, annotations);
+    assert.equal(data.annotations.length, 1);
+    assert.equal(data.annotations[0].index, 1, 'nearest point is the middle one');
+    assert.equal(data.annotations[0].tool_name, 'Read');
+  });
+
+  it('resolves an annotation past the last point to the final index', () => {
+    const timeline = [
+      makePoint('2026-01-15T10:00:00Z'),
+      makePoint('2026-01-15T10:01:00Z'),
+    ];
+    const annotations: EventAnnotation[] = [
+      { timestamp: '2026-01-15T10:05:00Z', marker_type: 'bash', tool_name: 'Bash', label: 'npm test' },
+    ];
+    const data = transformTimeline(timeline, 200000, annotations);
+    assert.equal(data.annotations[0].index, 1, 'later-than-all annotation snaps to last index');
   });
 });
 

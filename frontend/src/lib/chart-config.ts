@@ -19,6 +19,9 @@ export function resolveThresholds(model: string | null | undefined): ChartThresh
 
 // ── Data transformation ────────────────────────────────────────────
 
+/** An annotation resolved to the nearest timeline index (frontend-computed from its timestamp). */
+export type ResolvedAnnotation = EventAnnotation & { index: number };
+
 export interface ChartData {
   timestamps: number[];        // epoch seconds
   effectiveContext: number[];   // raw tokens for tooltip display
@@ -27,7 +30,7 @@ export interface ChartData {
   cacheReadPct: number[];      // Y-axis series: cache read as % of max
   compactionIndices: number[]; // indices into timestamps where compaction occurred
   points: TokenDataPoint[];    // original data for tooltips
-  annotations: EventAnnotation[];
+  annotations: ResolvedAnnotation[];
 }
 
 export function transformTimeline(timeline: TokenDataPoint[], maxTokens: number, annotations?: EventAnnotation[]): ChartData {
@@ -48,9 +51,26 @@ export function transformTimeline(timeline: TokenDataPoint[], maxTokens: number,
     if (p.is_compaction) compactionIndices.push(i);
   }
 
+  // Resolve each annotation's timestamp to the nearest timeline index.
+  const resolvedAnnotations: ResolvedAnnotation[] = (annotations ?? []).map((ann) => {
+    let index = -1;
+    if (timestamps.length > 0) {
+      const annSec = new Date(ann.timestamp).getTime() / 1000;
+      let bestDiff = Infinity;
+      for (let i = 0; i < timestamps.length; i++) {
+        const diff = Math.abs(timestamps[i] - annSec);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          index = i;
+        }
+      }
+    }
+    return { ...ann, index };
+  });
+
   return {
     timestamps, effectiveContext, cacheReadTokens, contextPct, cacheReadPct,
-    compactionIndices, points: timeline, annotations: annotations ?? [],
+    compactionIndices, points: timeline, annotations: resolvedAnnotations,
   };
 }
 
@@ -292,7 +312,7 @@ export function tooltipPlugin(chartData: ChartData, thresholds: ChartThresholds)
   }
 
   // Build a lookup: index → annotations
-  const annotationsByIndex = new Map<number, EventAnnotation[]>();
+  const annotationsByIndex = new Map<number, ResolvedAnnotation[]>();
   for (const ann of chartData.annotations) {
     let list = annotationsByIndex.get(ann.index);
     if (!list) {

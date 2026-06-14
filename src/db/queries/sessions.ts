@@ -3,6 +3,7 @@ import type { Session, AgentRelationship, TokenDataPoint, LinkedSession, Project
 import { getDb, onDbClose } from '../connection.js';
 import { MODEL_PRICING } from '../../shared/constants.js';
 import { buildFtsMatch } from './fts-match.js';
+import { collapseTimelineByUsage } from './events.js';
 
 // ── Cached prepared statements ──────────────────────────────────────
 let _insertSessionStmt: Database.Statement | null = null;
@@ -379,6 +380,7 @@ export function getAgentTokenTimeline(sessionId: string, agentId: string): Token
       COALESCE(input_tokens, 0) as input_tokens,
       COALESCE(output_tokens, 0) as output_tokens,
       COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
       COALESCE(context_pct, 0) as context_pct,
       event_type,
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
@@ -386,7 +388,8 @@ export function getAgentTokenTimeline(sessionId: string, agentId: string): Token
     WHERE session_id = ? AND agent_id = ? AND input_tokens IS NOT NULL
     ORDER BY sequence_num ASC, timestamp ASC
   `);
-  return _agentTokenTimelineStmt.all(sessionId, agentId) as TokenDataPoint[];
+  const rows = _agentTokenTimelineStmt.all(sessionId, agentId) as TokenDataPoint[];
+  return collapseTimelineByUsage(rows);
 }
 
 export function getAllAgentTokenTimelines(sessionId: string): Map<string, TokenDataPoint[]> {
@@ -398,6 +401,7 @@ export function getAllAgentTokenTimelines(sessionId: string): Map<string, TokenD
       COALESCE(input_tokens, 0) as input_tokens,
       COALESCE(output_tokens, 0) as output_tokens,
       COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
       COALESCE(context_pct, 0) as context_pct,
       event_type,
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
@@ -416,6 +420,11 @@ export function getAllAgentTokenTimelines(sessionId: string): Map<string, TokenD
       map.set(agentId, list);
     }
     list.push(row);
+  }
+  // Collapse each agent's timeline independently — never merge rows across
+  // agents (the grouped rows carry an extra agent_id field the helper ignores).
+  for (const [agentId, list] of map) {
+    map.set(agentId, collapseTimelineByUsage(list));
   }
   return map;
 }
