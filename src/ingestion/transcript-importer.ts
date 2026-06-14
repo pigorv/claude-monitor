@@ -361,7 +361,14 @@ export async function importTranscripts(
 ): Promise<ImportResult[]> {
   const results: ImportResult[] = [];
 
-  const filtered = filterCoveredSubagents(filePaths);
+  // Drop subagent files whose parent is in the batch only under force, where the
+  // parent is guaranteed to re-import (and so cover) its subagents. Under a
+  // non-force batch an already-imported parent is skipped at the pre-parse fast
+  // path and never reaches its subagents, so dropping a covered subagent would
+  // silently strand a changed one. Keeping it is cheap: the unchanged-subagent
+  // mtime guard skips it without re-parsing, and a fresh parent (processed first
+  // in sorted order) already imported it, so the standalone re-pass mtime-skips.
+  const filtered = options.force ? filterCoveredSubagents(filePaths) : filePaths;
 
   for (const filePath of filtered) {
     try {
@@ -398,11 +405,12 @@ function parentTranscriptPathForSubagent(subFile: string): string {
 }
 
 /**
- * Drop subagent files whose parent transcript is also in the batch. In a batch
- * run the parent's import already covers its subagents, so iterating the subagent
- * file standalone would re-import it. Non-subagent files are always kept, and so
- * are subagents whose parent is NOT in the batch (e.g. the watcher's incremental
- * single-file case, which goes through importTranscript directly).
+ * Drop subagent files whose parent transcript is also in the batch. Only sound
+ * for force batches, where the parent is guaranteed to re-import (and so cover)
+ * its subagents; importTranscripts gates the call on force for that reason.
+ * Non-subagent files are always kept, and so are subagents whose parent is NOT
+ * in the batch (e.g. the watcher's incremental single-file case, which goes
+ * through importTranscript directly).
  */
 export function filterCoveredSubagents(filePaths: string[]): string[] {
   const present = new Set(filePaths.map((p) => resolve(p)));

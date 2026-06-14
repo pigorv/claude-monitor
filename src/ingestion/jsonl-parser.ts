@@ -139,42 +139,6 @@ function extractUsage(rawUsage: Record<string, unknown> | undefined): UsageInfo 
 }
 
 /**
- * Extract the session title from a JSONL transcript file.
- * Recognizes two record types emitted by Claude Code:
- *   - "custom-title" (customTitle field) — a user rename of the session.
- *   - "ai-title" (aiTitle field) — the AI-generated session title.
- * Within each kind the last non-empty value wins (renames override the
- * original). A user rename always takes precedence over an AI title,
- * regardless of which appears later in the file. Empty/whitespace values are
- * ignored. Returns null if neither record yields a title.
- */
-export async function extractSessionTitle(filePath: string): Promise<string | null> {
-  const rl = createInterface({
-    input: createReadStream(filePath, { encoding: 'utf-8' }),
-    crlfDelay: Infinity,
-  });
-
-  let customTitle: string | null = null;
-  let aiTitle: string | null = null;
-
-  for await (const line of rl) {
-    const trimmed = line.trim();
-    if (trimmed === '') continue;
-    try {
-      const raw = JSON.parse(trimmed) as Record<string, unknown>;
-      if (raw['type'] === 'custom-title' && typeof raw['customTitle'] === 'string' && raw['customTitle'].trim()) {
-        customTitle = raw['customTitle'].trim();
-      } else if (raw['type'] === 'ai-title' && typeof raw['aiTitle'] === 'string' && raw['aiTitle'].trim()) {
-        aiTitle = raw['aiTitle'].trim();
-      }
-    } catch {
-      // skip malformed lines
-    }
-  }
-  return customTitle ?? aiTitle;
-}
-
-/**
  * Streaming async generator that reads a JSONL transcript file and yields
  * normalized TranscriptMessage objects.
  */
@@ -194,12 +158,12 @@ export async function* parseTranscript(filePath: string): AsyncGenerator<Transcr
 
 /**
  * Single-pass read of a JSONL transcript that collects normalized messages and
- * the session title in one stream. Folds in the title extraction that
- * `extractSessionTitle` used to do as a separate read, so the import path only
- * reads each transcript once. Title precedence matches `extractSessionTitle`: a
- * user rename via "custom-title" always wins over an "ai-title", regardless of
- * order; within each kind the last non-empty value wins; empty/whitespace
- * values are ignored.
+ * the session title in one stream, so the import path reads each transcript
+ * once. Recognizes two title records Claude Code emits: "custom-title"
+ * (customTitle — a user rename) and "ai-title" (aiTitle — the AI-generated
+ * title). A user rename always wins over an AI title regardless of order;
+ * within each kind the last non-empty value wins; empty/whitespace values are
+ * ignored. Returns title: null if neither record yields one.
  */
 export async function parseTranscriptWithTitle(
   filePath: string,
@@ -221,7 +185,7 @@ export async function parseTranscriptWithTitle(
     try {
       raw = JSON.parse(trimmed) as Record<string, unknown>;
     } catch {
-      // skip malformed lines (matches extractSessionTitle's silent skip)
+      // skip malformed lines silently
       continue;
     }
 

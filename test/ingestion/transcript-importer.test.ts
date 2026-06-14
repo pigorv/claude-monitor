@@ -1084,6 +1084,48 @@ describe('importTranscript skip/dedupe matrix', () => {
     assert.equal(batchCount.n, soloCount.n, 'batch import must not duplicate subagent events');
   });
 
+  // ── #4b: a non-force batch must not strand a changed subagent whose parent is
+  // already imported. The parent is skipped at the pre-parse fast path (so it does
+  // NOT re-cover its subagent), so the covered-subagent drop must not fire here. ──
+  it('non-force batch re-imports a changed subagent under an already-imported parent', async () => {
+    const { parentPath, subagentPath } = writeParentWithSubagent();
+
+    // First import: the parent covers the subagent.
+    await importTranscript(parentPath);
+    const db = getDb();
+    const before = (db.prepare(
+      "SELECT count(*) AS n FROM events WHERE session_id = 'parent-sess' AND agent_id = 'agent-aaa'",
+    ).get() as { n: number }).n;
+    assert.ok(before > 0);
+
+    // The subagent transcript grows by one assistant turn and its mtime bumps;
+    // the parent transcript is left untouched.
+    const grown = SUBAGENT_JSONL + '\n' + JSON.stringify({
+      parentUuid: 's-a-2', cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        model: 'claude-opus-4-6', role: 'assistant',
+        content: [{ type: 'text', text: 'And a follow-up note.' }],
+        usage: { input_tokens: 950, output_tokens: 30, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      },
+      timestamp: '2026-01-01T00:01:18.000Z', uuid: 's-a-3',
+    });
+    writeFileSync(subagentPath, grown);
+    const future = new Date(Date.now() + 5000);
+    utimesSync(subagentPath, future, future);
+
+    // Non-force batch over the whole corpus. filterCoveredSubagents must NOT drop
+    // the subagent (the parent won't re-cover it), so the change is picked up.
+    const results = await importTranscripts([parentPath, subagentPath]);
+    const subResult = results.find((r) => !r.skipped && r.sessionId === 'parent-sess');
+    assert.ok(subResult, 'the changed subagent must be re-imported, not dropped as covered');
+
+    const after = (db.prepare(
+      "SELECT count(*) AS n FROM events WHERE session_id = 'parent-sess' AND agent_id = 'agent-aaa'",
+    ).get() as { n: number }).n;
+    assert.ok(after > before, 'the grown subagent should contribute more events after re-import');
+  });
+
   // ── #6: a force re-import yields the same query results as a fresh import ──
   it('force re-import produces equal results to a fresh import (modulo ids)', async () => {
     const { parentPath } = writeParentWithSubagent();
