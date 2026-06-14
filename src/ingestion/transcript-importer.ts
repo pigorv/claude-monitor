@@ -69,6 +69,20 @@ export async function importTranscript(
     // ignore — file may have vanished; we simply won't persist an mtime
   }
 
+  // Fast path: skip an already-imported parent without reading the file body.
+  // deriveSessionId already falls back to basename(filePath) when no message
+  // carries a sessionId, so for the common case (filename === sessionId) we can
+  // decide here. The post-parse sessionExists guard below remains the fallback
+  // for files whose embedded sessionId differs from the filename.
+  if (!options.force) {
+    const candidateId = basename(filePath, '.jsonl');
+    if (candidateId && sessionExists(candidateId)) {
+      if (fileMtimeMs !== null) setSessionImportedMtime(candidateId, fileMtimeMs);
+      logger.debug('Session already imported, skipping (pre-parse)', { sessionId: candidateId, filePath });
+      return { sessionId: candidateId, eventCount: 0, skipped: true };
+    }
+  }
+
   // Collect all messages and the session title from the file in a single pass.
   // Use the transcript-recorded title (user rename or AI title) if available;
   // fall back to first user message below.
