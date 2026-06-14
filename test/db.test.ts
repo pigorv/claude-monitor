@@ -59,7 +59,6 @@ function makeSession(overrides: Partial<Session> = {}): Session {
 function makeEvent(overrides: Partial<Omit<Event, 'id'>> = {}): Omit<Event, 'id'> {
   return {
     session_id: 'test-session-1',
-    parent_event_id: null,
     agent_id: null,
     event_type: 'assistant_message',
     event_source: 'transcript_import',

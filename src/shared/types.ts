@@ -64,7 +64,6 @@ export interface Invocation {
 export interface Event {
   id: number;
   session_id: string;
-  parent_event_id: number | null;
   agent_id: string | null;
   event_type: EventType;
   event_source: EventSource;
