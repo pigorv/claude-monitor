@@ -129,47 +129,130 @@ export function listEventsBySession(
   return { events: rows, total };
 }
 
+/**
+ * Collapse consecutive ordered rows that share an identical token-usage
+ * signature into a single kept row.
+ *
+ * Claude Code streams each assistant message as several JSONL lines
+ * (thinking / text / tool_use blocks) that carry IDENTICAL `usage` but
+ * timestamps a couple of ms apart, so a per-timestamp GROUP BY no longer
+ * collapses them. Walking the ordered rows and starting a new kept point only
+ * when the `(input, output, cache_read, cache_write)` 4-tuple changes yields
+ * exactly one point per real API turn (each real turn's usage differs from the
+ * prior one, so distinct turns — including tool-only turns — are never merged).
+ *
+ * Within a run, compaction is OR-folded: if any row carries
+ * `event_type === 'compaction'` (or a truthy `is_compaction`), the kept point's
+ * `event_type` becomes `'compaction'` and `is_compaction` becomes truthy.
+ * Otherwise the kept point keeps the FIRST row's field values.
+ *
+ * Exported so a sibling query file (agent timelines) can reuse it — those rows
+ * share the same token fields plus an `event_type`/`is_compaction` column.
+ */
+export function collapseTimelineByUsage<
+  T extends {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_write_tokens: number;
+    event_type?: string;
+    is_compaction?: number | boolean;
+  },
+>(rows: T[]): T[] {
+  const collapsed: T[] = [];
+  let prevSig: string | null = null;
+
+  for (const row of rows) {
+    const sig =
+      `${row.input_tokens ?? 0}|${row.output_tokens ?? 0}|` +
+      `${row.cache_read_tokens ?? 0}|${row.cache_write_tokens ?? 0}`;
+    const isCompaction = row.event_type === 'compaction' || Boolean(row.is_compaction);
+
+    if (sig !== prevSig) {
+      // New run: keep this row (its first member) as the point.
+      const kept = { ...row };
+      if (isCompaction) {
+        if ('event_type' in kept) kept.event_type = 'compaction' as T['event_type'];
+        if ('is_compaction' in kept) {
+          kept.is_compaction = (typeof kept.is_compaction === 'boolean'
+            ? true
+            : 1) as T['is_compaction'];
+        }
+      }
+      collapsed.push(kept);
+      prevSig = sig;
+    } else if (isCompaction) {
+      // Continuing run — OR-fold compaction onto the kept point.
+      const kept = collapsed[collapsed.length - 1];
+      if ('event_type' in kept) kept.event_type = 'compaction' as T['event_type'];
+      if ('is_compaction' in kept) {
+        kept.is_compaction = (typeof kept.is_compaction === 'boolean'
+          ? true
+          : 1) as T['is_compaction'];
+      }
+    }
+  }
+
+  return collapsed;
+}
+
 export function getTokenTimeline(sessionId: string): TokenDataPoint[] {
   const db = getDb();
-  // One point per assistant turn: events from the same turn share a timestamp
-  // (thinking/text/tool_use blocks from one message), all carry identical usage.
-  // Group by timestamp so tool-only turns — which emit tool_call_start but no
-  // assistant_message — still contribute a point.
+  // One point per real API turn. Claude Code streams each assistant message as
+  // several JSONL lines (thinking/text/tool_use blocks) that carry identical
+  // usage but timestamps ~2 ms apart, so a per-timestamp GROUP BY no longer
+  // collapses them. Select raw ordered rows and collapse consecutive rows that
+  // share an identical usage signature in JS instead — tool-only turns (which
+  // emit tool_call_start but no assistant_message) carry distinct usage and so
+  // still contribute their own point.
   _tokenTimelineStmt ??= db.prepare(`
     SELECT
       timestamp,
-      MAX(COALESCE(input_tokens, 0)) as input_tokens,
-      MAX(COALESCE(output_tokens, 0)) as output_tokens,
-      MAX(COALESCE(cache_read_tokens, 0)) as cache_read_tokens,
-      MAX(COALESCE(cache_write_tokens, 0)) as cache_write_tokens,
-      MAX(COALESCE(context_pct, 0)) as context_pct,
-      CASE WHEN MAX(CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END) = 1
-           THEN 'compaction' ELSE 'assistant_message' END as event_type,
-      MAX(CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END) as is_compaction
+      COALESCE(input_tokens, 0) as input_tokens,
+      COALESCE(output_tokens, 0) as output_tokens,
+      COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
+      COALESCE(context_pct, 0) as context_pct,
+      CASE WHEN event_type = 'compaction' THEN 'compaction' ELSE 'assistant_message' END as event_type,
+      CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
     FROM events
     WHERE session_id = ? AND input_tokens IS NOT NULL AND agent_id IS NULL
       AND event_type IN ('assistant_message', 'compaction', 'tool_call_start')
       AND (COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0) + COALESCE(output_tokens, 0)) > 0
-    GROUP BY timestamp
-    ORDER BY MIN(sequence_num) ASC, timestamp ASC
+    ORDER BY sequence_num ASC, timestamp ASC
   `);
-  return _tokenTimelineStmt.all(sessionId) as TokenDataPoint[];
+  const rows = _tokenTimelineStmt.all(sessionId) as TokenDataPoint[];
+  return collapseTimelineByUsage(rows);
 }
 
 export function getMiniTimeline(sessionId: string, maxPoints: number = 20): MiniTimelinePoint[] {
   const db = getDb();
+  // Same collapse-by-usage treatment as getTokenTimeline: select raw ordered
+  // rows (including the four usage columns the helper needs for its signature),
+  // collapse consecutive identical-usage runs, then downsample.
   _miniTimelineStmt ??= db.prepare(`
     SELECT
-      MAX(COALESCE(context_pct, 0)) as context_pct,
-      MAX(CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END) as is_compaction
+      COALESCE(input_tokens, 0) as input_tokens,
+      COALESCE(output_tokens, 0) as output_tokens,
+      COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
+      COALESCE(context_pct, 0) as context_pct,
+      CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
     FROM events
     WHERE session_id = ? AND context_pct IS NOT NULL AND agent_id IS NULL
       AND event_type IN ('assistant_message', 'compaction', 'tool_call_start')
       AND (COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0) + COALESCE(output_tokens, 0)) > 0
-    GROUP BY timestamp
-    ORDER BY MIN(sequence_num) ASC, timestamp ASC
+    ORDER BY sequence_num ASC, timestamp ASC
   `);
-  const rows = _miniTimelineStmt.all(sessionId) as { context_pct: number; is_compaction: number }[];
+  const rawRows = _miniTimelineStmt.all(sessionId) as {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_write_tokens: number;
+    context_pct: number;
+    is_compaction: number;
+  }[];
+  const rows = collapseTimelineByUsage(rawRows);
 
   if (rows.length <= maxPoints) {
     return rows.map((r) => ({ context_pct: r.context_pct, is_compaction: r.is_compaction === 1 }));
