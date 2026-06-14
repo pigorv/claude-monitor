@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { mkdirSync, writeFileSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { importTranscript, importTranscripts, filterCoveredSubagents } from '../../src/ingestion/transcript-importer.js';
+import { importTranscript, importTranscripts, filterCoveredSubagents, type ImportResult } from '../../src/ingestion/transcript-importer.js';
 import { getDb, closeDb } from '../../src/db/connection.js';
 import { getSession, sessionExists } from '../../src/db/queries/sessions.js';
 import { listEventsBySession, getTokenTimeline } from '../../src/db/queries/events.js';
@@ -602,6 +602,48 @@ describe('importTranscripts (batch)', () => {
     assert.equal(results[0].skipped, false);
     assert.equal(results[1].skipped, true);
     assert.ok(results[1].error);
+  });
+
+  it('fires onProgress once per processed file with monotonic processed ending at total', async () => {
+    const file1 = join(TEST_DIR, 'prog-a.jsonl');
+    const file2 = join(TEST_DIR, 'prog-b.jsonl');
+    const file3 = join(TEST_DIR, 'prog-c.jsonl');
+
+    writeFileSync(file1, JSON.stringify({
+      parentUuid: null, cwd: '/tmp/a', sessionId: 'prog-a', type: 'user',
+      message: { role: 'user', content: 'hi' },
+      timestamp: '2026-01-01T00:00:00.000Z', uuid: 'pu1',
+    }));
+    writeFileSync(file2, JSON.stringify({
+      parentUuid: null, cwd: '/tmp/b', sessionId: 'prog-b', type: 'user',
+      message: { role: 'user', content: 'hi' },
+      timestamp: '2026-01-02T00:00:00.000Z', uuid: 'pu2',
+    }));
+    writeFileSync(file3, JSON.stringify({
+      parentUuid: null, cwd: '/tmp/c', sessionId: 'prog-c', type: 'user',
+      message: { role: 'user', content: 'hi' },
+      timestamp: '2026-01-03T00:00:00.000Z', uuid: 'pu3',
+    }));
+
+    const files = [file1, file2, file3];
+    const payloads: { processed: number; total: number; result: ImportResult }[] = [];
+
+    const results = await importTranscripts(files, {
+      onProgress: (p) => payloads.push(p),
+    });
+
+    // One callback per processed file.
+    assert.equal(payloads.length, files.length);
+    // processed strictly increases 1..N.
+    for (let i = 0; i < payloads.length; i++) {
+      assert.equal(payloads[i].processed, i + 1);
+    }
+    // Every payload's total equals the final processed count.
+    for (const p of payloads) {
+      assert.equal(p.total, files.length);
+    }
+    // The last payload carries the last pushed result.
+    assert.deepEqual(payloads[payloads.length - 1].result, results[results.length - 1]);
   });
 });
 
