@@ -186,9 +186,21 @@ describe('getTokenTimeline collapse', () => {
     assert.equal(timeline[1].timestamp, '2025-01-01T00:06:00.000Z');
   });
 
-  it('marks the collapsed point as compaction when any run member is a compaction (Behavior #2)', () => {
-    const cdir = mkdtempSync(join(tmpdir(), 'timeline-compaction-'));
-    getDb(join(cdir, 'test.sqlite'));
+  it('getMiniTimeline applies the same collapse before downsampling (Behavior #3)', () => {
+    // Reuse the sess-1 fixture (shared open handle): 5 streamed rows → 2 points.
+    const mini = getMiniTimeline('sess-1');
+    assert.equal(mini.length, 2, 'mini timeline collapses the streamed rows too');
+  });
+});
+
+// ── Compaction OR-fold (Behavior #2) ───────────────────────────────
+
+describe('getTokenTimeline compaction fold', () => {
+  let dir: string;
+
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'timeline-compaction-'));
+    getDb(join(dir, 'test.sqlite'));
     insertSession(makeSession({ id: 'comp-sess' }));
 
     // A normal turn, then a compaction turn (its large input-token drop gives it
@@ -209,22 +221,19 @@ describe('getTokenTimeline collapse', () => {
       timestamp: '2025-01-01T00:06:00.002Z',
       input_tokens: 20000, output_tokens: 100, cache_read_tokens: 0, cache_write_tokens: 0,
     }));
+  });
 
+  afterAll(() => {
+    closeDb();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('marks the collapsed point as compaction when any run member is a compaction (Behavior #2)', () => {
     const timeline = getTokenTimeline('comp-sess');
     const compactionPoint = timeline.find((p) => p.is_compaction);
     assert.ok(compactionPoint, 'a collapsed compaction point should exist');
     assert.equal(compactionPoint.event_type, 'compaction');
     assert.ok(compactionPoint.is_compaction);
-
-    closeDb();
-    rmSync(cdir, { recursive: true, force: true });
-  });
-
-  it('getMiniTimeline applies the same collapse before downsampling (Behavior #3)', () => {
-    // Reuse the sess-1 fixture: 5 streamed rows → 2 collapsed points.
-    getDb(join(dir, 'test.sqlite'));
-    const mini = getMiniTimeline('sess-1');
-    assert.equal(mini.length, 2, 'mini timeline collapses the streamed rows too');
   });
 });
 
@@ -271,6 +280,19 @@ describe('agent timeline collapse', () => {
       timestamp: '2025-01-01T00:07:00.002Z',
       input_tokens: 9000, output_tokens: 100, cache_read_tokens: 0, cache_write_tokens: 0,
     }));
+
+    // Agent C: two adjacent turns that differ ONLY in cache_write_tokens. The
+    // collapse signature must include cache_write or these wrongly merge into one.
+    insertEvent(makeEvent({
+      agent_id: 'agent-c', sequence_num: 7, event_type: 'assistant_message',
+      timestamp: '2025-01-01T00:08:00.000Z',
+      input_tokens: 2000, output_tokens: 200, cache_read_tokens: 100, cache_write_tokens: 500,
+    }));
+    insertEvent(makeEvent({
+      agent_id: 'agent-c', sequence_num: 8, event_type: 'assistant_message',
+      timestamp: '2025-01-01T00:08:01.000Z',
+      input_tokens: 2000, output_tokens: 200, cache_read_tokens: 100, cache_write_tokens: 0,
+    }));
   });
 
   afterAll(() => {
@@ -288,6 +310,14 @@ describe('agent timeline collapse', () => {
     const map = getAllAgentTokenTimelines('sess-1');
     assert.equal(map.get('agent-a')?.length, 2, 'agent-a collapses to 2 points');
     assert.equal(map.get('agent-b')?.length, 1, 'agent-b collapses to 1 point');
+  });
+
+  it('keeps agent turns that differ only in cache_write_tokens as separate points', () => {
+    // Guards the agent SELECT including cache_write_tokens in the collapse signature.
+    assert.equal(getAgentTokenTimeline('sess-1', 'agent-c').length, 2,
+      'agent-c: two turns differing only in cache_write must not merge');
+    const map = getAllAgentTokenTimelines('sess-1');
+    assert.equal(map.get('agent-c')?.length, 2, 'agent-c stays 2 points via getAll too');
   });
 });
 

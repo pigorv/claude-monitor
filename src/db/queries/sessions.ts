@@ -380,6 +380,7 @@ export function getAgentTokenTimeline(sessionId: string, agentId: string): Token
       COALESCE(input_tokens, 0) as input_tokens,
       COALESCE(output_tokens, 0) as output_tokens,
       COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
       COALESCE(context_pct, 0) as context_pct,
       event_type,
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
@@ -400,6 +401,7 @@ export function getAllAgentTokenTimelines(sessionId: string): Map<string, TokenD
       COALESCE(input_tokens, 0) as input_tokens,
       COALESCE(output_tokens, 0) as output_tokens,
       COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
       COALESCE(context_pct, 0) as context_pct,
       event_type,
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
