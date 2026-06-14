@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The Settings page now shows live re-import progress (processed of total plus a phase label — "Importing transcripts…" or "Compacting database…") while a run is in flight, and reattaches to an already-running re-import if you reload the page mid-run.
+
 ### Changed
 
 - Re-importing an unchanged subagent transcript is now skipped without re-parsing or rewriting the database, by comparing the file's modification time against the value stored at last import.
