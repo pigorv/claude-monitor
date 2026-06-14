@@ -5,7 +5,7 @@ import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
 import { sessionExists, upsertSession, setSessionImportedMtime } from '../db/queries/sessions.js';
 import * as logger from '../shared/logger.js';
 import type { Event, Invocation, Session, TranscriptMessage } from '../shared/types.js';
-import { parseTranscript, extractSessionTitle } from './jsonl-parser.js';
+import { parseTranscript, parseTranscriptWithTitle } from './jsonl-parser.js';
 import { extractAllEvents, mergeToolCallEvents, assignAgentIds, type ParsedEvent } from './thinking-extractor.js';
 import { buildTokenSnapshots, computeAggregates, estimateContextPct } from './token-tracker.js';
 import { generateSessionSummary } from '../analysis/session-summary.js';
@@ -49,9 +49,11 @@ export async function importTranscript(
     if (parentSessionId && sessionExists(parentSessionId)) {
       // Parent already imported — import this subagent's events as children
       const agentId = basename(filePath, '.jsonl');
-      const count = await importSubagentFile(parentSessionId, agentId, filePath);
-      logger.info('Imported subagent transcript', { parentSessionId, agentId, events: count });
-      return { sessionId: parentSessionId, eventCount: count, skipped: false };
+      const result = await importSubagentFile(parentSessionId, agentId, filePath, { force: options.force });
+      if (!result.skipped) {
+        logger.info('Imported subagent transcript', { parentSessionId, agentId, events: result.events });
+      }
+      return { sessionId: parentSessionId, eventCount: result.events, skipped: result.skipped };
     }
     // Parent not imported yet — skip. It will be picked up when the parent is imported.
     logger.debug('Subagent file skipped (parent not imported yet)', { filePath });
@@ -69,11 +71,24 @@ export async function importTranscript(
     // ignore — file may have vanished; we simply won't persist an mtime
   }
 
-  // Collect all messages from the file
-  const messages: TranscriptMessage[] = [];
-  for await (const msg of parseTranscript(filePath)) {
-    messages.push(msg);
+  // Fast path: skip an already-imported parent without reading the file body.
+  // deriveSessionId already falls back to basename(filePath) when no message
+  // carries a sessionId, so for the common case (filename === sessionId) we can
+  // decide here. The post-parse sessionExists guard below remains the fallback
+  // for files whose embedded sessionId differs from the filename.
+  if (!options.force) {
+    const candidateId = basename(filePath, '.jsonl');
+    if (candidateId && sessionExists(candidateId)) {
+      if (fileMtimeMs !== null) setSessionImportedMtime(candidateId, fileMtimeMs);
+      logger.debug('Session already imported, skipping (pre-parse)', { sessionId: candidateId, filePath });
+      return { sessionId: candidateId, eventCount: 0, skipped: true };
+    }
   }
+
+  // Collect all messages and the session title from the file in a single pass.
+  // Use the transcript-recorded title (user rename or AI title) if available;
+  // fall back to first user message below.
+  const { messages, title: sessionTitle } = await parseTranscriptWithTitle(filePath);
 
   if (messages.length === 0) {
     return { sessionId: '', eventCount: 0, skipped: true, error: 'No messages found in file' };
@@ -125,10 +140,6 @@ export async function importTranscript(
   const aggregates = computeAggregates(buildTokenSnapshots(messages, model));
 
   const durationMs = new Date(messages[messages.length - 1].timestamp).getTime() - new Date(messages[0].timestamp).getTime();
-
-  // Use the transcript-recorded title (user rename or AI title) if available;
-  // fall back to first user message
-  const sessionTitle = await extractSessionTitle(filePath);
 
   let firstUserMessage: string | undefined;
   if (!sessionTitle) {
@@ -288,7 +299,7 @@ export async function importTranscript(
     }
 
   // After importing the parent, discover and import subagent transcripts
-  const subagentEventCount = await importSubagentTranscripts(sessionId, filePath);
+  const subagentEventCount = await importSubagentTranscripts(sessionId, filePath, { force: options.force });
 
   // Update session totals to include agent tokens so that
   // parentTokens = sessionTotal - agentTotal yields a correct positive value
@@ -350,7 +361,16 @@ export async function importTranscripts(
 ): Promise<ImportResult[]> {
   const results: ImportResult[] = [];
 
-  for (const filePath of filePaths) {
+  // Drop subagent files whose parent is in the batch only under force, where the
+  // parent is guaranteed to re-import (and so cover) its subagents. Under a
+  // non-force batch an already-imported parent is skipped at the pre-parse fast
+  // path and never reaches its subagents, so dropping a covered subagent would
+  // silently strand a changed one. Keeping it is cheap: the unchanged-subagent
+  // mtime guard skips it without re-parsing, and a fresh parent (processed first
+  // in sorted order) already imported it, so the standalone re-pass mtime-skips.
+  const filtered = options.force ? filterCoveredSubagents(filePaths) : filePaths;
+
+  for (const filePath of filtered) {
     try {
       const result = await importTranscript(filePath, options);
       results.push(result);
@@ -371,6 +391,34 @@ export async function importTranscripts(
  */
 function isSubagentFile(filePath: string): boolean {
   return filePath.includes('/subagents/') || filePath.includes('\\subagents\\');
+}
+
+/**
+ * Compute the parent transcript path for a subagent file — the inverse of
+ * discoverSubagentFiles. Subagent: {projectDir}/{sessionId}/subagents/agent-*.jsonl
+ * Parent:   {projectDir}/{sessionId}.jsonl
+ */
+function parentTranscriptPathForSubagent(subFile: string): string {
+  const subagentsDir = dirname(subFile); // .../{sessionId}/subagents
+  const sessionDir = dirname(subagentsDir); // .../{sessionId}
+  return sessionDir + '.jsonl'; // .../{sessionId}.jsonl
+}
+
+/**
+ * Drop subagent files whose parent transcript is also in the batch. Only sound
+ * for force batches, where the parent is guaranteed to re-import (and so cover)
+ * its subagents; importTranscripts gates the call on force for that reason.
+ * Non-subagent files are always kept, and so are subagents whose parent is NOT
+ * in the batch (e.g. the watcher's incremental single-file case, which goes
+ * through importTranscript directly).
+ */
+export function filterCoveredSubagents(filePaths: string[]): string[] {
+  const present = new Set(filePaths.map((p) => resolve(p)));
+  return filePaths.filter((p) => {
+    if (!isSubagentFile(p)) return true;
+    const parent = resolve(parentTranscriptPathForSubagent(p));
+    return !present.has(parent);
+  });
 }
 
 /**
@@ -413,6 +461,7 @@ function discoverSubagentFiles(parentTranscriptPath: string): string[] {
 async function importSubagentTranscripts(
   parentSessionId: string,
   parentTranscriptPath: string,
+  options: { force?: boolean } = {},
 ): Promise<number> {
   const subagentFiles = discoverSubagentFiles(parentTranscriptPath);
   if (subagentFiles.length === 0) return 0;
@@ -422,8 +471,8 @@ async function importSubagentTranscripts(
   for (const subFile of subagentFiles) {
     const agentId = basename(subFile, '.jsonl');
     try {
-      const count = await importSubagentFile(parentSessionId, agentId, subFile);
-      totalEvents += count;
+      const result = await importSubagentFile(parentSessionId, agentId, subFile, options);
+      totalEvents += result.events;
     } catch (err) {
       logger.error('Failed to import subagent transcript', {
         parentSessionId,
@@ -445,12 +494,37 @@ async function importSubagentFile(
   parentSessionId: string,
   agentId: string,
   filePath: string,
-): Promise<number> {
+  options: { force?: boolean } = {},
+): Promise<{ events: number; skipped: boolean }> {
+  // Capture the file's mtime before parsing so we can skip an unchanged
+  // standalone re-import (no delete/reinsert, no FTS churn) below.
+  let mtimeMs: number | null = null;
+  try {
+    mtimeMs = statSync(filePath).mtimeMs;
+  } catch {
+    // ignore — file may have vanished; we simply won't persist an mtime
+  }
+
+  const db = getDb();
+
+  // Fast path: skip an already-imported, unchanged subagent without reading the
+  // file body. The force branch clears agent_relationships for the parent, so
+  // this skip never fires under force (and freshly-created relationships from
+  // assignAgentIds have NULL child_imported_mtime, so they still import).
+  if (!options.force) {
+    const existing = db.prepare(
+      'SELECT child_imported_mtime, child_transcript_path FROM agent_relationships WHERE parent_session_id = ? AND child_agent_id = ?',
+    ).get(parentSessionId, agentId) as { child_imported_mtime: number | null; child_transcript_path: string | null } | undefined;
+    if (existing && existing.child_transcript_path === filePath && mtimeMs !== null && existing.child_imported_mtime === mtimeMs) {
+      return { events: 0, skipped: true };
+    }
+  }
+
   const messages: TranscriptMessage[] = [];
   for await (const msg of parseTranscript(filePath)) {
     messages.push(msg);
   }
-  if (messages.length === 0) return 0;
+  if (messages.length === 0) return { events: 0, skipped: false };
 
   // Extract events from the subagent transcript
   const rawEvents = extractAllEvents(messages);
@@ -488,7 +562,6 @@ async function importSubagentFile(
     : null;
 
   // Wrap all DB writes in a single transaction
-  const db = getDb();
   db.transaction(() => {
     // Clear ALL events for this subagent before inserting transcript data.
     // Previously only deleted hook events, causing duplicates on re-import.
@@ -524,6 +597,7 @@ async function importSubagentFile(
     if (existingRel) {
       db.prepare(`UPDATE agent_relationships SET
         child_transcript_path = ?,
+        child_imported_mtime = ?,
         tool_call_count = ?,
         input_tokens_total = ?,
         output_tokens_total = ?,
@@ -537,6 +611,7 @@ async function importSubagentFile(
         status = 'completed'
       WHERE id = ?`).run(
         filePath,
+        mtimeMs,
         toolCallCount,
         totalInput,
         totalOutput,
@@ -551,14 +626,15 @@ async function importSubagentFile(
       );
     } else {
       db.prepare(`INSERT INTO agent_relationships (
-        parent_session_id, child_agent_id, child_transcript_path,
+        parent_session_id, child_agent_id, child_transcript_path, child_imported_mtime,
         prompt_preview, result_preview, prompt_data, result_data,
         started_at, ended_at, duration_ms,
         input_tokens_total, output_tokens_total, tool_call_count, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         parentSessionId,
         agentId,
         filePath,
+        mtimeMs,
         promptText ? promptText.slice(0, 200) : null,
         resultText ? resultText.slice(0, 200) : null,
         promptText,
@@ -581,7 +657,7 @@ async function importSubagentFile(
     toolCalls: toolCallCount,
   });
 
-  return eventRecords.length;
+  return { events: eventRecords.length, skipped: false };
 }
 
 // ── Internal helpers ───────────────────────────────────────────────
