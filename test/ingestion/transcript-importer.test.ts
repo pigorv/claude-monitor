@@ -1,9 +1,9 @@
 import { describe, it, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { importTranscript, importTranscripts } from '../../src/ingestion/transcript-importer.js';
+import { importTranscript, importTranscripts, filterCoveredSubagents } from '../../src/ingestion/transcript-importer.js';
 import { getDb, closeDb } from '../../src/db/connection.js';
 import { getSession, sessionExists } from '../../src/db/queries/sessions.js';
 import { listEventsBySession, getTokenTimeline } from '../../src/db/queries/events.js';
@@ -848,5 +848,279 @@ describe('importTranscript invocations aggregation', () => {
       type: 'skill',
       name: 'triage-issue',
     });
+  });
+});
+
+// ── Skip / dedupe import matrix (new × changed × unchanged, parent × subagent) ──
+
+// A parent transcript that spawns a Task subagent. sessionId === 'parent-sess'.
+const PARENT_SESS_JSONL = [
+  JSON.stringify({
+    parentUuid: null, cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: 'Please investigate the bug.' },
+    timestamp: '2026-01-01T00:01:00.000Z', uuid: 'p-u-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'p-u-1', cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [
+        { type: 'text', text: "I'll spawn an agent." },
+        { type: 'tool_use', id: 'task-1', name: 'Task', input: { description: 'investigate', prompt: 'Investigate the bug', subagent_type: 'agent-aaa' } },
+      ],
+      usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:05.000Z', uuid: 'p-a-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'p-a-1', cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'task-1', content: 'Found the bug.' }] },
+    timestamp: '2026-01-01T00:01:20.000Z', uuid: 'p-u-2',
+  }),
+  JSON.stringify({
+    parentUuid: 'p-u-2', cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'The bug is fixed.' }],
+      usage: { input_tokens: 1500, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:25.000Z', uuid: 'p-a-2',
+  }),
+].join('\n');
+
+// The subagent transcript. Its embedded sessionId is the PARENT's id — that's how
+// the standalone branch derives the parent for an `agent-aaa.jsonl` file.
+const SUBAGENT_JSONL = [
+  JSON.stringify({
+    parentUuid: null, cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: 'Investigate the bug' },
+    timestamp: '2026-01-01T00:01:06.000Z', uuid: 's-u-1',
+  }),
+  JSON.stringify({
+    parentUuid: 's-u-1', cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [
+        { type: 'text', text: 'Reading the file.' },
+        { type: 'tool_use', id: 's-tool-1', name: 'Read', input: { file_path: '/tmp/project/bug.ts' } },
+      ],
+      usage: { input_tokens: 800, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:10.000Z', uuid: 's-a-1',
+  }),
+  JSON.stringify({
+    parentUuid: 's-a-1', cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 's-tool-1', content: 'const x = 1;' }] },
+    timestamp: '2026-01-01T00:01:11.000Z', uuid: 's-u-2',
+  }),
+  JSON.stringify({
+    parentUuid: 's-u-2', cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'Found the bug.' }],
+      usage: { input_tokens: 900, output_tokens: 40, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:15.000Z', uuid: 's-a-2',
+  }),
+].join('\n');
+
+/** Lay out a parent transcript + its subagent on disk. Returns the two paths. */
+function writeParentWithSubagent(): { parentPath: string; subagentPath: string } {
+  const projDir = join(TEST_DIR, 'proj');
+  const parentPath = join(projDir, 'parent-sess.jsonl');
+  const subagentsDir = join(projDir, 'parent-sess', 'subagents');
+  const subagentPath = join(subagentsDir, 'agent-aaa.jsonl');
+  mkdirSync(subagentsDir, { recursive: true });
+  writeFileSync(parentPath, PARENT_SESS_JSONL);
+  writeFileSync(subagentPath, SUBAGENT_JSONL);
+  return { parentPath, subagentPath };
+}
+
+describe('importTranscript skip/dedupe matrix', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  // ── #1: no-force re-import of an unchanged corpus writes zero event rows ──
+  it('keeps event-row ids stable across a no-force re-import (no delete/reinsert)', async () => {
+    const filePath = join(TEST_DIR, 'test-session-1.jsonl');
+    writeFileSync(filePath, SAMPLE_JSONL);
+
+    await importTranscript(filePath);
+
+    const db = getDb();
+    const before = db.prepare('SELECT id FROM events WHERE session_id = ? ORDER BY id').all('test-session-1');
+    assert.ok(before.length > 0);
+
+    const second = await importTranscript(filePath);
+    assert.equal(second.skipped, true);
+    assert.equal(second.eventCount, 0);
+
+    const after = db.prepare('SELECT id FROM events WHERE session_id = ? ORDER BY id').all('test-session-1');
+    assert.deepEqual(after, before, 'event ids must be unchanged (no delete + reinsert)');
+  });
+
+  // ── #2: filename-mismatch fallback — same embedded sessionId from a differently-named file ──
+  it('recognizes an already-imported session via the post-parse fallback when the filename differs', async () => {
+    const canonical = join(TEST_DIR, 'test-session-1.jsonl');
+    writeFileSync(canonical, SAMPLE_JSONL);
+    await importTranscript(canonical);
+
+    const db = getDb();
+    const idsBefore = db.prepare('SELECT id FROM events WHERE session_id = ? ORDER BY id').all('test-session-1');
+
+    // Same embedded sessionId, different filename — pre-parse fast path can't fire,
+    // so the post-parse sessionExists fallback must recognize it as already-imported.
+    const renamed = join(TEST_DIR, 'renamed.jsonl');
+    writeFileSync(renamed, SAMPLE_JSONL);
+    const result = await importTranscript(renamed);
+
+    assert.equal(result.skipped, true);
+    assert.equal(result.sessionId, 'test-session-1');
+
+    // No second session, no duplicate events.
+    const sessionCount = db.prepare('SELECT count(*) AS n FROM sessions').get() as { n: number };
+    assert.equal(sessionCount.n, 1, 'must not create a second session from the renamed file');
+    const idsAfter = db.prepare('SELECT id FROM events WHERE session_id = ? ORDER BY id').all('test-session-1');
+    assert.deepEqual(idsAfter, idsBefore);
+  });
+
+  // ── #3: standalone subagent re-import is skipped when its mtime is unchanged ──
+  it('skips a standalone unchanged subagent re-import (no delete/reinsert)', async () => {
+    const { parentPath, subagentPath } = writeParentWithSubagent();
+
+    // Import the parent first — this covers the subagent.
+    await importTranscript(parentPath);
+
+    const db = getDb();
+    const before = db.prepare(
+      "SELECT id FROM events WHERE session_id = 'parent-sess' AND agent_id = 'agent-aaa' ORDER BY id",
+    ).all();
+    assert.ok(before.length > 0, 'subagent events should exist after parent import');
+
+    // Standalone re-import of the unchanged subagent — must skip.
+    const result = await importTranscript(subagentPath);
+    assert.equal(result.skipped, true);
+    assert.equal(result.sessionId, 'parent-sess');
+
+    const after = db.prepare(
+      "SELECT id FROM events WHERE session_id = 'parent-sess' AND agent_id = 'agent-aaa' ORDER BY id",
+    ).all();
+    assert.deepEqual(after, before, 'unchanged subagent must not be deleted + reinserted');
+  });
+
+  // ── #5: a changed subagent (mtime differs) is re-imported ──
+  it('re-imports a standalone subagent whose mtime changed', async () => {
+    const { parentPath, subagentPath } = writeParentWithSubagent();
+    await importTranscript(parentPath);
+
+    const db = getDb();
+    const before = db.prepare(
+      "SELECT id FROM events WHERE session_id = 'parent-sess' AND agent_id = 'agent-aaa' ORDER BY id",
+    ).all();
+
+    // Bump the subagent file's mtime forward so the stored mtime no longer matches.
+    const future = new Date(Date.now() + 5000);
+    utimesSync(subagentPath, future, future);
+
+    const result = await importTranscript(subagentPath);
+    assert.equal(result.skipped, false, 'a changed subagent must be re-imported');
+
+    const after = db.prepare(
+      "SELECT id FROM events WHERE session_id = 'parent-sess' AND agent_id = 'agent-aaa' ORDER BY id",
+    ).all();
+    assert.equal(after.length, before.length, 'event count is stable after a clean re-import');
+  });
+
+  // ── #4: filterCoveredSubagents + no-dupe batch ──
+  it('filterCoveredSubagents drops a subagent whose parent is also in the batch', () => {
+    const { parentPath, subagentPath } = writeParentWithSubagent();
+    const filtered = filterCoveredSubagents([parentPath, subagentPath]);
+    assert.deepEqual(filtered, [parentPath]);
+  });
+
+  it('keeps a subagent whose parent is NOT in the batch', () => {
+    const { subagentPath } = writeParentWithSubagent();
+    const filtered = filterCoveredSubagents([subagentPath]);
+    assert.deepEqual(filtered, [subagentPath]);
+  });
+
+  it('importTranscripts imports each subagent exactly once (no duplicates)', async () => {
+    const { parentPath, subagentPath } = writeParentWithSubagent();
+
+    await importTranscripts([parentPath, subagentPath]);
+
+    const db = getDb();
+    const batchCount = db.prepare(
+      "SELECT count(*) AS n FROM events WHERE session_id = 'parent-sess' AND agent_id = 'agent-aaa'",
+    ).get() as { n: number };
+
+    // Compare against importing the parent alone in a fresh DB run.
+    closeDb();
+    rmSync(DB_PATH, { force: true });
+    rmSync(`${DB_PATH}-wal`, { force: true });
+    rmSync(`${DB_PATH}-shm`, { force: true });
+    const db2 = getDb(DB_PATH);
+    await importTranscript(parentPath);
+    const soloCount = db2.prepare(
+      "SELECT count(*) AS n FROM events WHERE session_id = 'parent-sess' AND agent_id = 'agent-aaa'",
+    ).get() as { n: number };
+
+    assert.ok(batchCount.n > 0);
+    assert.equal(batchCount.n, soloCount.n, 'batch import must not duplicate subagent events');
+  });
+
+  // ── #6: a force re-import yields the same query results as a fresh import ──
+  it('force re-import produces equal results to a fresh import (modulo ids)', async () => {
+    const { parentPath } = writeParentWithSubagent();
+
+    await importTranscript(parentPath);
+
+    const db = getDb();
+    const sessionBefore = getSession('parent-sess')!;
+    const eventCountBefore = (db.prepare(
+      "SELECT count(*) AS n FROM events WHERE session_id = 'parent-sess'",
+    ).get() as { n: number }).n;
+    const agentRelBefore = db.prepare(
+      "SELECT child_agent_id, prompt_data, result_data, tool_call_count, input_tokens_total, output_tokens_total FROM agent_relationships WHERE parent_session_id = 'parent-sess' ORDER BY child_agent_id",
+    ).all();
+
+    const forced = await importTranscript(parentPath, { force: true });
+    assert.equal(forced.skipped, false);
+
+    const sessionAfter = getSession('parent-sess')!;
+    const eventCountAfter = (db.prepare(
+      "SELECT count(*) AS n FROM events WHERE session_id = 'parent-sess'",
+    ).get() as { n: number }).n;
+    const agentRelAfter = db.prepare(
+      "SELECT child_agent_id, prompt_data, result_data, tool_call_count, input_tokens_total, output_tokens_total FROM agent_relationships WHERE parent_session_id = 'parent-sess' ORDER BY child_agent_id",
+    ).all();
+
+    // Session fields that don't depend on autoincrement ids.
+    assert.equal(sessionAfter.model, sessionBefore.model);
+    assert.equal(sessionAfter.total_input_tokens, sessionBefore.total_input_tokens);
+    assert.equal(sessionAfter.total_output_tokens, sessionBefore.total_output_tokens);
+    assert.equal(sessionAfter.tool_call_count, sessionBefore.tool_call_count);
+    assert.equal(sessionAfter.subagent_count, sessionBefore.subagent_count);
+    assert.equal(sessionAfter.started_at, sessionBefore.started_at);
+    assert.equal(sessionAfter.ended_at, sessionBefore.ended_at);
+    assert.equal(sessionAfter.summary, sessionBefore.summary);
+
+    assert.equal(eventCountAfter, eventCountBefore, 'event count must match a fresh import');
+    assert.deepEqual(agentRelAfter, agentRelBefore, 'agent relationship data must match a fresh import');
   });
 });
