@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Agents tab now labels a subagent's token totals "Input"/"Output" instead of "Prompt"/"Result", reflecting that they are the summed non-cached input/output tokens across the subagent's API calls.
 - Re-importing an unchanged subagent transcript is now skipped without re-parsing or rewriting the database, by comparing the file's modification time against the value stored at last import.
 - Batch imports (including Reimport in Settings and `POST /api/reimport`) no longer process a subagent transcript twice when its parent transcript is in the same batch — the parent's import already covers it.
 - Re-scans over an unchanged corpus are faster: an already-imported session is now recognized straight from its transcript filename without reading the file body, and each transcript that does need parsing is read only once (the session title is now extracted in the same pass).
