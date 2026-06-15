@@ -58,6 +58,18 @@ export function estimateContextPct(inputTokens: number, model: string | null | u
 const COMPACTION_DROP_THRESHOLD = 0.30;
 
 /**
+ * Keep one line per messageId — the LAST occurrence, which carries the final
+ * cumulative usage for a streamed message. Lines without a messageId are each
+ * kept. Order is preserved. Shared by buildTokenSnapshots() and the subagent
+ * token summation so both dedup identically.
+ */
+export function dedupeByMessageId(messages: TranscriptMessage[]): TranscriptMessage[] {
+  const lastIndexById = new Map<string, number>();
+  messages.forEach((m, i) => { if (m.messageId) lastIndexById.set(m.messageId, i); });
+  return messages.filter((m, i) => !m.messageId || lastIndexById.get(m.messageId) === i);
+}
+
+/**
  * Build an ordered array of TokenSnapshots from parsed transcript messages.
  * Only assistant messages with usage info contribute snapshots.
  */
@@ -68,22 +80,9 @@ export function buildTokenSnapshots(
   const snapshots: TokenSnapshot[] = [];
   let prevInputTokens = 0;
 
-  // Deduplicate: when multiple JSONL lines share the same messageId, only
-  // process the last one (it carries the final cumulative usage data).
-  const skipIndices = new Set<number>();
-  const lastByMessageId = new Map<string, number>();
-  for (let i = 0; i < messages.length; i++) {
-    const mid = messages[i].messageId;
-    if (mid) {
-      const prev = lastByMessageId.get(mid);
-      if (prev !== undefined) skipIndices.add(prev);
-      lastByMessageId.set(mid, i);
-    }
-  }
+  const deduped = dedupeByMessageId(messages);
 
-  for (let i = 0; i < messages.length; i++) {
-    if (skipIndices.has(i)) continue;
-    const msg = messages[i];
+  for (const msg of deduped) {
     if (msg.type !== 'assistant' || !msg.usage) continue;
 
     const resolvedModel = model ?? msg.model ?? null;

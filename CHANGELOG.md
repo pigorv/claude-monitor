@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Subagent and parent-session token totals are no longer inflated by streamed duplicate JSONL lines (same message counted multiple times); only the final cumulative usage per message is summed. Pre-existing rows recompute on a force Reimport.
 - Context chart no longer shows duplicated points for streamed assistant messages, and event markers now align with the tool calls they describe.
 - Re-importing transcripts no longer slows down quadratically on large corpora. A dead self-referencing column on the events table forced a full table scan on every event delete during re-import; it has been removed.
 - Session titles now import from modern `ai-title` transcript records (not just the legacy `custom-title` format), so AI-generated titles appear again. A manual rename still takes precedence over the AI title.
