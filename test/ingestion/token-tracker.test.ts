@@ -6,6 +6,7 @@ import {
   buildTokenSnapshots,
   computeAggregates,
   snapshotsToDataPoints,
+  dedupeByMessageId,
 } from '../../src/ingestion/token-tracker.js';
 import type { TranscriptMessage } from '../../src/shared/types.js';
 
@@ -240,5 +241,60 @@ describe('snapshotsToDataPoints', () => {
     assert.equal(dataPoints[0].is_compaction, false);
     assert.equal(dataPoints[1].event_type, 'compaction');
     assert.equal(dataPoints[1].is_compaction, true);
+  });
+});
+
+// ── dedupeByMessageId ──────────────────────────────────────────────
+
+describe('dedupeByMessageId', () => {
+  // Minimal message; uuid is the stable identifier we assert survival/order on.
+  function msg(uuid: string, messageId?: string): TranscriptMessage {
+    return {
+      uuid,
+      parentUuid: null,
+      type: 'assistant',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      content: [],
+      ...(messageId !== undefined ? { messageId } : {}),
+    };
+  }
+
+  it('keeps the LAST line per messageId', () => {
+    const messages = [
+      msg('a1', 'm-1'),
+      msg('a2', 'm-1'), // last for m-1
+      msg('b1', 'm-2'),
+      msg('b2', 'm-2'),
+      msg('b3', 'm-2'), // last for m-2
+    ];
+
+    const kept = dedupeByMessageId(messages).map((m) => m.uuid);
+    assert.deepEqual(kept, ['a2', 'b3']);
+  });
+
+  it('keeps every line that has no messageId', () => {
+    const messages = [
+      msg('n1'), // no id
+      msg('n2'), // no id
+      msg('n3'), // no id
+    ];
+
+    const kept = dedupeByMessageId(messages).map((m) => m.uuid);
+    assert.deepEqual(kept, ['n1', 'n2', 'n3']);
+  });
+
+  it('preserves order when mixing deduped ids with no-id lines', () => {
+    const messages = [
+      msg('x1', 'm-1'),
+      msg('n1'), // no id — kept
+      msg('x2', 'm-1'), // last for m-1
+      msg('n2'), // no id — kept
+      msg('y1', 'm-2'),
+      msg('y2', 'm-2'), // last for m-2
+      msg('n3'), // no id — kept
+    ];
+
+    const kept = dedupeByMessageId(messages).map((m) => m.uuid);
+    assert.deepEqual(kept, ['n1', 'x2', 'n2', 'y2', 'n3']);
   });
 });
