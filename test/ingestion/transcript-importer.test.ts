@@ -1246,6 +1246,8 @@ describe('importTranscript skip/dedupe matrix', () => {
     const projDir = join(TEST_DIR, 'dedup-proj');
     const parentPath = join(projDir, 'dedup-parent.jsonl');
     const subagentsDir = join(projDir, 'dedup-parent', 'subagents');
+    // child_agent_id is derived from the subagent filename (basename minus .jsonl),
+    // NOT from the parent Task's subagent_type — keep them aligned only for readability.
     const agentId = 'agent-ddd';
     const subagentPath = join(subagentsDir, `${agentId}.jsonl`);
     mkdirSync(subagentsDir, { recursive: true });
