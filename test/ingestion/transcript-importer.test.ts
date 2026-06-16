@@ -1126,6 +1126,173 @@ describe('importTranscript skip/dedupe matrix', () => {
     assert.ok(after > before, 'the grown subagent should contribute more events after re-import');
   });
 
+  // ── #7: subagent token dedup — streamed lines sharing a message.id count once ──
+  //
+  // The fix (issue #98) dedups streamed assistant lines by message.id before summing
+  // token totals, keeping the LAST (final cumulative) line per id. These fixtures give
+  // the subagent's assistant turn multiple lines per message.id with growing cumulative
+  // usage so the deduped totals are STRICTLY LESS than the naive per-line sum — that gap
+  // is what makes the test guard: a revert to the naive sum would produce the larger
+  // numbers and fail the assertions below.
+  //
+  // Deduped subagent (last line per id):  input 800 + 900 = 1700,  output 120 + 200 = 320
+  // Naive per-line sum (every usage line): input 3500,             output 470
+  const DEDUP_PARENT_JSONL = [
+    JSON.stringify({
+      parentUuid: null, cwd: '/tmp/project', sessionId: 'dedup-parent', version: '2.1.0',
+      type: 'user',
+      message: { role: 'user', content: 'Please investigate the bug.' },
+      timestamp: '2026-01-01T00:01:00.000Z', uuid: 'dp-u-1',
+    }),
+    // Clean parent turn 1 (single line, own message.id) — spawns the subagent.
+    JSON.stringify({
+      parentUuid: 'dp-u-1', cwd: '/tmp/project', sessionId: 'dedup-parent', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        id: 'dp-msg-1', model: 'claude-opus-4-6', role: 'assistant',
+        content: [
+          { type: 'text', text: "I'll spawn an agent." },
+          { type: 'tool_use', id: 'dp-task-1', name: 'Task', input: { description: 'investigate', prompt: 'Investigate the bug', subagent_type: 'agent-ddd' } },
+        ],
+        usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      },
+      timestamp: '2026-01-01T00:01:05.000Z', uuid: 'dp-a-1',
+    }),
+    JSON.stringify({
+      parentUuid: 'dp-a-1', cwd: '/tmp/project', sessionId: 'dedup-parent', version: '2.1.0',
+      type: 'user',
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'dp-task-1', content: 'Found the bug.' }] },
+      timestamp: '2026-01-01T00:01:20.000Z', uuid: 'dp-u-2',
+    }),
+    // Clean parent turn 2 (single line, own message.id).
+    JSON.stringify({
+      parentUuid: 'dp-u-2', cwd: '/tmp/project', sessionId: 'dedup-parent', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        id: 'dp-msg-2', model: 'claude-opus-4-6', role: 'assistant',
+        content: [{ type: 'text', text: 'The bug is fixed.' }],
+        usage: { input_tokens: 1500, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      },
+      timestamp: '2026-01-01T00:01:25.000Z', uuid: 'dp-a-2',
+    }),
+  ].join('\n');
+
+  // Subagent transcript whose assistant turn is STREAMED across several lines sharing
+  // one message.id, with growing cumulative usage. sessionId === parent's id so the
+  // standalone branch derives the parent from it.
+  const DEDUP_SUBAGENT_JSONL = [
+    JSON.stringify({
+      parentUuid: null, cwd: '/tmp/project', sessionId: 'dedup-parent', version: '2.1.0',
+      type: 'user',
+      message: { role: 'user', content: 'Investigate the bug' },
+      timestamp: '2026-01-01T00:01:06.000Z', uuid: 'ds-u-1',
+    }),
+    // message.id = sa-msg-1, three streamed lines with growing cumulative usage.
+    JSON.stringify({
+      parentUuid: 'ds-u-1', cwd: '/tmp/project', sessionId: 'dedup-parent', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        id: 'sa-msg-1', model: 'claude-opus-4-6', role: 'assistant',
+        content: [{ type: 'text', text: 'Reading' }],
+        usage: { input_tokens: 500, output_tokens: 30, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      },
+      timestamp: '2026-01-01T00:01:07.000Z', uuid: 'ds-a-1a',
+    }),
+    JSON.stringify({
+      parentUuid: 'ds-u-1', cwd: '/tmp/project', sessionId: 'dedup-parent', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        id: 'sa-msg-1', model: 'claude-opus-4-6', role: 'assistant',
+        content: [{ type: 'text', text: 'Reading the file' }],
+        usage: { input_tokens: 600, output_tokens: 70, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      },
+      timestamp: '2026-01-01T00:01:08.000Z', uuid: 'ds-a-1b',
+    }),
+    JSON.stringify({
+      parentUuid: 'ds-u-1', cwd: '/tmp/project', sessionId: 'dedup-parent', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        id: 'sa-msg-1', model: 'claude-opus-4-6', role: 'assistant',
+        content: [{ type: 'text', text: 'Reading the file.' }],
+        usage: { input_tokens: 800, output_tokens: 120, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      },
+      timestamp: '2026-01-01T00:01:09.000Z', uuid: 'ds-a-1c',
+    }),
+    // message.id = sa-msg-2, two streamed lines with growing cumulative usage.
+    JSON.stringify({
+      parentUuid: 'ds-a-1c', cwd: '/tmp/project', sessionId: 'dedup-parent', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        id: 'sa-msg-2', model: 'claude-opus-4-6', role: 'assistant',
+        content: [{ type: 'text', text: 'Found' }],
+        usage: { input_tokens: 700, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      },
+      timestamp: '2026-01-01T00:01:14.000Z', uuid: 'ds-a-2a',
+    }),
+    JSON.stringify({
+      parentUuid: 'ds-a-1c', cwd: '/tmp/project', sessionId: 'dedup-parent', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        id: 'sa-msg-2', model: 'claude-opus-4-6', role: 'assistant',
+        content: [{ type: 'text', text: 'Found the bug.' }],
+        usage: { input_tokens: 900, output_tokens: 200, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      },
+      timestamp: '2026-01-01T00:01:15.000Z', uuid: 'ds-a-2b',
+    }),
+  ].join('\n');
+
+  /** Lay out the dedup parent transcript + its streamed subagent on disk. */
+  function writeDedupParentWithSubagent(): { parentPath: string; subagentPath: string; agentId: string } {
+    const projDir = join(TEST_DIR, 'dedup-proj');
+    const parentPath = join(projDir, 'dedup-parent.jsonl');
+    const subagentsDir = join(projDir, 'dedup-parent', 'subagents');
+    // child_agent_id is derived from the subagent filename (basename minus .jsonl),
+    // NOT from the parent Task's subagent_type — keep them aligned only for readability.
+    const agentId = 'agent-ddd';
+    const subagentPath = join(subagentsDir, `${agentId}.jsonl`);
+    mkdirSync(subagentsDir, { recursive: true });
+    writeFileSync(parentPath, DEDUP_PARENT_JSONL);
+    writeFileSync(subagentPath, DEDUP_SUBAGENT_JSONL);
+    return { parentPath, subagentPath, agentId };
+  }
+
+  it('counts streamed subagent assistant lines once via message.id dedup', async () => {
+    const { parentPath, agentId } = writeDedupParentWithSubagent();
+
+    await importTranscript(parentPath);
+
+    // Deduped (last line per message.id): input 800+900, output 120+200.
+    const dedupedSubagentInput = 800 + 900; // 1700
+    const dedupedSubagentOutput = 120 + 200; // 320
+    // Naive per-line sum over every usage-bearing assistant line.
+    const naiveSubagentInput = 500 + 600 + 800 + 700 + 900; // 3500
+    const naiveSubagentOutput = 30 + 70 + 120 + 50 + 200; // 470
+
+    // Sanity: the fixture must actually exercise the dedup — deduped < naive.
+    assert.ok(dedupedSubagentInput < naiveSubagentInput);
+    assert.ok(dedupedSubagentOutput < naiveSubagentOutput);
+
+    const db = getDb();
+    const rel = db.prepare(
+      'SELECT input_tokens_total, output_tokens_total FROM agent_relationships WHERE parent_session_id = ? AND child_agent_id = ?',
+    ).get('dedup-parent', agentId) as { input_tokens_total: number; output_tokens_total: number } | undefined;
+    assert.ok(rel, 'agent relationship row should exist for the subagent');
+
+    // Behavior #1: per-id dedup, and strictly less than the naive line-sum.
+    assert.equal(rel.input_tokens_total, dedupedSubagentInput);
+    assert.equal(rel.output_tokens_total, dedupedSubagentOutput);
+    assert.ok(rel.input_tokens_total < naiveSubagentInput, 'input must be deduped, not the naive line-sum');
+    assert.ok(rel.output_tokens_total < naiveSubagentOutput, 'output must be deduped, not the naive line-sum');
+
+    // Behavior #2: the parent total reflects the DEDUPED subagent output.
+    // The parent transcript has no streamed duplicates, so its own output is a clean
+    // known constant: 200 + 50.
+    const parentOwnDedupedOutput = 200 + 50; // 250
+    const parent = getSession('dedup-parent');
+    assert.ok(parent);
+    assert.equal(parent.total_output_tokens, parentOwnDedupedOutput + dedupedSubagentOutput); // 250 + 320 = 570
+  });
+
   // ── #6: a force re-import yields the same query results as a fresh import ──
   it('force re-import produces equal results to a fresh import (modulo ids)', async () => {
     const { parentPath } = writeParentWithSubagent();
