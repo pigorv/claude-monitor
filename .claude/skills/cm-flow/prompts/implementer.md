@@ -11,7 +11,7 @@ anything else.
 ## Context
 
 {Pasted excerpts from design.md: the Implementation Design phase section this task
-belongs to, the Behavior invariants its AC references, and any Decisions (Q&A)
+belongs to, the Behavior invariants its AC references, and any Decisions
 entries relevant to it. Content is pasted in full — do not go re-derive it.}
 
 Branch `{branch}` is already checked out. Follow the repository's conventions

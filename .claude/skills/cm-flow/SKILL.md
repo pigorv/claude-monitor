@@ -63,8 +63,9 @@ memory; the user may have hand-edited them. Hand edits are a supported feature.
 Write `.work/<id>/design.md` following `templates/design.md`. Size to the
 problem: ~40 lines for a small fix, ~150 for a large feature; every section earns
 its place. The Implementation Design section must cite real `file:line` refs.
-The Decisions (Q&A) section records every interview answer and every decision
-extracted from the issue thread, attributed and dated. Open Questions must end
+The Decisions section records every interview answer and every decision
+extracted from the issue thread, attributed and dated, keeping sourced facts
+separate from questions actually posed to the user. Open Questions must end
 empty (resolved or explicitly deferred into Decisions).
 
 **GATE 1 — stop here.** Tell the user the file path. They review and edit the
