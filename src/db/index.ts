@@ -1,4 +1,5 @@
 export { getDb, closeDb, getDbPath } from './connection.js';
+export { compactDatabase } from './maintenance.js';
 export {
   insertSession,
   upsertSession,

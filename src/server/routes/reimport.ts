@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { DEFAULT_CONFIG } from '../../shared/constants.js';
 import { importTranscripts } from '../../ingestion/transcript-importer.js';
 import { getDb } from '../../db/connection.js';
+import { compactDatabase } from '../../db/maintenance.js';
 import * as logger from '../../shared/logger.js';
 
 function collectJsonlFilesRecursive(dir: string): string[] {
@@ -90,16 +91,17 @@ async function runReimport(): Promise<void> {
     status.errors = results.filter((r) => r.error).length;
 
     status.phase = 'vacuuming';
-    // Yield so a status poll can observe `vacuuming` before the synchronous VACUUM freeze.
+    // Yield so a status poll can observe `vacuuming` before the synchronous
+    // compaction freeze.
     await new Promise((r) => setImmediate(r));
-    // VACUUM is best-effort cleanup; the import has already committed. A failure
-    // here (e.g. SQLITE_BUSY, or no disk for the temp copy) must not be reported
-    // as a failed re-import, so swallow it after logging rather than bubbling to
-    // the catch below.
+    // Compaction (FTS5 optimize + VACUUM) is best-effort cleanup; the import has
+    // already committed. A failure here (e.g. SQLITE_BUSY, or no disk for the
+    // VACUUM temp copy) must not be reported as a failed re-import, so swallow
+    // it after logging rather than bubbling to the catch below.
     try {
-      getDb().exec('VACUUM');
+      compactDatabase(getDb());
     } catch (vacErr) {
-      logger.warn('Reimport completed but VACUUM failed', { error: String(vacErr) });
+      logger.warn('Reimport completed but database compaction failed', { error: String(vacErr) });
     }
 
     status.phase = 'done';
