@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { DEFAULT_CONFIG } from '../../shared/constants.js';
 import { importTranscripts } from '../../ingestion/transcript-importer.js';
 import { getDb } from '../../db/connection.js';
+import * as logger from '../../shared/logger.js';
 
 function collectJsonlFilesRecursive(dir: string): string[] {
   let entries;
@@ -61,6 +62,8 @@ function publicStatus() {
     done: status.done,
     phase: status.phase,
     running: status.running,
+    startedAt: status.startedAt,
+    finishedAt: status.finishedAt,
     error: status.error,
   };
 }
@@ -89,7 +92,15 @@ async function runReimport(): Promise<void> {
     status.phase = 'vacuuming';
     // Yield so a status poll can observe `vacuuming` before the synchronous VACUUM freeze.
     await new Promise((r) => setImmediate(r));
-    getDb().exec('VACUUM');
+    // VACUUM is best-effort cleanup; the import has already committed. A failure
+    // here (e.g. SQLITE_BUSY, or no disk for the temp copy) must not be reported
+    // as a failed re-import, so swallow it after logging rather than bubbling to
+    // the catch below.
+    try {
+      getDb().exec('VACUUM');
+    } catch (vacErr) {
+      logger.warn('Reimport completed but VACUUM failed', { error: String(vacErr) });
+    }
 
     status.phase = 'done';
     status.done = true;
@@ -108,7 +119,9 @@ const reimport = new Hono();
 
 reimport.post('/api/reimport', (c) => {
   if (status.running) {
-    return c.json(publicStatus(), 409);
+    // A run is already in progress — reject and return the live status so the
+    // caller can attach to it without a second round-trip.
+    return c.json({ started: false, ...publicStatus() }, 409);
   }
 
   status = {
@@ -126,7 +139,9 @@ reimport.post('/api/reimport', (c) => {
 
   void runReimport();
 
-  return c.json({ started: true }, 202);
+  // Same shape as the 409 branch (a `started` flag plus the public status), so
+  // callers see a stable body regardless of which branch they hit.
+  return c.json({ started: true, ...publicStatus() }, 202);
 });
 
 reimport.get('/api/reimport/status', (c) => {

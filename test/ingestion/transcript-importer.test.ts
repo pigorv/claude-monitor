@@ -645,6 +645,28 @@ describe('importTranscripts (batch)', () => {
     // The last payload carries the last pushed result.
     assert.deepEqual(payloads[payloads.length - 1].result, results[results.length - 1]);
   });
+
+  it('reports onProgress total against the post-filter count under force (covered subagents dropped)', async () => {
+    // The reimport route always calls with `force: true`, where
+    // filterCoveredSubagents drops a subagent whose parent is in the same batch.
+    // Progress must be reported against the filtered count, not the raw input.
+    const { parentPath, subagentPath } = writeParentWithSubagent();
+
+    const payloads: { processed: number; total: number; result: ImportResult }[] = [];
+    const results = await importTranscripts([parentPath, subagentPath], {
+      force: true,
+      onProgress: (p) => payloads.push(p),
+    });
+
+    // The subagent is covered by the parent, so only one file is processed.
+    assert.equal(results.length, 1);
+    assert.equal(payloads.length, 1);
+    // total reflects the post-filter count (1), not the 2 input paths.
+    assert.equal(payloads[0].total, 1);
+    assert.equal(payloads[0].processed, 1);
+    // processed lands exactly on total — no off-by-one against the unfiltered input.
+    assert.equal(payloads[payloads.length - 1].processed, payloads[payloads.length - 1].total);
+  });
 });
 
 describe('importTranscript with sample fixture', () => {

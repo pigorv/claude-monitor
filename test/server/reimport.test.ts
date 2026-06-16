@@ -100,6 +100,12 @@ describe('Reimport route', () => {
     assert.ok(status.error.length > 0);
     assert.ok(status.error.includes('boom'), `error should mention thrown cause: ${status.error}`);
 
+    // Pin that the spy actually intercepted the route's call. If ESM export
+    // rewriting ever stopped making the binding spy-able, the real importer
+    // would run and the assertions above would mask the regression; this makes
+    // a no-op spy fail loudly instead.
+    assert.equal(spy.mock.calls.length, 1);
+
     spy.mockRestore();
 
     // running was cleared, so a fresh run can start.

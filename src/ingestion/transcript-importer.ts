@@ -385,8 +385,9 @@ export async function importTranscripts(
     results.push(result);
 
     // Report progress against filtered.length (the count actually processed) and
-    // yield to the event loop so a long batch import doesn't pin it — this lets
-    // concurrent API calls (e.g. /api/reimport/status) keep responding.
+    // yield to the event loop between files so a long batch import doesn't pin it.
+    // When run from the background reimport route this keeps concurrent API calls
+    // (e.g. /api/reimport/status) responsive; from the CLI it's a cheap no-op.
     options.onProgress?.({ processed: results.length, total: filtered.length, result });
     await new Promise((r) => setImmediate(r));
   }

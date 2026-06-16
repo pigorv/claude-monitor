@@ -265,11 +265,12 @@ export function Settings() {
           </div>
           ${importing && reimportStatus
             ? html`<p class="settings-hint">
-                ${reimportStatus.processed} / ${reimportStatus.total}
-                ${"—"}
                 ${reimportStatus.phase === "vacuuming"
                   ? "Compacting database…"
-                  : "Importing transcripts…"}
+                  : reimportStatus.total > 0
+                    ? html`${reimportStatus.processed} / ${reimportStatus.total} —
+                      Importing transcripts…`
+                    : "Importing transcripts…"}
               </p>`
             : null}
           ${!importing && importResult
