@@ -93,7 +93,7 @@ Repeat until done:
    all checked.
    - Unchecked tasks remain but none runnable → report the blockage, stop.
    - No unchecked tasks → set `state: done`; print a summary (tasks completed,
-     commits, Log deviations) and suggest the user open a PR. Never open one.
+     commits, Log deviations) and suggest the user open a PR (via the `cm-pr` skill). Never open one.
 2. Assemble the implementer prompt from `prompts/implementer.md`: fill in the
    task fields and PASTE the relevant design.md excerpts (the task's phase
    section, the Behavior invariants its AC references, relevant Decisions).
