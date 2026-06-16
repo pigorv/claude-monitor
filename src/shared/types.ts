@@ -308,7 +308,7 @@ export interface FileActivityData {
 }
 
 export interface EventAnnotation {
-  index: number;
+  timestamp: string;  // ISO 8601 timestamp of the tool call
   marker_type: 'file_read' | 'file_write' | 'agent' | 'bash' | 'other_tool';
   tool_name: string;
   label: string;

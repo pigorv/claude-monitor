@@ -175,10 +175,10 @@ function AgentDetailPanel({
         <div class="stat">Started <strong>${formatOffset(agent.started_at, sessionStart)}</strong></div>
         <div class="stat">Duration <strong>${formatDuration(agent.duration_ms)}</strong></div>
         ${agent.input_tokens_total != null && html`
-          <div class="stat">Prompt <strong style="color:var(--color-status-completed)">${formatTokens(agent.input_tokens_total)}</strong></div>
+          <div class="stat">Input <strong style="color:var(--color-status-completed)">${formatTokens(agent.input_tokens_total)}</strong></div>
         `}
         ${agent.output_tokens_total != null && html`
-          <div class="stat">Result <strong style="color:var(--color-accent)">${formatTokens(agent.output_tokens_total)}</strong></div>
+          <div class="stat">Output <strong style="color:var(--color-accent)">${formatTokens(agent.output_tokens_total)}</strong></div>
         `}
         <div class="stat"><strong>${agent.tool_call_count}</strong> tool calls</div>
       </div>

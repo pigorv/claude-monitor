@@ -7,7 +7,7 @@ import * as logger from '../shared/logger.js';
 import type { Event, Invocation, Session, TranscriptMessage } from '../shared/types.js';
 import { parseTranscript, parseTranscriptWithTitle } from './jsonl-parser.js';
 import { extractAllEvents, mergeToolCallEvents, assignAgentIds, type ParsedEvent } from './thinking-extractor.js';
-import { buildTokenSnapshots, computeAggregates, estimateContextPct } from './token-tracker.js';
+import { buildTokenSnapshots, computeAggregates, estimateContextPct, dedupeByMessageId } from './token-tracker.js';
 import { generateSessionSummary } from '../analysis/session-summary.js';
 import { computeAgentEfficiency, inferExecutionModes, analyzeAgentFileReads } from '../analysis/agent-efficiency.js';
 import { getAllAgentTokenTimelines, updateAgentRelationship } from '../db/queries/sessions.js';
@@ -554,11 +554,13 @@ async function importSubagentFile(
   // Count tool calls in the subagent
   const toolCallCount = parsedEvents.filter((e) => e.event_type === 'tool_call_start').length;
 
-  // Compute token totals
+  // Compute token totals — dedup streamed duplicates (same messageId) first so
+  // cumulative usage isn't counted multiple times (issue #98). Mirror
+  // buildTokenSnapshots(): only assistant messages with usage contribute.
   let totalInput = 0;
   let totalOutput = 0;
-  for (const msg of messages) {
-    if (msg.usage) {
+  for (const msg of dedupeByMessageId(messages)) {
+    if (msg.type === 'assistant' && msg.usage) {
       totalInput += msg.usage.input_tokens;
       totalOutput += msg.usage.output_tokens;
     }
