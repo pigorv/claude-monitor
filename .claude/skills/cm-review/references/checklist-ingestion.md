@@ -47,4 +47,4 @@ Two files compute things that have to stay in sync: `src/ingestion/thinking-extr
 In addition to the global skip rules in `severity-rubric.md`:
 
 - Don't flag generic "you should add validation" on JSONL fields unless the field is then used to compute something (path, token count, model key) — JSONL is internal trusted data from Claude Code itself.
-- Don't flag the `cacheRotation` comment block in `token-tracker.ts` as "explain more" — that's documented at the architectural level in `debug-pipeline/SKILL.md`.
+- Don't flag the `cacheRotation` comment block in `token-tracker.ts` as "explain more" — that's documented at the architectural level in `cm-debug/SKILL.md`.

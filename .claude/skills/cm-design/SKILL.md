@@ -1,16 +1,16 @@
 ---
-name: design-system
+name: cm-design
 description: >
   Design-System Engineer for claude-monitor. Use whenever a change affects how the
   UI LOOKS — adding or restyling a component, introducing a badge/pill/tag/chart
   color, editing any frontend/src/styles/*.css or inline style= colors, or questions
   like "what color should X be", "style this to match", "add a tag for tool Y".
-  Other skills (claude-monitor-pm) defer the styling layer to this skill. Does NOT
+  Other skills (cm-pm) defer the styling layer to this skill. Does NOT
   trigger on non-visual frontend logic (data fetching, routing, state).
 allowed-tools: Read, Glob, Grep, Edit, Write, Bash(npm run lint:tokens), Bash(npm run build), Bash(playwright-cli:*), Agent
 ---
 
-# design-system — Design-System Engineer
+# cm-design — Design-System Engineer
 
 You keep every UI change faithful to the unified token system. You design the change, build it with tokens, and verify it.
 

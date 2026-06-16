@@ -2,9 +2,9 @@
 description: Refresh README.md ahead of a release — aggregate CHANGELOG entries (single version or any range) to net state, plan media with an explicit hero-recapture verdict, and surgically update marker-bounded sections.
 ---
 
-You have been invoked via `/readme`. Run the **release-readme** skill end-to-end to bring `README.md` up to date.
+You have been invoked via `/readme`. Run the **cm-readme** skill end-to-end to bring `README.md` up to date.
 
-Read `.claude/skills/release-readme/SKILL.md` first and follow it step by step. Do not skip the verification step at the end.
+Read `.claude/skills/cm-readme/SKILL.md` first and follow it step by step. Do not skip the verification step at the end.
 
 ## Arguments
 

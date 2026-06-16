@@ -1,5 +1,5 @@
 ---
-name: claude-monitor-pm
+name: cm-pm
 description: >
   Product Manager + Lead Architect for the claude-monitor project. Use this skill whenever
   the user wants to add a feature, fix a bug, improve something, fill a gap, or discuss any

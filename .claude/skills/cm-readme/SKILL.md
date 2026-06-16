@@ -1,10 +1,10 @@
 ---
-name: release-readme
-description: Use ONLY when the user explicitly invokes the /readme slash command, or asks to "run the release-readme skill". Refreshes README.md before a release by reconciling a chosen CHANGELOG range against the live code surface (Hono routes, Preact pages, CLI commands), aggregating Added/Changed/Removed entries to net-state, planning screenshot/GIF captures with an explicit hero re-capture verdict, and editing only between HTML comment markers. Do NOT trigger on generic "update readme" requests — the user wants this skill to fire only on explicit invocation.
+name: cm-readme
+description: Use ONLY when the user explicitly invokes the /readme slash command, or asks to "run the cm-readme skill". Refreshes README.md before a release by reconciling a chosen CHANGELOG range against the live code surface (Hono routes, Preact pages, CLI commands), aggregating Added/Changed/Removed entries to net-state, planning screenshot/GIF captures with an explicit hero re-capture verdict, and editing only between HTML comment markers. Do NOT trigger on generic "update readme" requests — the user wants this skill to fire only on explicit invocation.
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash(git:*), Bash(npm:*), Bash(node:*), Bash(jq:*), Bash(playwright-cli:*), Bash(ls:*), Bash(diff:*), Bash(file:*), Bash(stat:*)
 ---
 
-# release-readme
+# cm-readme
 
 Pre-release helper that keeps `README.md` honest. Reads a chosen range of `CHANGELOG.md`, aggregates Added/Changed/Removed entries to **net state as of HEAD**, edits only between HTML comment markers in the README, plans the media work with an explicit hero-recapture verdict, and verifies before handing off.
 

@@ -1,9 +1,9 @@
 ---
-name: dev-flow
-description: One-command issue-to-implementation workflow. Use when the user invokes /dev-flow, says "dev flow", asks to work on a GitHub issue end to end (analyze → design → tasks → implement), or wants to resume or continue a previous dev-flow run (an in-progress .work/ tracker). Drives intake (GH issue or free-text) → clarifying interview → design doc (approval gate) → task tracker (approval gate) → sequential subagent implementation loop with one reviewer pass per task. Artifacts live in the target repo's untracked .work/<id>/ directory.
+name: cm-flow
+description: One-command issue-to-implementation workflow. Use when the user invokes /cm-flow, says "dev flow", asks to work on a GitHub issue end to end (analyze → design → tasks → implement), or wants to resume or continue a previous cm-flow run (an in-progress .work/ tracker). Drives intake (GH issue or free-text) → clarifying interview → design doc (approval gate) → task tracker (approval gate) → sequential subagent implementation loop with one reviewer pass per task. Artifacts live in the target repo's untracked .work/<id>/ directory.
 ---
 
-# dev-flow: Issue → Design → Tracker → Implementation
+# cm-flow: Issue → Design → Tracker → Implementation
 
 One orchestrator, two human gates, sequential subagent loop. All state lives in
 the artifacts under `.work/<id>/` — every invocation re-reads them and continues
@@ -17,9 +17,9 @@ Skill file locations (this folder):
 
 | Input | Action |
 |---|---|
-| `/dev-flow <issue URL or #N>` | New run from a GitHub issue |
-| `/dev-flow "<free text>"` | New run from a manual request |
-| `/dev-flow` (bare) | Resume (see below) |
+| `/cm-flow <issue URL or #N>` | New run from a GitHub issue |
+| `/cm-flow "<free text>"` | New run from a manual request |
+| `/cm-flow` (bare) | Resume (see below) |
 
 Resume logic, in order:
 1. `.work/*/tracker.md` exists → read frontmatter `state:` and continue that phase
@@ -68,7 +68,7 @@ extracted from the issue thread, attributed and dated. Open Questions must end
 empty (resolved or explicitly deferred into Decisions).
 
 **GATE 1 — stop here.** Tell the user the file path. They review and edit the
-file directly, then tell you to continue (or re-run /dev-flow later). When
+file directly, then tell you to continue (or re-run /cm-flow later). When
 continuing, re-read design.md from disk before proceeding.
 
 ## Phase: Tracker → GATE 2
