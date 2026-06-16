@@ -9,11 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The Settings page now shows live re-import progress (processed of total plus a phase label — "Importing transcripts…" or "Compacting database…") while a run is in flight, and reattaches to an already-running re-import if you reload the page mid-run.
+- A `GET /api/reimport/status` endpoint reports the progress of the current or most recent re-import (`{ total, processed, imported, errors, done }` plus the current phase).
 - The transcript parser now captures the `cache_creation` 5-minute / 1-hour split alongside the authoritative total cache-write token count.
 - Imports now persist the per-session cache-write 5m/1h split (and billed input tokens), plus per-subagent cache read/write totals, so cache usage is available throughout the dashboard.
 
 ### Changed
 
+- Re-importing now runs in the background: the Settings "Re-import" button and `POST /api/reimport` return immediately, so the dashboard and other API calls stay responsive instead of freezing during a run — and starting a second re-import while one is in progress is rejected (409) rather than launching a parallel run.
+- The database is now compacted automatically after a re-import completes — the full-text search index is consolidated (FTS5 `optimize`) and then the file is `VACUUM`ed — reclaiming the disk space left behind by the re-import churn. (VACUUM alone did not consolidate the search index, so the database still grew on each re-import; it now stays at a stable size.)
 - The Agents tab now labels a subagent's token totals "Input"/"Output" instead of "Prompt"/"Result", reflecting that they are the summed non-cached input/output tokens across the subagent's API calls.
 - Re-importing an unchanged subagent transcript is now skipped without re-parsing or rewriting the database, by comparing the file's modification time against the value stored at last import.
 - Batch imports (including Reimport in Settings and `POST /api/reimport`) no longer process a subagent transcript twice when its parent transcript is in the same batch — the parent's import already covers it.

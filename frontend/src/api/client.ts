@@ -69,6 +69,39 @@ export function fetchStats(): Promise<Record<string, any>> {
   return fetchApi<Record<string, any>>("/api/stats");
 }
 
+export interface ReimportStatus {
+  running: boolean;
+  phase: "idle" | "importing" | "vacuuming" | "done";
+  total: number;
+  processed: number;
+  imported: number;
+  errors: number;
+  done: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
+}
+
+/**
+ * Kick off a background reimport. POST returns immediately:
+ *   202 ⇒ a run was started, 409 ⇒ a run is already in progress.
+ * Cannot use fetchApi because 409 is a normal outcome, not an error.
+ */
+export async function startReimport(): Promise<{
+  started: boolean;
+  conflict: boolean;
+}> {
+  const res = await fetch("/api/reimport", { method: "POST" });
+  if (res.status === 202) return { started: true, conflict: false };
+  if (res.status === 409) return { started: false, conflict: true };
+  const text = await res.text().catch(() => res.statusText);
+  throw new Error(`API ${res.status}: ${text}`);
+}
+
+export function fetchReimportStatus(): Promise<ReimportStatus> {
+  return fetchApi<ReimportStatus>("/api/reimport/status");
+}
+
 export function fetchProjects(): Promise<{ projects: ProjectInfo[] }> {
   return fetchApi<{ projects: ProjectInfo[] }>("/api/projects");
 }
