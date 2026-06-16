@@ -436,7 +436,16 @@ sessions.push(buildSession({
     { kind: "tool", toolName: "Grep", toolInput: { pattern: "z.object", glob: "**/*.ts" }, toolOutput: "Found 47 matches across 12 files", deltaInput: 9_000, deltaCache: 18_000 },
     { kind: "tool", toolName: "Read", toolInput: { file_path: "src/routes/users.ts" }, toolOutput: "// 480 lines of route handlers...", deltaInput: 18_000, deltaCache: 26_000 },
     { kind: "compact" }, // compaction marker #1
-    { kind: "tool", toolName: "Edit", toolInput: { file_path: "src/middleware/validate.ts" }, toolOutput: "Edit applied", deltaInput: 22_000, deltaCache: 14_000 },
+    {
+      kind: "tool", toolName: "Edit",
+      toolInput: {
+        file_path: "src/middleware/validate.ts",
+        old_string: "const userSchema = z.object({\n  id: z.string().uuid(),\n  createdAt: z.string().datetime(),\n  updatedAt: z.string().datetime(),\n  email: z.string().email(),\n  name: z.string().min(1),\n});",
+        new_string: "import { BaseSchema } from \"./base-schema\";\n\nconst userSchema = BaseSchema.extend({\n  email: z.string().email(),\n  name: z.string().min(1),\n});",
+      },
+      toolOutput: "The file src/middleware/validate.ts has been updated successfully.",
+      deltaInput: 22_000, deltaCache: 14_000,
+    },
     { kind: "tool", toolName: "Bash", toolInput: { command: "npm test -- middleware" }, toolOutput: "✓ 28 tests passing", deltaInput: 28_000, deltaCache: 18_000 },
     { kind: "text", text: "I refactored the validation middleware to share a base schema and added 6 new tests covering edge cases around optional fields.", deltaInput: 6_000, deltaCache: 12_000 },
   ],
@@ -451,7 +460,16 @@ sessions.push(buildSession({
   primaryModel: M_SONNET,
   steps: [
     { kind: "tool", toolName: "Read", toolInput: { file_path: "src/server.ts" }, toolOutput: "// 60 lines", deltaInput: 4_000, deltaCache: 6_000 },
-    { kind: "tool", toolName: "Edit", toolInput: { file_path: "src/server.ts" }, toolOutput: "Edit applied", deltaInput: 5_000, deltaCache: 6_000 },
+    {
+      kind: "tool", toolName: "Edit",
+      toolInput: {
+        file_path: "src/server.ts",
+        old_string: "const app = new Hono();\n\napp.get(\"/\", (c) => c.text(\"api-server\"));",
+        new_string: "const app = new Hono();\n\napp.get(\"/\", (c) => c.text(\"api-server\"));\n\napp.get(\"/health\", (c) =>\n  c.json({ status: \"ok\", uptime: process.uptime(), version: pkg.version }),\n);",
+      },
+      toolOutput: "The file src/server.ts has been updated successfully.",
+      deltaInput: 5_000, deltaCache: 6_000,
+    },
     { kind: "text", text: "Added GET /health returning { status: 'ok', uptime, version }.", deltaInput: 2_000 },
   ],
 }));
@@ -524,7 +542,16 @@ sessions.push(buildSession({
     { kind: "agent", agentId: "audit-bundle-size",          subagentType: "general-purpose", description: "Analyze bundle size",          prompt: "Run the Vite production build with sourcemap analysis. Identify the top 10 contributors to total JS size and flag any duplicates from differing import paths.", result: "uPlot duplicated due to mixed CJS/ESM imports (148kb saving). lodash entirely removed by switching to per-function imports (94kb)." },
     { kind: "agent", agentId: "audit-network-waterfall",    subagentType: "general-purpose", description: "Network waterfall review",     prompt: "Walk through the page-load network waterfall and identify any sequential requests that could be parallelized or any blocking resources.", result: "Two API calls block first paint — moving them to deferred fetch saves ~340ms p75." },
     { kind: "agent", agentId: "audit-render-blocking-css",  subagentType: "general-purpose", description: "Find render-blocking CSS",     prompt: "Identify render-blocking CSS and large unused style rules that could be deferred or removed.", result: "globals.css ships ~22KB of unused tokens. Splitting per-route saves ~14KB on first paint." },
-    { kind: "tool", toolName: "Edit", toolInput: { file_path: "frontend/src/pages/SessionList.tsx" }, toolOutput: "Edit applied", deltaInput: 18_000, deltaCache: 20_000 },
+    {
+      kind: "tool", toolName: "Edit",
+      toolInput: {
+        file_path: "frontend/src/pages/SessionList.tsx",
+        old_string: "export function SessionList({ sessions, filter }) {\n  const rows = sessions.filter((s) => matches(s, filter));\n  return html`<${TableComponent} rows=${rows} />`;\n}",
+        new_string: "export function SessionList({ sessions, filter }) {\n  const rows = useMemo(\n    () => sessions.filter((s) => matches(s, filter)),\n    [sessions, filter],\n  );\n  return html`<${TableComponent} rows=${rows} />`;\n}",
+      },
+      toolOutput: "The file frontend/src/pages/SessionList.tsx has been updated successfully.",
+      deltaInput: 18_000, deltaCache: 20_000,
+    },
     { kind: "tool", toolName: "Bash", toolInput: { command: "npm run build && npm run preview" }, toolOutput: "build ok; preview at localhost:4173", deltaInput: 8_000, deltaCache: 12_000 },
     { kind: "text", text: "5 sub-agents in parallel surfaced 14 distinct fixes; applied the top 4 for an estimated p75 paint improvement of ~520ms.", deltaInput: 6_000, deltaCache: 10_000 },
   ],
@@ -538,7 +565,16 @@ sessions.push(buildSession({
   startMs: 3 * 60 * 60_000,
   primaryModel: M_HAIKU,
   steps: [
-    { kind: "tool", toolName: "Edit", toolInput: { file_path: "frontend/src/components/TokenChart.tsx" }, toolOutput: "Edit applied", deltaInput: 3_000, deltaCache: 5_000 },
+    {
+      kind: "tool", toolName: "Edit",
+      toolInput: {
+        file_path: "frontend/src/components/TokenChart.tsx",
+        old_string: "    axes: [\n      { label: \"time\" },\n      { label: \"tokens\", values: (u, vals) => vals.map((v) => String(v)) },\n    ],",
+        new_string: "    axes: [\n      { label: \"time\" },\n      { label: \"tokens\", values: (u, vals) => vals.map(formatCompact) },\n    ],",
+      },
+      toolOutput: "The file frontend/src/components/TokenChart.tsx has been updated successfully.",
+      deltaInput: 3_000, deltaCache: 5_000,
+    },
     { kind: "text", text: "Y-axis now shows compact tokens (k/M) and the cursor tooltip rounds to integers.", deltaInput: 1_500 },
   ],
 }));
@@ -554,7 +590,16 @@ sessions.push(buildSession({
   steps: [
     { kind: "tool", toolName: "WebFetch", toolInput: { url: "https://example.com/recipe/123" }, toolOutput: "<html>... 12kb fetched ...</html>", deltaInput: 24_000, deltaCache: 14_000 },
     { kind: "tool", toolName: "Read", toolInput: { file_path: "src/lib/parser.ts" }, toolOutput: "// existing JSON-LD parser, 220 lines", deltaInput: 18_000, deltaCache: 16_000 },
-    { kind: "tool", toolName: "Edit", toolInput: { file_path: "src/lib/parser.ts" }, toolOutput: "Edit applied", deltaInput: 22_000, deltaCache: 18_000 },
+    {
+      kind: "tool", toolName: "Edit",
+      toolInput: {
+        file_path: "src/lib/parser.ts",
+        old_string: "export function parseRecipe(html) {\n  return parseJsonLd(html);\n}",
+        new_string: "export function parseRecipe(html) {\n  return parseJsonLd(html) ?? parseMicrodata(html) ?? parseManualFallback(html);\n}",
+      },
+      toolOutput: "The file src/lib/parser.ts has been updated successfully.",
+      deltaInput: 22_000, deltaCache: 18_000,
+    },
     { kind: "compact" },
     { kind: "tool", toolName: "Bash", toolInput: { command: "npm test parser" }, toolOutput: "✓ 14 tests", deltaInput: 14_000, deltaCache: 12_000 },
     { kind: "text", text: "Recipe URL importer now handles JSON-LD, microdata, and a manual fallback for sites with neither.", deltaInput: 6_000, deltaCache: 9_000 },
@@ -570,7 +615,16 @@ sessions.push(buildSession({
   primaryModel: M_HAIKU,
   steps: [
     { kind: "tool", toolName: "Read", toolInput: { file_path: "src/cli/prompt.ts" }, toolOutput: "// 80 lines", deltaInput: 2_000, deltaCache: 3_000 },
-    { kind: "tool", toolName: "Edit", toolInput: { file_path: "src/cli/prompt.ts" }, toolOutput: "Edit applied", deltaInput: 1_500, deltaCache: 4_000 },
+    {
+      kind: "tool", toolName: "Edit",
+      toolInput: {
+        file_path: "src/cli/prompt.ts",
+        old_string: "  if (token.startsWith(\"@\")) {\n    return completeTags(token.slice(1));\n  }",
+        new_string: "  if (token.startsWith(\"#\")) {\n    return completeTags(token.slice(1), { fuzzy: config.fuzzyMatch });\n  }",
+      },
+      toolOutput: "The file src/cli/prompt.ts has been updated successfully.",
+      deltaInput: 1_500, deltaCache: 4_000,
+    },
     { kind: "text", text: "Tag completion now triggers on `#` and respects the existing fuzzy-match config.", deltaInput: 1_000 },
   ],
 }));
@@ -592,10 +646,28 @@ sessions.push(buildSession({
     { kind: "tool", toolName: "Glob", toolInput: { pattern: "src/storage/**" }, toolOutput: "12 files", deltaInput: 8_000, deltaCache: 14_000 },
     { kind: "tool", toolName: "Read", toolInput: { file_path: "src/storage/migrate.ts" }, toolOutput: "// 280 lines", deltaInput: 16_000, deltaCache: 22_000 },
     { kind: "compact" },
-    { kind: "tool", toolName: "Edit", toolInput: { file_path: "src/storage/sqlite-store.ts" }, toolOutput: "Edit applied (new file)", deltaInput: 28_000, deltaCache: 16_000 },
+    {
+      kind: "tool", toolName: "Edit",
+      toolInput: {
+        file_path: "src/storage/sqlite-store.ts",
+        old_string: "export class SqliteStore implements Store {\n  // TODO: implement\n}",
+        new_string: "export class SqliteStore implements Store {\n  constructor(private db: Database) {}\n\n  load(id: string): Note | null {\n    return this.db.prepare(\"SELECT * FROM notes WHERE id = ?\").get(id) ?? null;\n  }\n\n  save(note: Note): void {\n    this.db\n      .prepare(\"INSERT OR REPLACE INTO notes (id, body) VALUES (?, ?)\")\n      .run(note.id, note.body);\n  }\n}",
+      },
+      toolOutput: "The file src/storage/sqlite-store.ts has been updated successfully.",
+      deltaInput: 28_000, deltaCache: 16_000,
+    },
     { kind: "tool", toolName: "Bash", toolInput: { command: "npm test storage" }, toolOutput: "✓ 32 tests", deltaInput: 18_000, deltaCache: 14_000 },
     { kind: "compact" },
-    { kind: "tool", toolName: "Edit", toolInput: { file_path: "src/storage/index.ts" }, toolOutput: "Edit applied", deltaInput: 22_000, deltaCache: 14_000 },
+    {
+      kind: "tool", toolName: "Edit",
+      toolInput: {
+        file_path: "src/storage/index.ts",
+        old_string: "export { JsonStore } from \"./json-store\";\n\nexport const store = new JsonStore();",
+        new_string: "export { JsonStore } from \"./json-store\";\nexport { SqliteStore } from \"./sqlite-store\";\n\nexport const store = process.argv.includes(\"--legacy\")\n  ? new JsonStore()\n  : new SqliteStore(openDb());",
+      },
+      toolOutput: "The file src/storage/index.ts has been updated successfully.",
+      deltaInput: 22_000, deltaCache: 14_000,
+    },
     { kind: "tool", toolName: "Bash", toolInput: { command: "npm test" }, toolOutput: "✓ 188 tests", deltaInput: 32_000, deltaCache: 22_000 },
     { kind: "text", text: "Migration cuts cold-load time on a 5k-note vault from 1.4s to 65ms; old JSON store kept as a fallback behind --legacy.", deltaInput: 4_000, deltaCache: 8_000 },
   ],
@@ -610,7 +682,16 @@ sessions.push(buildSession({
   primaryModel: M_OPUS,
   steps: [
     { kind: "tool", toolName: "Read", toolInput: { file_path: "src/components/RecipeCard.css" }, toolOutput: "// 90 lines", deltaInput: 2_500, deltaCache: 5_000 },
-    { kind: "tool", toolName: "Edit", toolInput: { file_path: "src/components/RecipeCard.css" }, toolOutput: "Edit applied", deltaInput: 2_000, deltaCache: 4_500 },
+    {
+      kind: "tool", toolName: "Edit",
+      toolInput: {
+        file_path: "src/components/RecipeCard.css",
+        old_string: ".recipe-card__meta {\n  color: #8a8a8a;\n  background: #1a1a1a;\n}",
+        new_string: ".recipe-card__meta {\n  color: #c7c7c7;\n  background: #141414;\n}",
+      },
+      toolOutput: "The file src/components/RecipeCard.css has been updated successfully.",
+      deltaInput: 2_000, deltaCache: 4_500,
+    },
     { kind: "text", text: "Bumped text/background contrast to 4.6:1 (passes WCAG AA), and reworked the bookmark icon's hover state.", deltaInput: 1_200 },
   ],
 }));
