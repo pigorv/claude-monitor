@@ -107,6 +107,106 @@ describe('parseLine', () => {
     assert.equal(msg.usage.cache_creation_input_tokens, 100);
   });
 
+  it('should read the cache_creation 5m/1h split from the breakdown object', () => {
+    const line = JSON.stringify({
+      type: 'assistant',
+      uuid: 'uuid-split',
+      timestamp: '2026-01-01T00:01:00.000Z',
+      sessionId: 'sess-1',
+      cwd: '/tmp',
+      message: {
+        model: 'claude-opus-4-6',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'hi' }],
+        usage: {
+          input_tokens: 1000,
+          output_tokens: 200,
+          cache_creation_input_tokens: 150,
+          cache_creation: {
+            ephemeral_5m_input_tokens: 100,
+            ephemeral_1h_input_tokens: 50,
+          },
+        },
+      },
+    });
+    const msg = parseLine(line);
+    assert.ok(msg);
+    assert.ok(msg.usage);
+    assert.equal(msg.usage.cache_creation_input_tokens, 150);
+    assert.equal(msg.usage.cache_creation_5m_input_tokens, 100);
+    assert.equal(msg.usage.cache_creation_1h_input_tokens, 50);
+    // 5m + 1h <= combined total
+    assert.ok(
+      (msg.usage.cache_creation_5m_input_tokens ?? 0) +
+        (msg.usage.cache_creation_1h_input_tokens ?? 0) <=
+        (msg.usage.cache_creation_input_tokens ?? 0)
+    );
+  });
+
+  it('should fall back to a legacy flat cache_creation_input_tokens (no breakdown object)', () => {
+    const line = JSON.stringify({
+      type: 'assistant',
+      uuid: 'uuid-legacy',
+      timestamp: '2026-01-01T00:01:00.000Z',
+      sessionId: 'sess-1',
+      cwd: '/tmp',
+      message: {
+        model: 'claude-opus-4-6',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'hi' }],
+        usage: {
+          input_tokens: 1000,
+          output_tokens: 200,
+          cache_creation_input_tokens: 80,
+        },
+      },
+    });
+    const msg = parseLine(line);
+    assert.ok(msg);
+    assert.ok(msg.usage);
+    assert.equal(msg.usage.cache_creation_input_tokens, 80);
+    assert.equal(msg.usage.cache_creation_5m_input_tokens, 80);
+    assert.equal(msg.usage.cache_creation_1h_input_tokens, 0);
+  });
+
+  it('should count an unknown granularity in the combined total without dropping it', () => {
+    const line = JSON.stringify({
+      type: 'assistant',
+      uuid: 'uuid-unknown',
+      timestamp: '2026-01-01T00:01:00.000Z',
+      sessionId: 'sess-1',
+      cwd: '/tmp',
+      message: {
+        model: 'claude-opus-4-6',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'hi' }],
+        usage: {
+          input_tokens: 1000,
+          output_tokens: 200,
+          // No top-level flat field: total must be summed from ALL ephemeral_* keys.
+          cache_creation: {
+            ephemeral_5m_input_tokens: 100,
+            ephemeral_1h_input_tokens: 50,
+            ephemeral_30m_input_tokens: 25,
+          },
+        },
+      },
+    });
+    const msg = parseLine(line);
+    assert.ok(msg);
+    assert.ok(msg.usage);
+    // Combined total includes the unknown granularity (100 + 50 + 25).
+    assert.equal(msg.usage.cache_creation_input_tokens, 175);
+    assert.equal(msg.usage.cache_creation_5m_input_tokens, 100);
+    assert.equal(msg.usage.cache_creation_1h_input_tokens, 50);
+    // The unattributed remainder is preserved: 5m + 1h < combined.
+    assert.ok(
+      (msg.usage.cache_creation_5m_input_tokens ?? 0) +
+        (msg.usage.cache_creation_1h_input_tokens ?? 0) <
+        (msg.usage.cache_creation_input_tokens ?? 0)
+    );
+  });
+
   it('should parse a user message with tool_result content array', () => {
     const line = JSON.stringify({
       type: 'user',

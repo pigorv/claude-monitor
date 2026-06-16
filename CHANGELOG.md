@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The transcript parser now captures the `cache_creation` 5-minute / 1-hour split alongside the authoritative total cache-write token count.
+
 ### Changed
 
 - The Agents tab now labels a subagent's token totals "Input"/"Output" instead of "Prompt"/"Result", reflecting that they are the summed non-cached input/output tokens across the subagent's API calls.
