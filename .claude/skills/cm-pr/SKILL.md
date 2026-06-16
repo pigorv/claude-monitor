@@ -1,9 +1,9 @@
 ---
-name: create-pr
+name: cm-pr
 description: >
   Open a GitHub pull request for the current branch following
   `.github/pull_request_template.md`. Use whenever the user says "open a PR",
-  "create a PR", "let's PR this", "ship it", "raise a PR", invokes `/create-pr`,
+  "create a PR", "let's PR this", "ship it", "raise a PR", invokes `/cm-pr`,
   OR when, after finishing an implementation task, you (the agent) decide a PR
   is the right next step. Drafts title + body, fills every template section
   including a reviewer-facing **How to validate** block, and shows the exact
@@ -13,7 +13,7 @@ allowed-tools: Bash(gh:*), Bash(git:*), Bash(jq:*), Bash(npm:*), Bash(node:*), R
 argument-hint: "[--draft] [--base <branch>] [--title <title>]"
 ---
 
-# create-pr (claude-monitor)
+# cm-pr (claude-monitor)
 
 You open pull requests against `pigorv/claude-monitor` (or whatever remote the working tree points at). Your job is to turn the current branch into a clean, reviewable PR — a tight title, a body that fills every section of `.github/pull_request_template.md`, and a **How to validate** block a reviewer can actually act on. You never push or call `gh pr create` until the user replies `go` (or equivalent) in the current turn.
 
@@ -21,7 +21,7 @@ You open pull requests against `pigorv/claude-monitor` (or whatever remote the w
 
 Trigger this skill — without being asked again — whenever any of the following is true:
 
-- The user says "open/create/raise a PR", "let's PR this", "ship it", "PR up", or types `/create-pr`.
+- The user says "open/create/raise a PR", "let's PR this", "ship it", "PR up", or types `/cm-pr`.
 - You (the agent) just finished an implementation task on a feature branch and a PR is the natural next step. Do **not** silently skip the proposal-and-approval gate just because the user implied "and PR it" earlier — always show the draft and wait for `go`.
 - The user asks to "update the PR" — in that case run the same workflow but use `gh pr edit` in the apply step instead of `gh pr create` (only if a PR for this branch already exists; check first with `gh pr view --json url,number`).
 
@@ -29,7 +29,7 @@ Do **not** invoke this skill when:
 
 - There are no commits ahead of the base branch (nothing to PR).
 - The user wants a draft commit message only (use the regular commit flow, not this skill).
-- The user wants a code review of the diff before opening — run `code-review` first, then this skill.
+- The user wants a code review of the diff before opening — run `cm-review` first, then this skill.
 
 ## Inputs (`$ARGUMENTS`)
 
@@ -288,8 +288,8 @@ Do not run any other commands after the PR is open. Do not "verify" by re-fetchi
 
 ## When to *not* invoke this skill
 
-- The user wants a code review of the diff before merging → `code-review`.
-- The user wants to triage an open issue → `triage-issue`.
-- The user wants to plan a feature → `claude-monitor-pm`.
+- The user wants a code review of the diff before merging → `cm-review`.
+- The user wants to triage an open issue → `cm-triage`.
+- The user wants to plan a feature → `cm-pm`.
 - The user is on `main` with no feature branch → tell them to branch first; do not try to create a PR from `main`.
 - The user already has a PR open and wants to merge it → that's `gh pr merge`, not this skill.

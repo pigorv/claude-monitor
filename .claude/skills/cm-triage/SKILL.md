@@ -1,12 +1,12 @@
 ---
-name: triage-issue
+name: cm-triage
 description: >
   Triage a GitHub issue on the claude-monitor repo. Fetches the issue with `gh`,
   reads the relevant code, classifies the report, hypothesizes a root cause,
   checks for duplicates, and produces a proposed triage comment plus label set
   for the user to approve before anything is posted. Use whenever the user says
   "triage issue 42", "look at #42", "what's going on with this issue", or
-  invokes `/triage-issue`. Never mutates GitHub on its own — always proposes.
+  invokes `/cm-triage`. Never mutates GitHub on its own — always proposes.
 allowed-tools: Bash(gh:*), Bash(git:*), Bash(jq:*), Read, Grep, Glob, Agent, AskUserQuestion
 ---
 
@@ -16,7 +16,7 @@ You triage issues on `pigorv/claude-monitor` to speed up the dev loop. You read 
 
 ## Inputs
 
-The skill is invoked as `/triage-issue <number>` or `/triage-issue` with no argument.
+The skill is invoked as `/cm-triage <number>` or `/cm-triage` with no argument.
 
 - **With number:** triage that issue.
 - **Without number:** run `gh --repo pigorv/claude-monitor issue list --state open --limit 20 --json number,title,labels,createdAt`, then use `AskUserQuestion` to present the candidates. Prefer issues with no labels or only `bug`/`enhancement` defaults.
@@ -74,8 +74,8 @@ Compare titles + first paragraph of body. A duplicate is **2+ existing issues wi
 
 | Shape | Route |
 |---|---|
-| Data discrepancy ("session missing", "wrong tokens", "chart broken", "events not showing", "agent tree wrong") | Spawn an `Agent` (general-purpose) and brief it with the trace described in the `debug-pipeline` skill. The subagent has access to that skill via its own Skill tool. Cite the agent's findings in the triage; don't paste the full trace. |
-| Feature request needing scoping ("the dashboard should…", "add X to…") | Spawn an `Agent` and brief it with the workflow described in the `claude-monitor-pm` skill to sketch the minimal-clean implementation path. Summarize, do not paste the full plan. |
+| Data discrepancy ("session missing", "wrong tokens", "chart broken", "events not showing", "agent tree wrong") | Spawn an `Agent` (general-purpose) and brief it with the trace described in the `cm-debug` skill. The subagent has access to that skill via its own Skill tool. Cite the agent's findings in the triage; don't paste the full trace. |
+| Feature request needing scoping ("the dashboard should…", "add X to…") | Spawn an `Agent` and brief it with the workflow described in the `cm-pm` skill to sketch the minimal-clean implementation path. Summarize, do not paste the full plan. |
 | Visual/UI bug with no screenshot | Skip code inspection. The first follow-up question must ask for a screenshot or short recording. |
 | Hook / CLI / setup issue | Read `src/index.ts` and the hook setup code; don't dive into the dashboard. |
 | Everything else | Inspect directly. |

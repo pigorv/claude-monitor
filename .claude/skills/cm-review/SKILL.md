@@ -1,12 +1,12 @@
 ---
-name: code-review
+name: cm-review
 description: >
   Pre-merge code review of the current branch against main. Diffs HEAD against main,
   spawns specialist subagents for each touched surface (DB/migrations, ingestion pipeline,
   Hono server, Preact/HTM frontend, tests), and produces a severity-banded report with
   confidence-scored findings, file:line citations, and concrete fixes. Use whenever the
   user says "review my changes", "review my branch", "review this diff", "code review",
-  "check my work before I push", or invokes `/code-review`. Read-only — proposes findings,
+  "check my work before I push", or invokes `/cm-review`. Read-only — proposes findings,
   never mutates files or GitHub. Runs locally; no PR or `gh` access required.
 allowed-tools: Bash(git:*), Bash(sqlite3:*), Read, Grep, Glob, Agent
 argument-hint: "[<base>..<head>] [--min-severity critical|high|medium|low]"
@@ -18,7 +18,7 @@ You review pre-merge work on this repo. Your job is to catch real bugs before th
 
 ## Inputs
 
-The skill is invoked as `/code-review` (no args), `/code-review <base>..<head>`, or `/code-review --min-severity high`.
+The skill is invoked as `/cm-review` (no args), `/cm-review <base>..<head>`, or `/cm-review --min-severity high`.
 
 - **No argument** → review `main...HEAD` (current branch vs `main`).
 - **Range argument** → review the supplied range (e.g. `main..HEAD~3`, `release-0.3..HEAD`).
@@ -197,7 +197,7 @@ Full checklists live under `references/`. One-liner summaries so this SKILL.md s
 
 ## When to *not* invoke this skill
 
-- The user wants to plan a feature, not review code → `claude-monitor-pm`.
-- The user has a data discrepancy or pipeline bug to debug → `debug-pipeline`.
-- The user wants to triage an open GitHub issue → `triage-issue`.
+- The user wants to plan a feature, not review code → `cm-pm`.
+- The user has a data discrepancy or pipeline bug to debug → `cm-debug`.
+- The user wants to triage an open GitHub issue → `cm-triage`.
 - The user wants a heavyweight cloud review with multiple model perspectives → tell them to run `/ultrareview` (a separate, billed product); don't try to replicate it.

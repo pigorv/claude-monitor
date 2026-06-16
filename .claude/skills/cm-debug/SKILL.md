@@ -1,5 +1,5 @@
 ---
-name: debug-pipeline
+name: cm-debug
 description: >
   End-to-end data pipeline debugger for claude-monitor. Traces data from raw JSONL transcripts
   through SQLite ingestion to API responses to frontend rendering. Use this skill whenever

@@ -1,5 +1,5 @@
 ---
-name: claude-monitor-pm
+name: cm-pm
 description: >
   Product Manager + Lead Architect for the claude-monitor project. Use this skill whenever
   the user wants to add a feature, fix a bug, improve something, fill a gap, or discuss any
@@ -84,6 +84,7 @@ Once approved, implement the plan:
 - TypeScript strict mode — no `any` unless truly unavoidable
 - Keep changes minimal and focused. Don't refactor adjacent code
 - Update tests for any changed behavior
+- For anything affecting how the UI **looks** (colors, badges/pills/tags, chart colors, CSS, design tokens), defer to the `cm-design` skill instead of choosing values yourself — it owns the token system.
 - If adding frontend changes, make sure `npm run build` passes
 
 ### Phase 5: Validate with Playwright
