@@ -1517,12 +1517,14 @@ describe('importTranscript skip/dedupe matrix', () => {
     const forced = await importTranscript(parentPath, { force: true });
     assert.equal(forced.skipped, false);
 
-    // Behavior #4: session split columns non-null with 5m + 1h <= total cache write.
+    // Behavior #4: session split columns carry the exact aggregate, with 5m + 1h
+    // <= total cache write. Pin the values so a swap or zeroing in
+    // buildSessionRecord is caught (parent input 1000+1500; 5m 200+350; 1h 100+150).
     const session = getSession('cache-parent');
     assert.ok(session);
-    assert.notEqual(session.total_input_tokens_billed, null);
-    assert.notEqual(session.total_cache_write_5m_tokens, null);
-    assert.notEqual(session.total_cache_write_1h_tokens, null);
+    assert.equal(session.total_input_tokens_billed, 2500);
+    assert.equal(session.total_cache_write_5m_tokens, 550);
+    assert.equal(session.total_cache_write_1h_tokens, 250);
     assert.ok(
       session.total_cache_write_5m_tokens! + session.total_cache_write_1h_tokens! <=
         session.total_cache_write_tokens!,
