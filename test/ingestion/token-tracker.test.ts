@@ -18,6 +18,8 @@ function assistantMsg(opts: {
   output_tokens: number;
   cache_read?: number;
   cache_write?: number;
+  cache_write_5m?: number;
+  cache_write_1h?: number;
   model?: string;
 }): TranscriptMessage {
   return {
@@ -32,6 +34,8 @@ function assistantMsg(opts: {
       output_tokens: opts.output_tokens,
       cache_read_input_tokens: opts.cache_read ?? 0,
       cache_creation_input_tokens: opts.cache_write ?? 0,
+      cache_creation_5m_input_tokens: opts.cache_write_5m ?? 0,
+      cache_creation_1h_input_tokens: opts.cache_write_1h ?? 0,
     },
   };
 }
@@ -181,6 +185,9 @@ describe('computeAggregates', () => {
     assert.equal(agg.total_input_tokens, 0);
     assert.equal(agg.total_output_tokens, 0);
     assert.equal(agg.compaction_count, 0);
+    assert.equal(agg.total_input_tokens_billed, 0);
+    assert.equal(agg.total_cache_write_5m_tokens, 0);
+    assert.equal(agg.total_cache_write_1h_tokens, 0);
   });
 
   it('computes aggregates correctly', () => {
@@ -196,7 +203,35 @@ describe('computeAggregates', () => {
     assert.equal(agg.total_output_tokens, 500); // 200 + 300, summed
     assert.equal(agg.total_cache_read_tokens, 1300); // 500 + 800
     assert.equal(agg.total_cache_write_tokens, 150); // 100 + 50
+    assert.equal(agg.total_input_tokens_billed, 3000); // 1000 + 2000, summed fresh input
     assert.equal(agg.compaction_count, 0);
+  });
+
+  it('sums billed + 5m/1h cache-write aggregates', () => {
+    const messages: TranscriptMessage[] = [
+      assistantMsg({
+        timestamp: '2026-01-01T00:01:00Z', input_tokens: 1000, output_tokens: 200,
+        cache_read: 500, cache_write: 100, cache_write_5m: 70, cache_write_1h: 30,
+      }),
+      assistantMsg({
+        timestamp: '2026-01-01T00:02:00Z', input_tokens: 2000, output_tokens: 300,
+        cache_read: 800, cache_write: 50, cache_write_5m: 40, cache_write_1h: 10,
+      }),
+    ];
+
+    const snapshots = buildTokenSnapshots(messages);
+    assert.equal(snapshots[0].cache_write_5m_tokens, 70);
+    assert.equal(snapshots[0].cache_write_1h_tokens, 30);
+
+    const agg = computeAggregates(snapshots);
+    assert.equal(agg.total_input_tokens_billed, 3000); // 1000 + 2000
+    assert.equal(agg.total_cache_write_5m_tokens, 110); // 70 + 40
+    assert.equal(agg.total_cache_write_1h_tokens, 40); // 30 + 10
+    assert.equal(agg.total_input_tokens, 2850); // max effective context unchanged (2000+800+50)
+    // 5m + 1h split must not exceed the combined cache-write total
+    assert.ok(
+      agg.total_cache_write_5m_tokens + agg.total_cache_write_1h_tokens <= agg.total_cache_write_tokens,
+    );
   });
 
   it('counts compactions', () => {

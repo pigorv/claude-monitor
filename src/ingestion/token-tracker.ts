@@ -9,6 +9,8 @@ export interface TokenSnapshot {
   output_tokens: number;
   cache_read_tokens: number;
   cache_write_tokens: number;
+  cache_write_5m_tokens: number;
+  cache_write_1h_tokens: number;
   context_pct: number;
   is_compaction: boolean;
 }
@@ -20,6 +22,9 @@ export interface TokenAggregates {
   total_output_tokens: number;
   total_cache_read_tokens: number;
   total_cache_write_tokens: number;
+  total_input_tokens_billed: number;
+  total_cache_write_5m_tokens: number;
+  total_cache_write_1h_tokens: number;
   peak_context_pct: number;
   compaction_count: number;
 }
@@ -90,6 +95,8 @@ export function buildTokenSnapshots(
     const outputTokens = msg.usage.output_tokens;
     const cacheRead = msg.usage.cache_read_input_tokens ?? 0;
     const cacheWrite = msg.usage.cache_creation_input_tokens ?? 0;
+    const cacheWrite5m = msg.usage.cache_creation_5m_input_tokens ?? 0;
+    const cacheWrite1h = msg.usage.cache_creation_1h_input_tokens ?? 0;
 
     // Effective context = new tokens + cached tokens (already in context window)
     // All three components are in the context window:
@@ -114,6 +121,8 @@ export function buildTokenSnapshots(
       output_tokens: outputTokens,
       cache_read_tokens: cacheRead,
       cache_write_tokens: cacheWrite,
+      cache_write_5m_tokens: cacheWrite5m,
+      cache_write_1h_tokens: cacheWrite1h,
       context_pct: estimateContextPct(effectiveContextTokens, resolvedModel),
       is_compaction: isCompaction,
     });
@@ -146,6 +155,9 @@ export function computeAggregates(snapshots: TokenSnapshot[]): TokenAggregates {
       total_output_tokens: 0,
       total_cache_read_tokens: 0,
       total_cache_write_tokens: 0,
+      total_input_tokens_billed: 0,
+      total_cache_write_5m_tokens: 0,
+      total_cache_write_1h_tokens: 0,
       peak_context_pct: 0,
       compaction_count: 0,
     };
@@ -157,6 +169,9 @@ export function computeAggregates(snapshots: TokenSnapshot[]): TokenAggregates {
   let totalOutput = 0;
   let totalCacheRead = 0;
   let totalCacheWrite = 0;
+  let totalInputBilled = 0;
+  let total5m = 0;
+  let total1h = 0;
   let peakContextPct = 0;
   let compactionCount = 0;
 
@@ -166,6 +181,9 @@ export function computeAggregates(snapshots: TokenSnapshot[]): TokenAggregates {
     totalOutput += s.output_tokens;
     totalCacheRead += s.cache_read_tokens;
     totalCacheWrite += s.cache_write_tokens;
+    totalInputBilled += s.input_tokens;
+    total5m += s.cache_write_5m_tokens;
+    total1h += s.cache_write_1h_tokens;
     if (s.context_pct > peakContextPct) peakContextPct = s.context_pct;
     if (s.is_compaction) compactionCount++;
   }
@@ -175,6 +193,9 @@ export function computeAggregates(snapshots: TokenSnapshot[]): TokenAggregates {
     total_output_tokens: totalOutput,
     total_cache_read_tokens: totalCacheRead,
     total_cache_write_tokens: totalCacheWrite,
+    total_input_tokens_billed: totalInputBilled,
+    total_cache_write_5m_tokens: total5m,
+    total_cache_write_1h_tokens: total1h,
     peak_context_pct: Math.round(peakContextPct * 100) / 100,
     compaction_count: compactionCount,
   };
