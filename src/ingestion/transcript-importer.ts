@@ -549,10 +549,16 @@ async function importSubagentFile(
   // buildTokenSnapshots(): only assistant messages with usage contribute.
   let totalInput = 0;
   let totalOutput = 0;
+  let totalCacheRead = 0;
+  let totalCacheWrite5m = 0;
+  let totalCacheWrite1h = 0;
   for (const msg of dedupeByMessageId(messages)) {
     if (msg.type === 'assistant' && msg.usage) {
       totalInput += msg.usage.input_tokens;
       totalOutput += msg.usage.output_tokens;
+      totalCacheRead += msg.usage.cache_read_input_tokens ?? 0;
+      totalCacheWrite5m += msg.usage.cache_creation_5m_input_tokens ?? 0;
+      totalCacheWrite1h += msg.usage.cache_creation_1h_input_tokens ?? 0;
     }
   }
 
@@ -603,6 +609,9 @@ async function importSubagentFile(
         tool_call_count = ?,
         input_tokens_total = ?,
         output_tokens_total = ?,
+        cache_read_total = ?,
+        cache_write_5m_total = ?,
+        cache_write_1h_total = ?,
         prompt_preview = COALESCE(?, prompt_preview),
         result_preview = COALESCE(?, result_preview),
         prompt_data = COALESCE(?, prompt_data),
@@ -617,6 +626,9 @@ async function importSubagentFile(
         toolCallCount,
         totalInput,
         totalOutput,
+        totalCacheRead,
+        totalCacheWrite5m,
+        totalCacheWrite1h,
         promptText ? promptText.slice(0, 200) : null,
         resultText ? resultText.slice(0, 200) : null,
         promptText,
@@ -631,8 +643,10 @@ async function importSubagentFile(
         parent_session_id, child_agent_id, child_transcript_path, child_imported_mtime,
         prompt_preview, result_preview, prompt_data, result_data,
         started_at, ended_at, duration_ms,
-        input_tokens_total, output_tokens_total, tool_call_count, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        input_tokens_total, output_tokens_total,
+        cache_read_total, cache_write_5m_total, cache_write_1h_total,
+        tool_call_count, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         parentSessionId,
         agentId,
         filePath,
@@ -646,6 +660,9 @@ async function importSubagentFile(
         durationMs && durationMs > 0 ? durationMs : null,
         totalInput,
         totalOutput,
+        totalCacheRead,
+        totalCacheWrite5m,
+        totalCacheWrite1h,
         toolCallCount,
         'completed',
       );
