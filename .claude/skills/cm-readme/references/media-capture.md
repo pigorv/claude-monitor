@@ -127,7 +127,7 @@ pngquant --quality=70-90 --skip-if-larger --output <out>.png <in>.png
 
 ### Option A — Playwright video → ffmpeg → GIF (current pattern)
 
-Drive a 6–10s walkthrough via the playwright Node API (the CLI snapshot mode is too step-by-step). The canonical recipe lives in `.claude/skills/cm-browser/references/video-recording.md`. Convert the resulting MP4:
+Drive a 6–10s walkthrough via the playwright Node API (the CLI snapshot mode is too step-by-step). The canonical recipe lives in `.claude/skills/playwright-cli/references/video-recording.md`. Convert the resulting MP4:
 
 ```bash
 # MP4 (preferred; smaller, smoother)
