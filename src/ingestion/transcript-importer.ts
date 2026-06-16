@@ -357,7 +357,10 @@ export async function importTranscript(
  */
 export async function importTranscripts(
   filePaths: string[],
-  options: { force?: boolean } = {},
+  options: {
+    force?: boolean;
+    onProgress?: (p: { processed: number; total: number; result: ImportResult }) => void;
+  } = {},
 ): Promise<ImportResult[]> {
   const results: ImportResult[] = [];
 
@@ -371,14 +374,22 @@ export async function importTranscripts(
   const filtered = options.force ? filterCoveredSubagents(filePaths) : filePaths;
 
   for (const filePath of filtered) {
+    let result: ImportResult;
     try {
-      const result = await importTranscript(filePath, options);
-      results.push(result);
+      result = await importTranscript(filePath, options);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error('Failed to import transcript', { filePath, error: message });
-      results.push({ sessionId: '', eventCount: 0, skipped: true, error: message });
+      result = { sessionId: '', eventCount: 0, skipped: true, error: message };
     }
+    results.push(result);
+
+    // Report progress against filtered.length (the count actually processed) and
+    // yield to the event loop between files so a long batch import doesn't pin it.
+    // When run from the background reimport route this keeps concurrent API calls
+    // (e.g. /api/reimport/status) responsive; from the CLI it's a cheap no-op.
+    options.onProgress?.({ processed: results.length, total: filtered.length, result });
+    await new Promise((r) => setImmediate(r));
   }
 
   return results;

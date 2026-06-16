@@ -1,14 +1,30 @@
-import { describe, it, beforeAll, afterAll } from 'vitest';
+import { describe, it, beforeAll, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getDb, closeDb } from '../../src/db/index.js';
 import { createApp } from '../../src/server/app.js';
+import * as importer from '../../src/ingestion/transcript-importer.js';
 
 describe('Reimport route', () => {
   let tmpDir: string;
   let app: ReturnType<typeof createApp>;
+
+  // Poll the status endpoint until the background run reports done.
+  // Every test that starts a run MUST await this before returning, otherwise
+  // the module-level status leaks into the next test (spurious 409s) and a run
+  // in flight during afterAll's closeDb() would error.
+  async function waitForDone(timeoutMs = 30000): Promise<any> {
+    const start = Date.now();
+    for (;;) {
+      const res = await app.request('/api/reimport/status');
+      const body = await res.json();
+      if (body.done) return body;
+      if (Date.now() - start > timeoutMs) throw new Error('reimport did not finish in time');
+      await new Promise((r) => setTimeout(r, 15));
+    }
+  }
 
   beforeAll(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'reimport-test-'));
@@ -22,23 +38,13 @@ describe('Reimport route', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('POST /api/reimport returns JSON response', async () => {
+  it('POST /api/reimport returns 202 { started: true }', async () => {
     const res = await app.request('/api/reimport', { method: 'POST' });
+    assert.equal(res.status, 202);
     const body = await res.json();
+    assert.equal(body.started, true);
 
-    // Should have imported/errors fields regardless of outcome
-    assert.equal(typeof body.imported, 'number');
-    assert.equal(typeof body.errors, 'number');
-  });
-
-  it('returns 200 regardless of projects directory existence', async () => {
-    const res = await app.request('/api/reimport', { method: 'POST' });
-    // collectJsonlFilesRecursive catches missing-dir errors and returns [],
-    // so the route always returns 200 with imported/errors counts.
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.equal(typeof body.imported, 'number');
-    assert.equal(typeof body.errors, 'number');
+    await waitForDone();
   });
 
   it('GET /api/reimport returns 404 (only POST allowed)', async () => {
@@ -46,13 +52,69 @@ describe('Reimport route', () => {
     assert.equal(res.status, 404);
   });
 
-  it('response always includes imported and errors counts', async () => {
+  it('runs in the background: 202 start, concurrent 409, other endpoints respond, final status shape', async () => {
+    // Start a run.
+    const first = await app.request('/api/reimport', { method: 'POST' });
+    assert.equal(first.status, 202);
+    const firstBody = await first.json();
+    assert.equal(firstBody.started, true);
+
+    // A second POST issued in the same tick (no await advancing the runner past
+    // its initial setImmediate) still sees running === true, so it must 409.
+    const second = await app.request('/api/reimport', { method: 'POST' });
+    assert.equal(second.status, 409);
+
+    // Other endpoints still respond while the run is in flight — the POST
+    // handler did not block. (If the corpus is tiny the run may already be
+    // done; the point is that health resolves, not timing.)
+    const health = await app.request('/api/health');
+    assert.equal(health.status, 200);
+
+    // After completion the public status has the five required keys + phase,
+    // processed === total, counts >= 0, done: true.
+    const status = await waitForDone();
+    for (const key of ['total', 'processed', 'imported', 'errors', 'done']) {
+      assert.ok(key in status, `status missing key: ${key}`);
+    }
+    assert.ok('phase' in status);
+    assert.equal(status.done, true);
+    assert.equal(status.phase, 'done');
+    assert.equal(status.processed, status.total);
+    assert.equal(typeof status.imported, 'number');
+    assert.equal(typeof status.errors, 'number');
+    assert.ok(status.imported >= 0);
+    assert.ok(status.errors >= 0);
+  });
+
+  it('error path: failed run ends done/!running with error set, and a new run can start', async () => {
+    // Force importTranscripts to throw so runReimport hits its catch branch.
+    const spy = vi.spyOn(importer, 'importTranscripts').mockRejectedValueOnce(new Error('boom'));
+
     const res = await app.request('/api/reimport', { method: 'POST' });
-    const body = await res.json();
-    assert.ok('imported' in body);
-    assert.ok('errors' in body);
-    assert.ok(body.imported >= 0);
-    assert.ok(body.errors >= 0);
+    assert.equal(res.status, 202);
+
+    const status = await waitForDone();
+    assert.equal(status.done, true);
+    assert.equal(status.running, false);
+    assert.equal(typeof status.error, 'string');
+    assert.ok(status.error.length > 0);
+    assert.ok(status.error.includes('boom'), `error should mention thrown cause: ${status.error}`);
+
+    // Pin that the spy actually intercepted the route's call. If ESM export
+    // rewriting ever stopped making the binding spy-able, the real importer
+    // would run and the assertions above would mask the regression; this makes
+    // a no-op spy fail loudly instead.
+    assert.equal(spy.mock.calls.length, 1);
+
+    spy.mockRestore();
+
+    // running was cleared, so a fresh run can start.
+    const again = await app.request('/api/reimport', { method: 'POST' });
+    assert.equal(again.status, 202);
+    const againBody = await again.json();
+    assert.equal(againBody.started, true);
+
+    await waitForDone();
   });
 
   // ── POST /api/clear ──

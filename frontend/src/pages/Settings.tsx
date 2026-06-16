@@ -1,6 +1,11 @@
 import { useState, useEffect } from "preact/hooks";
 import { html } from "htm/preact";
-import { fetchApi } from "../api/client";
+import {
+  fetchApi,
+  startReimport,
+  fetchReimportStatus,
+  type ReimportStatus,
+} from "../api/client";
 import type { HealthResponse } from "../../../src/shared/types";
 import "../styles/settings.css";
 
@@ -79,6 +84,7 @@ export function Settings() {
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [reimportStatus, setReimportStatus] = useState<ReimportStatus | null>(null);
   const [clearing, setClearing] = useState(false);
   const [clearConfirm, setClearConfirm] = useState(false);
   const [terminalPref, setTerminalPref] = useState<TerminalPref>(readTerminalPref());
@@ -89,21 +95,68 @@ export function Settings() {
       .catch((e) => setError(e.message));
   };
 
-  useEffect(load, []);
+  // On mount: load DB stats and reattach to an in-flight reimport so a reload
+  // mid-run shows live progress instead of an idle button.
+  useEffect(() => {
+    load();
+    fetchReimportStatus()
+      .then((status) => {
+        if (status.running) {
+          setReimportStatus(status);
+          setImportResult(null);
+          setImporting(true);
+        }
+      })
+      .catch(() => {
+        // Status is best-effort on mount; ignore failures.
+      });
+  }, []);
+
+  // Poll for progress while a run is active. Driven by `importing`: starting a
+  // run flips it on, completion flips it off (which clears the interval).
+  useEffect(() => {
+    if (!importing) return;
+    let cancelled = false;
+    let inFlight = false;
+    const id = setInterval(async () => {
+      if (inFlight) return; // guard against overlapping fetches
+      inFlight = true;
+      try {
+        const status = await fetchReimportStatus();
+        if (cancelled) return;
+        setReimportStatus(status);
+        if (status.done) {
+          if (status.error) {
+            setImportResult(`Reimport failed: ${status.error}`);
+          } else {
+            const errs = status.errors > 0 ? `, ${status.errors} errors` : "";
+            setImportResult(`Imported ${status.imported} sessions${errs}`);
+          }
+          setImporting(false); // triggers cleanup → clears interval
+          load();
+        }
+      } catch {
+        // Transient poll failure — keep polling.
+      } finally {
+        inFlight = false;
+      }
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [importing]);
 
   const handleReimport = async () => {
-    setImporting(true);
     setImportResult(null);
+    setReimportStatus(null);
     try {
-      const res = await fetch("/api/reimport", { method: "POST" });
-      if (!res.ok) throw new Error(await res.text());
-      const body = await res.json();
-      setImportResult(`Imported ${body.imported ?? 0} sessions`);
-      load();
+      // Both started (202) and conflict (409 — already running) mean we should
+      // attach and poll for progress.
+      await startReimport();
+      setImporting(true);
     } catch (e: any) {
       setImportResult(`Error: ${e.message}`);
-    } finally {
-      setImporting(false);
     }
   };
 
@@ -210,7 +263,17 @@ export function Settings() {
               ${clearConfirm ? "Confirm clear?" : "Clear database"}
             </button>
           </div>
-          ${importResult
+          ${importing && reimportStatus
+            ? html`<p class="settings-hint">
+                ${reimportStatus.phase === "vacuuming"
+                  ? "Compacting database…"
+                  : reimportStatus.total > 0
+                    ? html`${reimportStatus.processed} / ${reimportStatus.total} —
+                      Importing transcripts…`
+                    : "Importing transcripts…"}
+              </p>`
+            : null}
+          ${!importing && importResult
             ? html`<p class="settings-hint">${importResult}</p>`
             : null}
         </section>
