@@ -623,6 +623,7 @@ async function importSubagentFile(
         cache_read_total = ?,
         cache_write_5m_total = ?,
         cache_write_1h_total = ?,
+        model = ?,
         prompt_preview = COALESCE(?, prompt_preview),
         result_preview = COALESCE(?, result_preview),
         prompt_data = COALESCE(?, prompt_data),
@@ -640,6 +641,7 @@ async function importSubagentFile(
         totalCacheRead,
         totalCacheWrite5m,
         totalCacheWrite1h,
+        model,
         promptText ? promptText.slice(0, 200) : null,
         resultText ? resultText.slice(0, 200) : null,
         promptText,
@@ -656,8 +658,8 @@ async function importSubagentFile(
         started_at, ended_at, duration_ms,
         input_tokens_total, output_tokens_total,
         cache_read_total, cache_write_5m_total, cache_write_1h_total,
-        tool_call_count, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        model, tool_call_count, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         parentSessionId,
         agentId,
         filePath,
@@ -674,6 +676,7 @@ async function importSubagentFile(
         totalCacheRead,
         totalCacheWrite5m,
         totalCacheWrite1h,
+        model,
         toolCallCount,
         'completed',
       );

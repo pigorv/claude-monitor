@@ -338,7 +338,7 @@ export function getAgentRelationships(sessionId: string): AgentRelationship[] {
       started_at, ended_at,
       duration_ms, input_tokens_total, output_tokens_total,
       cache_read_total, cache_write_5m_total, cache_write_1h_total,
-      tool_call_count, status, prompt_tokens, result_tokens,
+      model, tool_call_count, status, prompt_tokens, result_tokens,
       peak_context_tokens, compression_ratio, agent_compaction_count,
       parent_headroom_at_return, parent_impact_pct, result_classification,
       execution_mode, files_read_count, files_total_tokens,
