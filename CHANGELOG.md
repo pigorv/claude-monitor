@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The transcript parser now captures the `cache_creation` 5-minute / 1-hour split alongside the authoritative total cache-write token count.
 - Imports now persist the per-session cache-write 5m/1h split (and billed input tokens), plus per-subagent cache read/write totals, so cache usage is available throughout the dashboard.
 - Imports now persist each sub-agent's own model on its agent relationship, so a sub-agent running on a different model than its parent can be identified.
+- Each session now stores a full cost estimate (parent plus every sub-agent, each priced at its own model, including cache reads/writes), computed at import time.
 
 ## [0.5.2] - 2026-06-17
 

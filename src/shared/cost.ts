@@ -120,6 +120,53 @@ export function costBreakdown(
   return { perType, total };
 }
 
+/**
+ * Compute the full per-session cost (parent + per-agent) in USD, each term
+ * priced at its own model. Sub-agents are priced at their own model when set,
+ * else fall back to the parent model. Returns null when no term resolves to a
+ * known model (unresolvable → no cost).
+ */
+export function sessionCostUsd(
+  parentModel: string | null,
+  parent: {
+    freshInput: number;
+    cacheRead: number;
+    cacheWrite5m: number;
+    cacheWrite1h: number;
+    cacheWriteDefault: number;
+    output: number;
+  },
+  agents: ReadonlyArray<{
+    model: string | null;
+    freshInput: number;
+    cacheRead: number;
+    cacheWrite5m: number;
+    cacheWrite1h: number;
+    output: number;
+  }>,
+): number | null {
+  const breakdowns: CostBreakdown[] = [];
+
+  const parentCost = costBreakdown(parentModel, parent);
+  if (parentCost) breakdowns.push(parentCost);
+
+  for (const agent of agents) {
+    const agentCost = costBreakdown(agent.model ?? parentModel, {
+      freshInput: agent.freshInput,
+      cacheRead: agent.cacheRead,
+      cacheWrite5m: agent.cacheWrite5m,
+      cacheWrite1h: agent.cacheWrite1h,
+      cacheWriteDefault: 0,
+      output: agent.output,
+    });
+    if (agentCost) breakdowns.push(agentCost);
+  }
+
+  if (breakdowns.length === 0) return null;
+
+  return round6(breakdowns.reduce((sum, b) => sum + b.total, 0));
+}
+
 /** Context window for a model, or null when unresolved. */
 export function contextWindowFor(model: string | null | undefined): number | null {
   return resolveModel(model)?.context_window ?? null;

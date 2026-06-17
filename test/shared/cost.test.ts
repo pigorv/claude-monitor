@@ -5,6 +5,7 @@ import {
   resolveModel,
   contextWindowFor,
   pricingFor,
+  sessionCostUsd,
   type CostParts,
 } from '../../src/shared/cost.js';
 
@@ -156,6 +157,105 @@ describe('resolveModel', () => {
     assert.equal(resolveModel('totally-unknown-model'), null);
     assert.equal(resolveModel(null), null);
     assert.equal(resolveModel(undefined), null);
+  });
+});
+
+describe('sessionCostUsd', () => {
+  it('sums parent + per-agent at each own model, incl. cache + sub-agent (Behavior #3, #4)', () => {
+    const parent = {
+      freshInput: 200_000,
+      cacheRead: 1_500_000,
+      cacheWrite5m: 80_000,
+      cacheWrite1h: 40_000,
+      cacheWriteDefault: 25_000,
+      output: 90_000,
+    };
+    const agent = {
+      model: 'claude-haiku-4-5' as string | null,
+      freshInput: 50_000,
+      cacheRead: 300_000,
+      cacheWrite5m: 10_000,
+      cacheWrite1h: 5_000,
+      output: 20_000,
+    };
+
+    const result = sessionCostUsd('claude-opus-4-8', parent, [agent]);
+    assert.ok(result !== null, 'expected a non-null cost');
+
+    // Hand-computed: parent at opus + agent at haiku (its own, different model)
+    const parentBd = costBreakdown('claude-opus-4-8', parent);
+    const agentBd = costBreakdown('claude-haiku-4-5', {
+      freshInput: agent.freshInput,
+      cacheRead: agent.cacheRead,
+      cacheWrite5m: agent.cacheWrite5m,
+      cacheWrite1h: agent.cacheWrite1h,
+      cacheWriteDefault: 0,
+      output: agent.output,
+    });
+    assert.ok(parentBd && agentBd);
+    const expected = Math.round((parentBd.total + agentBd.total) * 1_000_000) / 1_000_000;
+    approx(result, expected, 'parent + agent total');
+
+    // Behavior #3: strictly greater than an input+output-only estimate
+    const inputOutputOnly = sessionCostUsd(
+      'claude-opus-4-8',
+      { ...parent, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheWriteDefault: 0 },
+      [{ ...agent, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 }],
+    );
+    assert.ok(inputOutputOnly !== null);
+    assert.ok(result > inputOutputOnly, `expected ${result} > ${inputOutputOnly}`);
+  });
+
+  it('agent with null model is priced at the parent model (Behavior #4 fallback)', () => {
+    const parent = {
+      freshInput: 0,
+      cacheRead: 0,
+      cacheWrite5m: 0,
+      cacheWrite1h: 0,
+      cacheWriteDefault: 0,
+      output: 0,
+    };
+    const agent = {
+      model: null as string | null,
+      freshInput: 100_000,
+      cacheRead: 0,
+      cacheWrite5m: 0,
+      cacheWrite1h: 0,
+      output: 0,
+    };
+
+    const result = sessionCostUsd('claude-opus-4-8', parent, [agent]);
+    assert.ok(result !== null);
+
+    const atParent = costBreakdown('claude-opus-4-8', {
+      freshInput: agent.freshInput,
+      cacheRead: 0,
+      cacheWrite5m: 0,
+      cacheWrite1h: 0,
+      cacheWriteDefault: 0,
+      output: 0,
+    });
+    assert.ok(atParent);
+    approx(result, atParent.total, 'agent priced at parent model');
+
+    // Sanity: priced at opus (5/MTok), not e.g. haiku (1/MTok)
+    approx(result, (100_000 / 1e6) * 5, 'opus input rate');
+  });
+
+  it('unresolvable parent model with no agents returns null (Behavior #8)', () => {
+    const result = sessionCostUsd(
+      'totally-unknown-model',
+      {
+        freshInput: 100_000,
+        cacheRead: 0,
+        cacheWrite5m: 0,
+        cacheWrite1h: 0,
+        cacheWriteDefault: 0,
+        output: 50_000,
+      },
+      [],
+    );
+    assert.equal(result, null);
   });
 });
 

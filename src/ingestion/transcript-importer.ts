@@ -12,6 +12,7 @@ import { generateSessionSummary } from '../analysis/session-summary.js';
 import { computeAgentEfficiency, inferExecutionModes, analyzeAgentFileReads } from '../analysis/agent-efficiency.js';
 import { getAllAgentTokenTimelines, updateAgentRelationship } from '../db/queries/sessions.js';
 import { detectAndLinkSessions } from './session-linker.js';
+import { sessionCostUsd } from '../shared/cost.js';
 
 // Reset commands that wipe or compact context. They start a session mechanically
 // but never describe it, so they're excluded from the fallback title, the
@@ -318,6 +319,52 @@ export async function importTranscript(
       WHERE id = ?
     `).run(agentTotals.agent_input, agentTotals.agent_output, sessionId);
   }
+
+  // Compute and store the full per-session cost (parent + per-agent), each term
+  // priced at its own model. Uses the parent-only `aggregates` (not the session
+  // row, which was just mutated by the agent-merge block above) so parent output
+  // is not double-counted and parent fresh input is the billed sum.
+  const agentCostRows = db
+    .prepare(
+      `SELECT model, input_tokens_total, output_tokens_total, cache_read_total,
+              cache_write_5m_total, cache_write_1h_total
+       FROM agent_relationships
+       WHERE parent_session_id = ?`,
+    )
+    .all(sessionId) as Array<{
+    model: string | null;
+    input_tokens_total: number | null;
+    output_tokens_total: number | null;
+    cache_read_total: number | null;
+    cache_write_5m_total: number | null;
+    cache_write_1h_total: number | null;
+  }>;
+
+  const parentParts = {
+    freshInput: aggregates.total_input_tokens_billed,
+    cacheRead: aggregates.total_cache_read_tokens,
+    cacheWrite5m: aggregates.total_cache_write_5m_tokens,
+    cacheWrite1h: aggregates.total_cache_write_1h_tokens,
+    cacheWriteDefault: Math.max(
+      0,
+      aggregates.total_cache_write_tokens -
+        aggregates.total_cache_write_5m_tokens -
+        aggregates.total_cache_write_1h_tokens,
+    ),
+    output: aggregates.total_output_tokens,
+  };
+
+  const agentParts = agentCostRows.map((row) => ({
+    model: row.model ?? null,
+    freshInput: row.input_tokens_total ?? 0,
+    cacheRead: row.cache_read_total ?? 0,
+    cacheWrite5m: row.cache_write_5m_total ?? 0,
+    cacheWrite1h: row.cache_write_1h_total ?? 0,
+    output: row.output_tokens_total ?? 0,
+  }));
+
+  const cost = sessionCostUsd(model, parentParts, agentParts);
+  db.prepare('UPDATE sessions SET cost_estimate_usd = ? WHERE id = ?').run(cost, sessionId);
 
   // Detect and link plan↔implementation session pairs
   const firstUserMsg = messages.find((m) => m.type === 'user');
