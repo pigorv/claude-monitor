@@ -9,10 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The Settings page now shows live re-import progress (processed of total plus a phase label — "Importing transcripts…" or "Compacting database…") while a run is in flight, and reattaches to an already-running re-import if you reload the page mid-run.
-- A `GET /api/reimport/status` endpoint reports the progress of the current or most recent re-import (`{ total, processed, imported, errors, done }` plus the current phase).
 - The transcript parser now captures the `cache_creation` 5-minute / 1-hour split alongside the authoritative total cache-write token count.
 - Imports now persist the per-session cache-write 5m/1h split (and billed input tokens), plus per-subagent cache read/write totals, so cache usage is available throughout the dashboard.
+
+## [0.5.2] - 2026-06-17
+
+### Added
+
+- The Settings page now shows live re-import progress (processed of total plus a phase label — "Importing transcripts…" or "Compacting database…") while a run is in flight, and reattaches to an already-running re-import if you reload the page mid-run.
+- A `GET /api/reimport/status` endpoint reports the progress of the current or most recent re-import (`{ total, processed, imported, errors, done }` plus the current phase).
 
 ### Changed
 
