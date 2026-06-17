@@ -342,16 +342,21 @@ function migration017CostAndAgentModel(db: Database.Database): void {
 //
 // Recomputes from the stored aggregate columns through the same sessionCostUsd()
 // pricing path as the importer (rates resolved from models.json), so a backfilled
-// row matches a freshly-imported one. Two fidelity notes:
+// row matches a freshly-imported one. Three fidelity notes:
 //   - sessions.total_output_tokens was inflated at import to include sub-agent
 //     output; we subtract that back out (mirroring the agent-merge's
 //     `WHERE input_tokens_total IS NOT NULL` sum) so the parent is priced on
 //     parent-only output and agent output isn't double-counted.
 //   - For the oldest sessions the billed-input and 5m/1h cache-write split
-//     columns are 0 (they predate migration 016), so fresh input is
-//     under-counted and cache writes price at the default TTL rate — a close
-//     estimate, not exact. A forced reimport refines it where the transcript
+//     columns are 0 (they predate migration 016), so their fresh-input cost is
+//     omitted entirely (priced at $0, not merely under-counted) and cache writes
+//     price at the default TTL rate. The backfilled figure is a floor for these
+//     rows, not an estimate; a forced reimport refines it where the transcript
 //     still exists.
+//   - agent_relationships.model is NULL for every pre-existing sub-agent (this
+//     migration only adds the column), so backfilled sub-agents fall back to the
+//     parent model's rates. Per-agent model pricing (e.g. a Haiku sub-agent under
+//     an Opus parent) only applies to freshly imported sessions.
 // Guarded by `WHERE cost_estimate_usd IS NULL` so it never overwrites an
 // import-computed value and is safe to re-run.
 function backfillSessionCost(db: Database.Database): void {

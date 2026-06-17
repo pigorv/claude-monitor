@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Imports now persist the per-session cache-write 5m/1h split (and billed input tokens), plus per-subagent cache read/write totals, so cache usage is available throughout the dashboard.
 - Imports now persist each sub-agent's own model on its agent relationship, so a sub-agent running on a different model than its parent can be identified.
 - Each session now stores a full cost estimate (parent plus every sub-agent, each priced at its own model, including cache reads/writes), computed at import time.
-- Sessions imported before the cost feature are backfilled with a cost estimate on upgrade — computed from their already-stored token totals — so the Session List shows cost across your whole history without a re-import, including sessions whose original transcripts have since been deleted. (Sessions with no recorded model remain uncosted.)
+- Sessions imported before the cost feature are backfilled with a cost estimate on upgrade — computed from their already-stored token totals — so the Session List shows cost across your whole history without a re-import, including sessions whose original transcripts have since been deleted. (Sessions with no recorded model remain uncosted.) Backfilled costs are a floor for the oldest sessions: those predating the billed-input/cache-split columns omit their fresh-input cost, and backfilled sub-agents are priced at the parent model rather than their own. A forced re-import refines both where the transcript still exists.
 
 ### Changed
 
