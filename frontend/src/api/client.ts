@@ -1,4 +1,6 @@
-import type { SessionListResponse, SessionDetailResponse, Event, ProjectInfo, HealthResponse } from "../../../src/shared/types";
+import type { SessionListResponse, SessionDetailResponse, Event, ProjectInfo, HealthResponse, TokenBudget } from "../../../src/shared/types";
+
+export type { TokenBudget };
 
 export interface EventsResponse {
   events: Event[];

@@ -7,7 +7,10 @@ import type {
   SessionStats,
   InternalToolCall,
   Invocation,
+  AgentRelationship,
+  TokenBudget,
 } from '../../shared/types.js';
+import { costBreakdown, contextWindowFor } from '../../shared/cost.js';
 import { getSession, listSessions, listProjects, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions } from '../../db/queries/sessions.js';
 import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getTurnCountsForSessions, getMessageMatchesForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
 import { getSessionStats, getToolFrequency, getFileActivity, getPeakParentTokens, getPeakParentTokensForSessions } from '../../db/queries/stats.js';
@@ -76,6 +79,154 @@ function sessionToSummary(
     invocations: parseInvocations(session.invocations),
     started_with: parseStartedWith(session.started_with),
     message_match: messageMatch,
+  };
+}
+
+function round6(x: number): number {
+  return Math.round(x * 1_000_000) / 1_000_000;
+}
+
+/**
+ * Build the per-session `token_budget` breakdown (parent vs. sub-agent split,
+ * per-token-type usage, and peak context) from stored session columns and the
+ * raw agent_relationships rows. Mirrors the cost assembly in
+ * transcript-importer.ts / migrations.ts: parent output is de-inflated by the
+ * merged sub-agent output, and the residual cache-write bucket is folded into
+ * the 5m bucket (same rate for every model). When a model is unresolvable, the
+ * cost for that term is 0 while token counts stay real (Behavior #9).
+ */
+function assembleTokenBudget(
+  session: Session,
+  agents: AgentRelationship[],
+  peakParentTokens: number | null | undefined,
+): TokenBudget {
+  // Undo the import-time agent-merge inflation of total_output_tokens.
+  const mergedAgentOutput = agents.reduce(
+    (sum, a) => sum + (a.input_tokens_total != null ? a.output_tokens_total ?? 0 : 0),
+    0,
+  );
+
+  const cw5m = session.total_cache_write_5m_tokens;
+  const cw1h = session.total_cache_write_1h_tokens;
+  const parentParts = {
+    freshInput: session.total_input_tokens_billed,
+    cacheRead: session.total_cache_read_tokens,
+    cacheWrite5m: cw5m,
+    cacheWrite1h: cw1h,
+    cacheWriteDefault: Math.max(0, session.total_cache_write_tokens - cw5m - cw1h),
+    output: Math.max(0, session.total_output_tokens - mergedAgentOutput),
+  };
+
+  // Each term: its token `parts` plus the per-type cost atoms from costBreakdown.
+  // An unresolvable model yields an all-zero perType (cost 0), real tokens.
+  type Parts = {
+    freshInput: number;
+    cacheRead: number;
+    cacheWrite5m: number;
+    cacheWrite1h: number;
+    cacheWriteDefault: number;
+    output: number;
+  };
+  const zeroPerType = {
+    freshInput: 0,
+    cacheRead: 0,
+    cacheWrite5m: 0,
+    cacheWrite1h: 0,
+    cacheWriteDefault: 0,
+    output: 0,
+  };
+
+  function term(model: string | null | undefined, parts: Parts) {
+    const perType = costBreakdown(model, parts)?.perType ?? zeroPerType;
+    return { parts, perType };
+  }
+
+  const parentTerm = term(session.model, parentParts);
+  const agentTerms = agents.map((a) =>
+    term(a.model ?? session.model, {
+      freshInput: a.input_tokens_total ?? 0,
+      cacheRead: a.cache_read_total ?? 0,
+      cacheWrite5m: a.cache_write_5m_total ?? 0,
+      cacheWrite1h: a.cache_write_1h_total ?? 0,
+      cacheWriteDefault: 0,
+      output: a.output_tokens_total ?? 0,
+    }),
+  );
+
+  const allTerms = [parentTerm, ...agentTerms];
+
+  // Five fixed-order buckets, aggregated across the parent + every agent term.
+  const buckets = {
+    input: { tokens: 0, cost: 0 },
+    output: { tokens: 0, cost: 0 },
+    cache_read: { tokens: 0, cost: 0 },
+    cache_write_5m: { tokens: 0, cost: 0 },
+    cache_write_1h: { tokens: 0, cost: 0 },
+  };
+  for (const { parts, perType } of allTerms) {
+    buckets.input.tokens += parts.freshInput;
+    buckets.input.cost += perType.freshInput;
+    buckets.output.tokens += parts.output;
+    buckets.output.cost += perType.output;
+    buckets.cache_read.tokens += parts.cacheRead;
+    buckets.cache_read.cost += perType.cacheRead;
+    buckets.cache_write_5m.tokens += parts.cacheWrite5m + parts.cacheWriteDefault;
+    buckets.cache_write_5m.cost += perType.cacheWrite5m + perType.cacheWriteDefault;
+    buckets.cache_write_1h.tokens += parts.cacheWrite1h;
+    buckets.cache_write_1h.cost += perType.cacheWrite1h;
+  }
+
+  const by_type = [
+    { type: 'input' as const, tokens: buckets.input.tokens, cost: round6(buckets.input.cost) },
+    { type: 'output' as const, tokens: buckets.output.tokens, cost: round6(buckets.output.cost) },
+    { type: 'cache_read' as const, tokens: buckets.cache_read.tokens, cost: round6(buckets.cache_read.cost) },
+    { type: 'cache_write_5m' as const, tokens: buckets.cache_write_5m.tokens, cost: round6(buckets.cache_write_5m.cost) },
+    { type: 'cache_write_1h' as const, tokens: buckets.cache_write_1h.tokens, cost: round6(buckets.cache_write_1h.cost) },
+  ];
+
+  const billed_tokens = by_type.reduce((s, b) => s + b.tokens, 0);
+  const cost_total = round6(by_type.reduce((s, b) => s + b.cost, 0));
+
+  function termTokens(parts: Parts): number {
+    return (
+      parts.freshInput +
+      parts.cacheRead +
+      parts.cacheWrite5m +
+      parts.cacheWrite1h +
+      parts.cacheWriteDefault +
+      parts.output
+    );
+  }
+  function termCost(perType: typeof zeroPerType): number {
+    return (
+      perType.freshInput +
+      perType.cacheRead +
+      perType.cacheWrite5m +
+      perType.cacheWrite1h +
+      perType.cacheWriteDefault +
+      perType.output
+    );
+  }
+
+  const parentTokens = termTokens(parentTerm.parts);
+  const parentCost = round6(termCost(parentTerm.perType));
+  const agentsTokens = agentTerms.reduce((s, t) => s + termTokens(t.parts), 0);
+  const agentsCost = round6(agentTerms.reduce((s, t) => s + termCost(t.perType), 0));
+
+  const parentPct = billed_tokens > 0 ? Math.round((parentTokens / billed_tokens) * 100) : 0;
+  const agentsPct = billed_tokens > 0 ? 100 - parentPct : 0;
+
+  return {
+    billed_tokens,
+    cost_total,
+    parent: { tokens: parentTokens, cost: parentCost, pct: parentPct },
+    agents: { tokens: agentsTokens, cost: agentsCost, runs: agents.length, pct: agentsPct },
+    by_type,
+    context_peak: {
+      pct: session.peak_context_pct ?? 0,
+      peak_tokens: peakParentTokens ?? 0,
+      max_tokens: contextWindowFor(session.model) ?? 200_000,
+    },
   };
 }
 
@@ -258,6 +409,7 @@ sessions.get('/api/sessions/:id', (c) => {
     file_activity: fileActivity,
     peak_parent_tokens: peakParentTokens ?? undefined,
     event_annotations: eventAnnotations.length > 0 ? eventAnnotations : undefined,
+    token_budget: assembleTokenBudget(session, agents, peakParentTokens),
   };
 
   return c.json(response);

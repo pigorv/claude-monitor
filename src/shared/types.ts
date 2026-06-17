@@ -328,6 +328,24 @@ export interface EventAnnotation {
   token_delta?: number;
 }
 
+export type TokenType =
+  | 'input' | 'output' | 'cache_read' | 'cache_write_5m' | 'cache_write_1h';
+
+export interface TokenBudgetByType {
+  type: TokenType;
+  tokens: number;
+  cost: number;
+}
+
+export interface TokenBudget {
+  billed_tokens: number;
+  cost_total: number;
+  parent: { tokens: number; cost: number; pct: number };
+  agents: { tokens: number; cost: number; runs: number; pct: number };
+  by_type: TokenBudgetByType[];        // exactly 5, fixed order
+  context_peak: { pct: number; peak_tokens: number; max_tokens: number };
+}
+
 export interface SessionDetailResponse {
   session: Session;
   token_timeline: TokenDataPoint[];
@@ -340,6 +358,7 @@ export interface SessionDetailResponse {
   file_activity?: FileActivityData;
   peak_parent_tokens?: number;
   event_annotations?: EventAnnotation[];
+  token_budget: TokenBudget;
 }
 
 export interface SessionStats {
