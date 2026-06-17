@@ -31,18 +31,28 @@ export interface ResolvedModel {
   context_window: number;
 }
 
+/** Escape a literal string for safe interpolation into a RegExp. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Resolve a stored model string to a known model entry.
- * Tries full-ID substring match first (e.g. `claude-opus-4-5` matches
+ * Tries full-ID match first (e.g. `claude-opus-4-5` matches
  * `claude-opus-4-5-20251101`), then falls back by family to that family's
  * representative model. Returns null when nothing matches.
+ *
+ * Matching requires a version boundary — the key must be followed by a
+ * non-digit or end-of-string — so a key like `claude-opus-4-1` does not
+ * swallow a future `claude-opus-4-10`. That also removes any dependence on
+ * the order of keys in models.json.
  */
 export function resolveModel(model: string | null | undefined): ResolvedModel | null {
   if (!model) return null;
   const lower = model.toLowerCase();
 
   for (const key of Object.keys(MODELS)) {
-    if (lower.includes(key)) {
+    if (new RegExp(`${escapeRegExp(key)}(?![0-9])`).test(lower)) {
       const facts = MODELS[key];
       return { id: key, pricing: facts.pricing, context_window: facts.context_window };
     }
@@ -156,6 +166,10 @@ export function sessionCostUsd(
       cacheRead: agent.cacheRead,
       cacheWrite5m: agent.cacheWrite5m,
       cacheWrite1h: agent.cacheWrite1h,
+      // agent_relationships only stores the 5m/1h split, not a residual
+      // cache-write bucket, so a sub-agent's residual (if the API ever emits
+      // one beyond 5m + 1h) can't be priced here. It's exactly 0 under the
+      // current cache_creation breakdown.
       cacheWriteDefault: 0,
       output: agent.output,
     });

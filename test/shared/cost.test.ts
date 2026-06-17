@@ -153,6 +153,25 @@ describe('resolveModel', () => {
     assert.equal(r.context_window, 1000000);
   });
 
+  it('keeps a dated version-1 entry resolving to its own pricing', () => {
+    const r = resolveModel('claude-opus-4-1-20250805');
+    assert.ok(r);
+    assert.equal(r.id, 'claude-opus-4-1');
+    assert.equal(r.pricing.input, 15);
+    assert.equal(r.pricing.output, 75);
+  });
+
+  it('does not let a single-digit key swallow a double-digit version', () => {
+    // `claude-opus-4-1` is a substring of `claude-opus-4-10`, but a version
+    // boundary must stop it matching — the unknown 4-10 falls back to the
+    // opus family rep ($5/$25), not 4-1's pricier $15/$75.
+    const r = resolveModel('claude-opus-4-10');
+    assert.ok(r);
+    assert.equal(r.id, 'claude-opus-4-8');
+    assert.equal(r.pricing.input, 5);
+    assert.equal(r.pricing.output, 25);
+  });
+
   it('fully unknown model returns null (Behavior #8)', () => {
     assert.equal(resolveModel('totally-unknown-model'), null);
     assert.equal(resolveModel(null), null);
