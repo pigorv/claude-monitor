@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-06-17
+
 ### Added
 
 - The Settings page now shows live re-import progress (processed of total plus a phase label — "Importing transcripts…" or "Compacting database…") while a run is in flight, and reattaches to an already-running re-import if you reload the page mid-run.
