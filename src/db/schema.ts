@@ -16,6 +16,7 @@ CREATE TABLE sessions (
     total_input_tokens_billed INTEGER DEFAULT 0,
     total_cache_write_5m_tokens INTEGER DEFAULT 0,
     total_cache_write_1h_tokens INTEGER DEFAULT 0,
+    cost_estimate_usd REAL,
     peak_context_pct REAL,
     compaction_count INTEGER DEFAULT 0,
     tool_call_count INTEGER DEFAULT 0,
@@ -66,6 +67,7 @@ CREATE TABLE agent_relationships (
     cache_read_total INTEGER,
     cache_write_5m_total INTEGER,
     cache_write_1h_total INTEGER,
+    model TEXT,
     tool_call_count INTEGER DEFAULT 0,
     status TEXT DEFAULT 'running'
 );

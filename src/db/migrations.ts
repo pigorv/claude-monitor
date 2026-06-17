@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { INITIAL_SCHEMA } from './schema.js';
+import { sessionCostUsd } from '../shared/cost.js';
 import * as logger from '../shared/logger.js';
 
 /** Either raw SQL or an imperative function. Function form lets a migration
@@ -313,6 +314,138 @@ function migration016CacheWriteSplit(db: Database.Database): void {
   }
 }
 
+// Adds two columns that later tasks populate: agent_relationships.model (each
+// sub-agent's model id) and sessions.cost_estimate_usd (precomputed per-session
+// cost). Both are nullable with no DEFAULT, mirroring their nullable neighbours
+// (input_tokens_total / peak_context_pct). Uses run() with tableHasColumn guards
+// for idempotency, and tableExists for agent_relationships because some
+// partial-schema test fixtures omit that table entirely (see migrations 015/016).
+// After adding the column, backfills it for every existing session so the cost
+// is available across history without a re-import (see backfillSessionCost).
+function migration017CostAndAgentModel(db: Database.Database): void {
+  if (!tableHasColumn(db, 'sessions', 'cost_estimate_usd')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN cost_estimate_usd REAL');
+  }
+  if (tableExists(db, 'agent_relationships')) {
+    if (!tableHasColumn(db, 'agent_relationships', 'model')) {
+      db.exec('ALTER TABLE agent_relationships ADD COLUMN model TEXT');
+    }
+  }
+  backfillSessionCost(db);
+}
+
+// Backfills sessions.cost_estimate_usd for rows left NULL by the column add
+// above. The value is otherwise only written at import time, and the importer is
+// idempotent — so without this, already-imported sessions never get a cost, and
+// many of their transcripts have since been pruned from disk, putting a forced
+// reimport out of reach.
+//
+// Recomputes from the stored aggregate columns through the same sessionCostUsd()
+// pricing path as the importer (rates resolved from models.json), so a backfilled
+// row matches a freshly-imported one. Three fidelity notes:
+//   - sessions.total_output_tokens was inflated at import to include sub-agent
+//     output; we subtract that back out (mirroring the agent-merge's
+//     `WHERE input_tokens_total IS NOT NULL` sum) so the parent is priced on
+//     parent-only output and agent output isn't double-counted.
+//   - For the oldest sessions the billed-input and 5m/1h cache-write split
+//     columns are 0 (they predate migration 016), so their fresh-input cost is
+//     omitted entirely (priced at $0, not merely under-counted) and cache writes
+//     price at the default TTL rate. The backfilled figure is a floor for these
+//     rows, not an estimate; a forced reimport refines it where the transcript
+//     still exists.
+//   - agent_relationships.model is NULL for every pre-existing sub-agent (this
+//     migration only adds the column), so backfilled sub-agents fall back to the
+//     parent model's rates. Per-agent model pricing (e.g. a Haiku sub-agent under
+//     an Opus parent) only applies to freshly imported sessions.
+// Guarded by `WHERE cost_estimate_usd IS NULL` so it never overwrites an
+// import-computed value and is safe to re-run.
+function backfillSessionCost(db: Database.Database): void {
+  // Needs the full sessions aggregate schema. Real DBs always have it (it's in
+  // INITIAL_SCHEMA + migrations 016/017), but the isolated per-migration test
+  // fixtures use a minimal sessions table — skip there, matching 015/016/017's
+  // defensive guards.
+  const required = [
+    'cost_estimate_usd',
+    'model',
+    'total_input_tokens_billed',
+    'total_cache_read_tokens',
+    'total_cache_write_tokens',
+    'total_cache_write_5m_tokens',
+    'total_cache_write_1h_tokens',
+    'total_output_tokens',
+  ];
+  if (!required.every((c) => tableHasColumn(db, 'sessions', c))) return;
+
+  const sessions = db
+    .prepare(
+      `SELECT id, model, total_input_tokens_billed, total_cache_read_tokens,
+              total_cache_write_tokens, total_cache_write_5m_tokens,
+              total_cache_write_1h_tokens, total_output_tokens
+       FROM sessions
+       WHERE cost_estimate_usd IS NULL`,
+    )
+    .all() as Array<{
+    id: string;
+    model: string | null;
+    total_input_tokens_billed: number | null;
+    total_cache_read_tokens: number | null;
+    total_cache_write_tokens: number | null;
+    total_cache_write_5m_tokens: number | null;
+    total_cache_write_1h_tokens: number | null;
+    total_output_tokens: number | null;
+  }>;
+
+  const agentStmt = tableExists(db, 'agent_relationships')
+    ? db.prepare(
+        `SELECT model, input_tokens_total, output_tokens_total, cache_read_total,
+                cache_write_5m_total, cache_write_1h_total
+         FROM agent_relationships
+         WHERE parent_session_id = ?`,
+      )
+    : null;
+  const update = db.prepare('UPDATE sessions SET cost_estimate_usd = ? WHERE id = ?');
+
+  for (const s of sessions) {
+    const agentRows = (agentStmt?.all(s.id) ?? []) as Array<{
+      model: string | null;
+      input_tokens_total: number | null;
+      output_tokens_total: number | null;
+      cache_read_total: number | null;
+      cache_write_5m_total: number | null;
+      cache_write_1h_total: number | null;
+    }>;
+
+    // Undo the import-time agent-merge inflation of total_output_tokens.
+    const mergedAgentOutput = agentRows.reduce(
+      (sum, a) => sum + (a.input_tokens_total != null ? a.output_tokens_total ?? 0 : 0),
+      0,
+    );
+    const cacheWrite = s.total_cache_write_tokens ?? 0;
+    const cw5m = s.total_cache_write_5m_tokens ?? 0;
+    const cw1h = s.total_cache_write_1h_tokens ?? 0;
+    const parentParts = {
+      freshInput: s.total_input_tokens_billed ?? 0,
+      cacheRead: s.total_cache_read_tokens ?? 0,
+      cacheWrite5m: cw5m,
+      cacheWrite1h: cw1h,
+      cacheWriteDefault: Math.max(0, cacheWrite - cw5m - cw1h),
+      output: Math.max(0, (s.total_output_tokens ?? 0) - mergedAgentOutput),
+    };
+
+    const agentParts = agentRows.map((a) => ({
+      model: a.model ?? null,
+      freshInput: a.input_tokens_total ?? 0,
+      cacheRead: a.cache_read_total ?? 0,
+      cacheWrite5m: a.cache_write_5m_total ?? 0,
+      cacheWrite1h: a.cache_write_1h_total ?? 0,
+      output: a.output_tokens_total ?? 0,
+    }));
+
+    const cost = sessionCostUsd(s.model, parentParts, agentParts);
+    if (cost !== null) update.run(cost, s.id);
+  }
+}
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -330,6 +463,7 @@ const MIGRATIONS: Migration[] = [
   { id: 14, name: '014-drop-event-parent-fk', run: migration014DropEventParentFk },
   { id: 15, name: '015-agent-rel-child-mtime', run: migration015AgentRelChildMtime },
   { id: 16, name: '016-cache-write-split', run: migration016CacheWriteSplit },
+  { id: 17, name: '017-cost-and-agent-model', run: migration017CostAndAgentModel },
 ];
 
 export function runMigrations(db: Database.Database): void {

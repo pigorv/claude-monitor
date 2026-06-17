@@ -1,4 +1,5 @@
 import { MODEL_THRESHOLDS } from '../shared/constants.js';
+import { contextWindowFor } from '../shared/cost.js';
 import type { ContextThresholds, TokenDataPoint, TranscriptMessage } from '../shared/types.js';
 
 // ── Token snapshot computed from a single assistant message ─────────
@@ -48,10 +49,12 @@ export function resolveThreshold(model: string | null | undefined): ContextThres
 
 /**
  * Estimate context utilization percentage from cumulative input tokens.
+ * The context window is sourced from models.json (`contextWindowFor`),
+ * falling back to the resolved family's threshold window.
  */
 export function estimateContextPct(inputTokens: number, model: string | null | undefined): number {
-  const threshold = resolveThreshold(model);
-  return (inputTokens / threshold.maxTokens) * 100;
+  const maxTokens = contextWindowFor(model) ?? resolveThreshold(model).maxTokens;
+  return (inputTokens / maxTokens) * 100;
 }
 
 // ── Core token tracking ────────────────────────────────────────────

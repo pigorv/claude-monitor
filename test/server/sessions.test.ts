@@ -30,6 +30,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     end_reason: 'user_exit',
     transcript_path: '/tmp/transcript.jsonl',
     metadata: null,
+    cost_estimate_usd: 0.06,
     ...overrides,
   };
 }
@@ -49,12 +50,12 @@ describe('Sessions routes', () => {
         id, project_path, project_name, model, source, status, started_at, ended_at,
         duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
         total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
-        subagent_count, summary, end_reason, transcript_path, metadata
+        subagent_count, summary, end_reason, transcript_path, metadata, cost_estimate_usd
       ) VALUES (
         @id, @project_path, @project_name, @model, @source, @status, @started_at, @ended_at,
         @duration_ms, @total_input_tokens, @total_output_tokens, @total_cache_read_tokens,
         @total_cache_write_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
-        @subagent_count, @summary, @end_reason, @transcript_path, @metadata
+        @subagent_count, @summary, @end_reason, @transcript_path, @metadata, @cost_estimate_usd
       )
     `);
 
@@ -67,6 +68,7 @@ describe('Sessions routes', () => {
       status: 'running',
       started_at: '2026-01-16T10:00:00Z',
       summary: 'Debugging issue Y',
+      cost_estimate_usd: 0.3,
     }));
     insertSession.run(makeSession({
       id: 'sess-3',
@@ -256,22 +258,22 @@ describe('Sessions routes', () => {
 
   // ── Cost estimation ──
 
-  it('includes cost_estimate_usd for known models', async () => {
+  it('serves the stored cost_estimate_usd', async () => {
     const res = await app.request('/api/sessions');
     const body: SessionListResponse = await res.json();
     const sonnet = body.sessions.find((s) => s.id === 'sess-1')!;
     const opus = body.sessions.find((s) => s.id === 'sess-2')!;
 
-    // Sonnet: (5000/1M)*3 + (3000/1M)*15 = 0.015 + 0.045 = 0.06
+    // Stored value seeded on sess-1
     assert.equal(typeof sonnet.cost_estimate_usd, 'number');
     assert.equal(sonnet.cost_estimate_usd, 0.06);
 
-    // Opus: (5000/1M)*15 + (3000/1M)*75 = 0.075 + 0.225 = 0.3
+    // Stored value seeded on sess-2
     assert.equal(typeof opus.cost_estimate_usd, 'number');
     assert.equal(opus.cost_estimate_usd, 0.3);
   });
 
-  it('cost_estimate_usd is undefined for unknown models', async () => {
+  it('cost_estimate_usd is undefined when not stored', async () => {
     const db = getDb();
     db.prepare(`
       INSERT INTO sessions (id, project_path, status, started_at, model,

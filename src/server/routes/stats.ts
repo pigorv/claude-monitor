@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { getDb } from '../../db/connection.js';
 import { getDbStats } from '../../db/queries/stats.js';
-import { MODEL_PRICING } from '../../shared/constants.js';
 
 const stats = new Hono();
 
@@ -23,31 +22,11 @@ stats.get('/api/stats', (c) => {
     FROM sessions
   `).get() as Record<string, number>;
 
-  // Compute total cost estimate by model
-  const modelRows = db.prepare(`
-    SELECT
-      model,
-      COALESCE(SUM(total_input_tokens), 0) as input_tokens,
-      COALESCE(SUM(total_output_tokens), 0) as output_tokens
-    FROM sessions
-    WHERE model IS NOT NULL
-    GROUP BY model
-  `).all() as { model: string; input_tokens: number; output_tokens: number }[];
-
-  let totalCostEstimate = 0;
-  for (const row of modelRows) {
-    const lower = row.model.toLowerCase();
-    let pricingKey: string | null = null;
-    for (const key of Object.keys(MODEL_PRICING)) {
-      if (lower.includes(key)) { pricingKey = key; break; }
-    }
-    if (pricingKey) {
-      const pricing = MODEL_PRICING[pricingKey];
-      totalCostEstimate += (row.input_tokens / 1_000_000) * pricing.input_per_mtok
-        + (row.output_tokens / 1_000_000) * pricing.output_per_mtok;
-    }
-  }
-  totalCostEstimate = Math.round(totalCostEstimate * 1_000_000) / 1_000_000;
+  // Total cost estimate is the sum of the stored per-session estimates.
+  const costRow = db.prepare(`
+    SELECT COALESCE(SUM(cost_estimate_usd), 0) as total FROM sessions
+  `).get() as { total: number };
+  const totalCostEstimate = costRow.total;
 
   const todayRow = db.prepare(`
     SELECT COUNT(*) as cnt FROM sessions WHERE started_at >= date('now') AND started_at < date('now', '+1 day')

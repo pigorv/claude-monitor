@@ -1,7 +1,6 @@
 import type Database from 'better-sqlite3';
 import type { Session, AgentRelationship, TokenDataPoint, LinkedSession, ProjectInfo } from '../../shared/types.js';
 import { getDb, onDbClose } from '../connection.js';
-import { MODEL_PRICING } from '../../shared/constants.js';
 import { buildFtsMatch } from './fts-match.js';
 import { collapseTimelineByUsage } from './events.js';
 
@@ -125,24 +124,13 @@ const ALLOWED_SORT_COLUMNS = new Set([
   'project_name', 'model', 'peak_context_pct',
 ]);
 
-/**
- * SQL expression that mirrors estimateCost() (server route) so the list can be
- * ordered by estimated cost server-side. Built from trusted MODEL_PRICING
- * constants only — no user input is interpolated, so this is injection-safe.
- */
-const COST_SORT_EXPR = `CASE ${Object.entries(MODEL_PRICING)
-  .map(
-    ([key, p]) =>
-      `WHEN lower(model) LIKE '%${key}%' THEN total_input_tokens / 1000000.0 * ${p.input_per_mtok} + total_output_tokens / 1000000.0 * ${p.output_per_mtok}`,
-  )
-  .join(' ')} ELSE 0 END`;
-
 /** Columns needed by sessionToSummary() — excludes large TEXT fields like metadata */
 const SESSION_LIST_COLUMNS = `
   id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
   duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
   total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
-  subagent_count, summary, end_reason, transcript_path, invocations, started_with
+  subagent_count, summary, end_reason, transcript_path, invocations, started_with,
+  cost_estimate_usd
 `;
 
 export function listSessions(
@@ -192,7 +180,7 @@ export function listSessions(
 
   const orderExpr =
     filters.sort === 'cost_estimate_usd'
-      ? COST_SORT_EXPR
+      ? 'COALESCE(cost_estimate_usd, 0)'
       : filters.sort && ALLOWED_SORT_COLUMNS.has(filters.sort)
         ? filters.sort
         : 'started_at';
@@ -338,7 +326,7 @@ export function getAgentRelationships(sessionId: string): AgentRelationship[] {
       started_at, ended_at,
       duration_ms, input_tokens_total, output_tokens_total,
       cache_read_total, cache_write_5m_total, cache_write_1h_total,
-      tool_call_count, status, prompt_tokens, result_tokens,
+      model, tool_call_count, status, prompt_tokens, result_tokens,
       peak_context_tokens, compression_ratio, agent_compaction_count,
       parent_headroom_at_return, parent_impact_pct, result_classification,
       execution_mode, files_read_count, files_total_tokens,

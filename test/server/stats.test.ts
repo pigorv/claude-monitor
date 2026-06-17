@@ -68,42 +68,39 @@ describe('Stats route', () => {
     assert.ok(body.total_cost_estimate_usd >= 0);
   });
 
-  it('calculates cost correctly across models', async () => {
-    // sess-1 has model null (from insert), sess-2 has model null
-    // Insert sessions with known models for cost verification
+  it('sums the stored per-session cost_estimate_usd', async () => {
+    // Stats total_cost_estimate_usd is SUM(sessions.cost_estimate_usd); seed
+    // stored values and assert the route reflects their sum.
     const db = getDb();
     db.prepare(`
       INSERT INTO sessions (id, project_path, status, started_at, model,
         total_input_tokens, total_output_tokens, total_cache_read_tokens,
         total_cache_write_tokens, compaction_count, tool_call_count, subagent_count,
-        duration_ms)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        duration_ms, cost_estimate_usd)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run('sess-cost-1', '/tmp/c', 'completed', '2026-01-17T10:00:00Z',
-      'claude-sonnet-4-20250514', 1000000, 500000, 0, 0, 0, 0, 0, 1000);
+      'claude-sonnet-4-20250514', 1000000, 500000, 0, 0, 0, 0, 0, 1000, 10.5);
     db.prepare(`
       INSERT INTO sessions (id, project_path, status, started_at, model,
         total_input_tokens, total_output_tokens, total_cache_read_tokens,
         total_cache_write_tokens, compaction_count, tool_call_count, subagent_count,
-        duration_ms)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        duration_ms, cost_estimate_usd)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run('sess-cost-2', '/tmp/d', 'completed', '2026-01-17T11:00:00Z',
-      'claude-opus-4-20250514', 1000000, 500000, 0, 0, 0, 0, 0, 2000);
+      'claude-opus-4-20250514', 1000000, 500000, 0, 0, 0, 0, 0, 2000, 52.5);
     db.prepare(`
       INSERT INTO sessions (id, project_path, status, started_at, model,
         total_input_tokens, total_output_tokens, total_cache_read_tokens,
         total_cache_write_tokens, compaction_count, tool_call_count, subagent_count,
-        duration_ms)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        duration_ms, cost_estimate_usd)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run('sess-cost-3', '/tmp/e', 'completed', '2026-01-17T12:00:00Z',
-      'claude-fable-5', 1000000, 500000, 0, 0, 0, 0, 0, 3000);
+      'claude-fable-5', 1000000, 500000, 0, 0, 0, 0, 0, 3000, 35.0);
 
     const res = await app.request('/api/stats');
     const body = await res.json();
 
-    // Sonnet: (1M/1M)*3 + (500K/1M)*15 = 3 + 7.5 = 10.5
-    // Opus: (1M/1M)*15 + (500K/1M)*75 = 15 + 37.5 = 52.5
-    // Fable: (1M/1M)*10 + (500K/1M)*50 = 10 + 25 = 35.0
-    // Total from these three: 98.0 (plus whatever the original 2 sessions contribute)
+    // Stored values: 10.5 + 52.5 + 35.0 = 98.0 (plus whatever the original sessions contribute)
     assert.ok(body.total_cost_estimate_usd >= 98.0);
 
     // Cleanup

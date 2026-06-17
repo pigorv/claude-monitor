@@ -9,13 +9,6 @@ export { MODEL_THRESHOLDS } from './model-thresholds.js';
 // Injected at build time by tsup (see tsup.config.ts `define`)
 export const VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
 
-export const MODEL_PRICING: Record<string, { input_per_mtok: number; output_per_mtok: number }> = {
-  fable:  { input_per_mtok: 10, output_per_mtok: 50 },
-  opus:   { input_per_mtok: 15, output_per_mtok: 75 },
-  sonnet: { input_per_mtok: 3, output_per_mtok: 15 },
-  haiku:  { input_per_mtok: 0.25, output_per_mtok: 1.25 },
-};
-
 const dataDir = join(homedir(), '.claude-monitor');
 
 export const DEFAULT_CONFIG = Object.freeze({
