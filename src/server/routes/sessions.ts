@@ -13,27 +13,9 @@ import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getTurn
 import { getSessionStats, getToolFrequency, getFileActivity, getPeakParentTokens, getPeakParentTokensForSessions } from '../../db/queries/stats.js';
 import type { SessionFilters } from '../../db/queries/sessions.js';
 import type { MessageMatch } from '../../shared/types.js';
-import { MODEL_PRICING } from '../../shared/constants.js';
 import { analyzeCompactions } from '../../analysis/compaction-analysis.js';
 
 const sessions = new Hono();
-
-function resolveModelKey(model: string | null): string | null {
-  if (!model) return null;
-  const lower = model.toLowerCase();
-  for (const key of Object.keys(MODEL_PRICING)) {
-    if (lower.includes(key)) return key;
-  }
-  return null;
-}
-
-function estimateCost(model: string | null, inputTokens: number, outputTokens: number): number | undefined {
-  const key = resolveModelKey(model);
-  if (!key) return undefined;
-  const pricing = MODEL_PRICING[key];
-  const cost = (inputTokens / 1_000_000) * pricing.input_per_mtok + (outputTokens / 1_000_000) * pricing.output_per_mtok;
-  return Math.round(cost * 1_000_000) / 1_000_000;
-}
 
 function parseInvocations(raw: string | null): Invocation[] | undefined {
   if (!raw) return undefined;
@@ -89,7 +71,7 @@ function sessionToSummary(
     subagent_count: session.subagent_count,
     turn_count: turnCount ?? 0,
     summary: session.summary ?? '',
-    cost_estimate_usd: estimateCost(session.model, session.total_input_tokens, session.total_output_tokens),
+    cost_estimate_usd: session.cost_estimate_usd ?? undefined,
     mini_timeline: miniTimeline ?? [],
     invocations: parseInvocations(session.invocations),
     started_with: parseStartedWith(session.started_with),
