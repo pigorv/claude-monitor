@@ -36,6 +36,9 @@ export interface Session {
   total_output_tokens: number;
   total_cache_read_tokens: number;
   total_cache_write_tokens: number;
+  total_input_tokens_billed: number;
+  total_cache_write_5m_tokens: number;
+  total_cache_write_1h_tokens: number;
   peak_context_pct: number | null;
   compaction_count: number;
   tool_call_count: number;
@@ -99,6 +102,9 @@ export interface AgentRelationship {
   duration_ms: number | null;
   input_tokens_total: number | null;
   output_tokens_total: number | null;
+  cache_read_total: number | null;
+  cache_write_5m_total: number | null;
+  cache_write_1h_total: number | null;
   tool_call_count: number;
   status: string;
   internal_tool_calls?: InternalToolCall[];
@@ -124,6 +130,8 @@ export interface UsageInfo {
   output_tokens: number;
   cache_read_input_tokens?: number;
   cache_creation_input_tokens?: number;
+  cache_creation_5m_input_tokens?: number;
+  cache_creation_1h_input_tokens?: number;
 }
 
 export interface ThinkingBlock {

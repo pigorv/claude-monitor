@@ -38,12 +38,14 @@ export function insertSession(session: Session): void {
     INSERT INTO sessions (
       id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
       duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
-      total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
+      total_cache_write_tokens, total_input_tokens_billed, total_cache_write_5m_tokens,
+      total_cache_write_1h_tokens, peak_context_pct, compaction_count, tool_call_count,
       subagent_count, summary, end_reason, transcript_path, metadata, invocations, started_with
     ) VALUES (
       @id, @project_path, @project_name, @model, @models_used, @source, @status, @started_at, @ended_at,
       @duration_ms, @total_input_tokens, @total_output_tokens, @total_cache_read_tokens,
-      @total_cache_write_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
+      @total_cache_write_tokens, @total_input_tokens_billed, @total_cache_write_5m_tokens,
+      @total_cache_write_1h_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
       @subagent_count, @summary, @end_reason, @transcript_path, @metadata, @invocations, @started_with
     )
   `);
@@ -56,12 +58,14 @@ export function upsertSession(session: Session): void {
     INSERT INTO sessions (
       id, project_path, project_name, model, models_used, source, status, started_at, ended_at,
       duration_ms, total_input_tokens, total_output_tokens, total_cache_read_tokens,
-      total_cache_write_tokens, peak_context_pct, compaction_count, tool_call_count,
+      total_cache_write_tokens, total_input_tokens_billed, total_cache_write_5m_tokens,
+      total_cache_write_1h_tokens, peak_context_pct, compaction_count, tool_call_count,
       subagent_count, summary, end_reason, transcript_path, metadata, invocations, started_with
     ) VALUES (
       @id, @project_path, @project_name, @model, @models_used, @source, @status, @started_at, @ended_at,
       @duration_ms, @total_input_tokens, @total_output_tokens, @total_cache_read_tokens,
-      @total_cache_write_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
+      @total_cache_write_tokens, @total_input_tokens_billed, @total_cache_write_5m_tokens,
+      @total_cache_write_1h_tokens, @peak_context_pct, @compaction_count, @tool_call_count,
       @subagent_count, @summary, @end_reason, @transcript_path, @metadata, @invocations, @started_with
     )
     ON CONFLICT(id) DO UPDATE SET
@@ -78,6 +82,9 @@ export function upsertSession(session: Session): void {
       total_output_tokens = excluded.total_output_tokens,
       total_cache_read_tokens = excluded.total_cache_read_tokens,
       total_cache_write_tokens = excluded.total_cache_write_tokens,
+      total_input_tokens_billed = excluded.total_input_tokens_billed,
+      total_cache_write_5m_tokens = excluded.total_cache_write_5m_tokens,
+      total_cache_write_1h_tokens = excluded.total_cache_write_1h_tokens,
       peak_context_pct = COALESCE(excluded.peak_context_pct, peak_context_pct),
       compaction_count = excluded.compaction_count,
       tool_call_count = excluded.tool_call_count,
@@ -330,6 +337,7 @@ export function getAgentRelationships(sessionId: string): AgentRelationship[] {
       prompt_preview, result_preview, prompt_data, result_data,
       started_at, ended_at,
       duration_ms, input_tokens_total, output_tokens_total,
+      cache_read_total, cache_write_5m_total, cache_write_1h_total,
       tool_call_count, status, prompt_tokens, result_tokens,
       peak_context_tokens, compression_ratio, agent_compaction_count,
       parent_headroom_at_return, parent_impact_pct, result_classification,

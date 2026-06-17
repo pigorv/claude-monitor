@@ -1396,4 +1396,155 @@ describe('importTranscript skip/dedupe matrix', () => {
     assert.equal(eventCountAfter, eventCountBefore, 'event count must match a fresh import');
     assert.deepEqual(agentRelAfter, agentRelBefore, 'agent relationship data must match a fresh import');
   });
+
+  // ── T3.1: cache-write split persists on the session + sub-agent cache sums ──
+  //
+  // The parent's assistant turns carry a cache_creation breakdown (5m + 1h) plus
+  // a flat grand total, so the session aggregate has a non-trivial 5m/1h split.
+  // The sub-agent also carries cache tokens so agent_relationships records the
+  // summed-over-deduped-assistant-messages cache_*_total columns.
+  const CACHE_PARENT_JSONL = [
+    JSON.stringify({
+      parentUuid: null, cwd: '/tmp/project', sessionId: 'cache-parent', version: '2.1.0',
+      type: 'user',
+      message: { role: 'user', content: 'Please investigate the bug.' },
+      timestamp: '2026-01-01T00:01:00.000Z', uuid: 'cp-u-1',
+    }),
+    JSON.stringify({
+      parentUuid: 'cp-u-1', cwd: '/tmp/project', sessionId: 'cache-parent', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        id: 'cp-msg-1', model: 'claude-opus-4-6', role: 'assistant',
+        content: [
+          { type: 'text', text: "I'll spawn an agent." },
+          { type: 'tool_use', id: 'cp-task-1', name: 'Task', input: { description: 'investigate', prompt: 'Investigate the bug', subagent_type: 'agent-ccc' } },
+        ],
+        usage: {
+          input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 400,
+          cache_creation_input_tokens: 300,
+          cache_creation: { ephemeral_5m_input_tokens: 200, ephemeral_1h_input_tokens: 100 },
+        },
+      },
+      timestamp: '2026-01-01T00:01:05.000Z', uuid: 'cp-a-1',
+    }),
+    JSON.stringify({
+      parentUuid: 'cp-a-1', cwd: '/tmp/project', sessionId: 'cache-parent', version: '2.1.0',
+      type: 'user',
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'cp-task-1', content: 'Found the bug.' }] },
+      timestamp: '2026-01-01T00:01:20.000Z', uuid: 'cp-u-2',
+    }),
+    JSON.stringify({
+      parentUuid: 'cp-u-2', cwd: '/tmp/project', sessionId: 'cache-parent', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        id: 'cp-msg-2', model: 'claude-opus-4-6', role: 'assistant',
+        content: [{ type: 'text', text: 'The bug is fixed.' }],
+        usage: {
+          input_tokens: 1500, output_tokens: 50, cache_read_input_tokens: 600,
+          cache_creation_input_tokens: 500,
+          cache_creation: { ephemeral_5m_input_tokens: 350, ephemeral_1h_input_tokens: 150 },
+        },
+      },
+      timestamp: '2026-01-01T00:01:25.000Z', uuid: 'cp-a-2',
+    }),
+  ].join('\n');
+
+  // Sub-agent transcript whose assistant turns carry cache tokens. sessionId is
+  // the parent's id so the standalone branch derives the parent from it.
+  const CACHE_SUBAGENT_JSONL = [
+    JSON.stringify({
+      parentUuid: null, cwd: '/tmp/project', sessionId: 'cache-parent', version: '2.1.0',
+      type: 'user',
+      message: { role: 'user', content: 'Investigate the bug' },
+      timestamp: '2026-01-01T00:01:06.000Z', uuid: 'cs-u-1',
+    }),
+    JSON.stringify({
+      parentUuid: 'cs-u-1', cwd: '/tmp/project', sessionId: 'cache-parent', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        id: 'cs-msg-1', model: 'claude-opus-4-6', role: 'assistant',
+        content: [
+          { type: 'text', text: 'Reading the file.' },
+          { type: 'tool_use', id: 'cs-tool-1', name: 'Read', input: { file_path: '/tmp/project/bug.ts' } },
+        ],
+        usage: {
+          input_tokens: 800, output_tokens: 100, cache_read_input_tokens: 250,
+          cache_creation_input_tokens: 120,
+          cache_creation: { ephemeral_5m_input_tokens: 80, ephemeral_1h_input_tokens: 40 },
+        },
+      },
+      timestamp: '2026-01-01T00:01:10.000Z', uuid: 'cs-a-1',
+    }),
+    JSON.stringify({
+      parentUuid: 'cs-a-1', cwd: '/tmp/project', sessionId: 'cache-parent', version: '2.1.0',
+      type: 'user',
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'cs-tool-1', content: 'const x = 1;' }] },
+      timestamp: '2026-01-01T00:01:11.000Z', uuid: 'cs-u-2',
+    }),
+    JSON.stringify({
+      parentUuid: 'cs-u-2', cwd: '/tmp/project', sessionId: 'cache-parent', version: '2.1.0',
+      type: 'assistant',
+      message: {
+        id: 'cs-msg-2', model: 'claude-opus-4-6', role: 'assistant',
+        content: [{ type: 'text', text: 'Found the bug.' }],
+        usage: {
+          input_tokens: 900, output_tokens: 40, cache_read_input_tokens: 350,
+          cache_creation_input_tokens: 90,
+          cache_creation: { ephemeral_5m_input_tokens: 60, ephemeral_1h_input_tokens: 30 },
+        },
+      },
+      timestamp: '2026-01-01T00:01:15.000Z', uuid: 'cs-a-2',
+    }),
+  ].join('\n');
+
+  function writeCacheParentWithSubagent(): { parentPath: string; agentId: string } {
+    const projDir = join(TEST_DIR, 'cache-proj');
+    const parentPath = join(projDir, 'cache-parent.jsonl');
+    const subagentsDir = join(projDir, 'cache-parent', 'subagents');
+    const agentId = 'agent-ccc';
+    const subagentPath = join(subagentsDir, `${agentId}.jsonl`);
+    mkdirSync(subagentsDir, { recursive: true });
+    writeFileSync(parentPath, CACHE_PARENT_JSONL);
+    writeFileSync(subagentPath, CACHE_SUBAGENT_JSONL);
+    return { parentPath, agentId };
+  }
+
+  it('persists the cache-write split on the session and sub-agent cache sums', async () => {
+    const { parentPath, agentId } = writeCacheParentWithSubagent();
+
+    // Import once, then force-reimport to exercise the upsert path too.
+    await importTranscript(parentPath);
+    const forced = await importTranscript(parentPath, { force: true });
+    assert.equal(forced.skipped, false);
+
+    // Behavior #4: session split columns carry the exact aggregate, with 5m + 1h
+    // <= total cache write. Pin the values so a swap or zeroing in
+    // buildSessionRecord is caught (parent input 1000+1500; 5m 200+350; 1h 100+150).
+    const session = getSession('cache-parent');
+    assert.ok(session);
+    assert.equal(session.total_input_tokens_billed, 2500);
+    assert.equal(session.total_cache_write_5m_tokens, 550);
+    assert.equal(session.total_cache_write_1h_tokens, 250);
+    assert.ok(
+      session.total_cache_write_5m_tokens! + session.total_cache_write_1h_tokens! <=
+        session.total_cache_write_tokens!,
+      '5m + 1h must not exceed the combined cache-write total',
+    );
+
+    // Behavior #5: agent_relationships cache *_total columns summed + non-null.
+    // Deduped sub-agent assistant turns: cache_read 250+350, 5m 80+60, 1h 40+30.
+    const db = getDb();
+    const rel = db.prepare(
+      'SELECT cache_read_total, cache_write_5m_total, cache_write_1h_total FROM agent_relationships WHERE parent_session_id = ? AND child_agent_id = ?',
+    ).get('cache-parent', agentId) as
+      | { cache_read_total: number | null; cache_write_5m_total: number | null; cache_write_1h_total: number | null }
+      | undefined;
+    assert.ok(rel, 'agent relationship row should exist for the sub-agent');
+    assert.notEqual(rel.cache_read_total, null);
+    assert.notEqual(rel.cache_write_5m_total, null);
+    assert.notEqual(rel.cache_write_1h_total, null);
+    assert.equal(rel.cache_read_total, 250 + 350);
+    assert.equal(rel.cache_write_5m_total, 80 + 60);
+    assert.equal(rel.cache_write_1h_total, 40 + 30);
+  });
 });

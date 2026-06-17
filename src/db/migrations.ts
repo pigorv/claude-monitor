@@ -284,6 +284,35 @@ function migration015AgentRelChildMtime(db: Database.Database): void {
   }
 }
 
+// Splits cache-write tokens by TTL (5m vs 1h) and records the input tokens
+// actually billed. Mirrors the sibling columns' nullability: the `sessions`
+// columns default to 0 (like total_cache_write_tokens); the agent_relationships
+// columns are nullable (like input_tokens_total). Uses run() with tableHasColumn
+// guards for idempotency, and tableExists for agent_relationships because some
+// partial-schema test fixtures omit that table entirely (see migration 015).
+function migration016CacheWriteSplit(db: Database.Database): void {
+  if (!tableHasColumn(db, 'sessions', 'total_input_tokens_billed')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN total_input_tokens_billed INTEGER DEFAULT 0');
+  }
+  if (!tableHasColumn(db, 'sessions', 'total_cache_write_5m_tokens')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN total_cache_write_5m_tokens INTEGER DEFAULT 0');
+  }
+  if (!tableHasColumn(db, 'sessions', 'total_cache_write_1h_tokens')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN total_cache_write_1h_tokens INTEGER DEFAULT 0');
+  }
+  if (tableExists(db, 'agent_relationships')) {
+    if (!tableHasColumn(db, 'agent_relationships', 'cache_read_total')) {
+      db.exec('ALTER TABLE agent_relationships ADD COLUMN cache_read_total INTEGER');
+    }
+    if (!tableHasColumn(db, 'agent_relationships', 'cache_write_5m_total')) {
+      db.exec('ALTER TABLE agent_relationships ADD COLUMN cache_write_5m_total INTEGER');
+    }
+    if (!tableHasColumn(db, 'agent_relationships', 'cache_write_1h_total')) {
+      db.exec('ALTER TABLE agent_relationships ADD COLUMN cache_write_1h_total INTEGER');
+    }
+  }
+}
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -300,6 +329,7 @@ const MIGRATIONS: Migration[] = [
   { id: 13, name: '013-session-imported-mtime', sql: MIGRATION_013_SESSION_IMPORTED_MTIME },
   { id: 14, name: '014-drop-event-parent-fk', run: migration014DropEventParentFk },
   { id: 15, name: '015-agent-rel-child-mtime', run: migration015AgentRelChildMtime },
+  { id: 16, name: '016-cache-write-split', run: migration016CacheWriteSplit },
 ];
 
 export function runMigrations(db: Database.Database): void {

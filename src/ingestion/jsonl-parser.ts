@@ -122,7 +122,25 @@ function normalizeContent(rawContent: unknown): ContentBlock[] {
 }
 
 /**
- * Extract the 4 usage fields we care about from the raw usage object.
+ * Sum every numeric `ephemeral_*` entry in a cache_creation breakdown object.
+ * Used as the authoritative-total fallback when the flat top-level field is
+ * absent, so unknown/future granularities are still counted (never dropped).
+ */
+function sumNumericValues(obj: Record<string, unknown>): number {
+  let total = 0;
+  for (const [key, value] of Object.entries(obj)) {
+    if (key.startsWith('ephemeral_') && typeof value === 'number') {
+      total += value;
+    }
+  }
+  return total;
+}
+
+/**
+ * Extract the usage fields we care about from the raw usage object, including
+ * the cache_creation 5m/1h split. The combined cache_creation_input_tokens is
+ * the authoritative grand total (top-level flat field, else the sum of all
+ * numeric ephemeral_* keys) — never reconstructed as only 5m + 1h.
  */
 function extractUsage(rawUsage: Record<string, unknown> | undefined): UsageInfo | undefined {
   if (!rawUsage) return undefined;
@@ -130,11 +148,43 @@ function extractUsage(rawUsage: Record<string, unknown> | undefined): UsageInfo 
   const inputTokens = rawUsage['input_tokens'];
   if (typeof inputTokens !== 'number') return undefined;
 
+  const flat =
+    typeof rawUsage['cache_creation_input_tokens'] === 'number'
+      ? rawUsage['cache_creation_input_tokens']
+      : undefined;
+  const obj =
+    typeof rawUsage['cache_creation'] === 'object' && rawUsage['cache_creation'] !== null
+      ? (rawUsage['cache_creation'] as Record<string, unknown>)
+      : undefined;
+
+  let cacheCreationTotal: number | undefined;
+  let cacheCreation5m: number | undefined;
+  let cacheCreation1h: number | undefined;
+
+  if (obj) {
+    cacheCreation5m =
+      typeof obj['ephemeral_5m_input_tokens'] === 'number'
+        ? obj['ephemeral_5m_input_tokens']
+        : 0;
+    cacheCreation1h =
+      typeof obj['ephemeral_1h_input_tokens'] === 'number'
+        ? obj['ephemeral_1h_input_tokens']
+        : 0;
+    cacheCreationTotal = flat ?? sumNumericValues(obj);
+  } else {
+    cacheCreationTotal = flat;
+    // Legacy fallback: infer the split only when no breakdown object exists.
+    cacheCreation5m = cacheCreationTotal ?? 0;
+    cacheCreation1h = 0;
+  }
+
   return {
     input_tokens: inputTokens,
     output_tokens: (rawUsage['output_tokens'] as number) ?? 0,
     cache_read_input_tokens: (rawUsage['cache_read_input_tokens'] as number) ?? undefined,
-    cache_creation_input_tokens: (rawUsage['cache_creation_input_tokens'] as number) ?? undefined,
+    cache_creation_input_tokens: cacheCreationTotal,
+    cache_creation_5m_input_tokens: cacheCreation5m,
+    cache_creation_1h_input_tokens: cacheCreation1h,
   };
 }
 
