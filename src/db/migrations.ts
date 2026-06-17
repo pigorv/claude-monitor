@@ -313,6 +313,23 @@ function migration016CacheWriteSplit(db: Database.Database): void {
   }
 }
 
+// Adds two columns that later tasks populate: agent_relationships.model (each
+// sub-agent's model id) and sessions.cost_estimate_usd (precomputed per-session
+// cost). Both are nullable with no DEFAULT, mirroring their nullable neighbours
+// (input_tokens_total / peak_context_pct). Uses run() with tableHasColumn guards
+// for idempotency, and tableExists for agent_relationships because some
+// partial-schema test fixtures omit that table entirely (see migrations 015/016).
+function migration017CostAndAgentModel(db: Database.Database): void {
+  if (!tableHasColumn(db, 'sessions', 'cost_estimate_usd')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN cost_estimate_usd REAL');
+  }
+  if (tableExists(db, 'agent_relationships')) {
+    if (!tableHasColumn(db, 'agent_relationships', 'model')) {
+      db.exec('ALTER TABLE agent_relationships ADD COLUMN model TEXT');
+    }
+  }
+}
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -330,6 +347,7 @@ const MIGRATIONS: Migration[] = [
   { id: 14, name: '014-drop-event-parent-fk', run: migration014DropEventParentFk },
   { id: 15, name: '015-agent-rel-child-mtime', run: migration015AgentRelChildMtime },
   { id: 16, name: '016-cache-write-split', run: migration016CacheWriteSplit },
+  { id: 17, name: '017-cost-and-agent-model', run: migration017CostAndAgentModel },
 ];
 
 export function runMigrations(db: Database.Database): void {

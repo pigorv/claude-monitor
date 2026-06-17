@@ -39,6 +39,10 @@ export interface Session {
   total_input_tokens_billed: number;
   total_cache_write_5m_tokens: number;
   total_cache_write_1h_tokens: number;
+  // Precomputed per-session cost in USD. Optional: populated by a dedicated
+  // analysis pass via UPDATE, not part of the import insert payload (mirrors
+  // last_imported_mtime below).
+  cost_estimate_usd?: number | null;
   peak_context_pct: number | null;
   compaction_count: number;
   tool_call_count: number;
@@ -105,6 +109,7 @@ export interface AgentRelationship {
   cache_read_total: number | null;
   cache_write_5m_total: number | null;
   cache_write_1h_total: number | null;
+  model: string | null;
   tool_call_count: number;
   status: string;
   internal_tool_calls?: InternalToolCall[];
