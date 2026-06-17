@@ -69,6 +69,8 @@ npx @pigorv/claude-monitor start
 **Resume in Terminal** (macOS & Windows) — One click opens your terminal in the session's project folder with `claude --resume <id>` already running. macOS uses Terminal.app or iTerm2; Windows auto-detects Windows Terminal, then PowerShell, then `cmd.exe`. Pick your preferred app in Settings — the dropdown is platform-aware, and the button is disabled with a tooltip on unsupported platforms.
 
 **Shareable URLs** — Filters, search, sort, project selection, the active session-detail tab, and the selected agent are all reflected in the URL. Reload preserves the view, links are shareable, and back/forward cycle through tabs naturally.
+
+**Background Re-import** — Re-import every transcript from Settings without freezing the dashboard. The run happens in the background with a live progress bar — processed-of-total plus a phase label ("Importing transcripts…" then "Compacting database…") — and reattaches to an in-flight run if you reload the page mid-import. Starting a second re-import while one is running is rejected rather than launching a parallel pass, and the database is compacted automatically when the run finishes (search index consolidation + VACUUM) so repeated re-imports don't bloat the file on disk.
 <!-- features:end -->
 
 ## How It Works
