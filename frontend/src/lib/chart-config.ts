@@ -1,5 +1,6 @@
 import type { TokenDataPoint, ContextThresholds, EventAnnotation } from "../../../src/shared/types";
 import { MODEL_THRESHOLDS } from "../../../src/shared/model-thresholds";
+import { contextWindowFor } from "../../../src/shared/cost";
 import type uPlot from "uplot";
 import { CHART } from './chart-palette';
 
@@ -9,12 +10,15 @@ import { CHART } from './chart-palette';
 export type ChartThresholds = ContextThresholds;
 
 export function resolveThresholds(model: string | null | undefined): ChartThresholds {
-  if (!model) return MODEL_THRESHOLDS.sonnet;
-  const lower = model.toLowerCase();
-  for (const key of Object.keys(MODEL_THRESHOLDS)) {
-    if (lower.includes(key)) return MODEL_THRESHOLDS[key];
+  let base = MODEL_THRESHOLDS.sonnet;
+  if (model) {
+    const lower = model.toLowerCase();
+    for (const key of Object.keys(MODEL_THRESHOLDS)) {
+      if (lower.includes(key)) { base = MODEL_THRESHOLDS[key]; break; }
+    }
   }
-  return MODEL_THRESHOLDS.sonnet;
+  // Source the context window from models.json; keep the family's pct thresholds.
+  return { ...base, maxTokens: contextWindowFor(model) ?? base.maxTokens };
 }
 
 // ── Data transformation ────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { MODEL_THRESHOLDS } from "../../../src/shared/model-thresholds";
+import { contextWindowFor } from "../../../src/shared/cost";
 
 // Display labels per MODEL_THRESHOLDS key.
 const MODEL_LABELS: Record<string, string> = {
@@ -39,6 +40,6 @@ export function modelLabel(
 
 /** True when the model's context window is ≥1M (drives the "1M" badge). */
 export function isLargeContext(model: string | null | undefined): boolean {
-  const key = modelKey(model);
-  return key ? MODEL_THRESHOLDS[key].maxTokens >= 1_000_000 : false;
+  const window = contextWindowFor(model);
+  return window != null && window >= 1_000_000;
 }

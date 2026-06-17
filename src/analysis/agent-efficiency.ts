@@ -1,4 +1,4 @@
-import { MODEL_THRESHOLDS } from '../shared/constants.js';
+import { contextWindowFor } from '../shared/cost.js';
 import type { AgentRelationship, TokenDataPoint } from '../shared/types.js';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -64,12 +64,7 @@ export function classifyResultSize(
 // ── Resolve max tokens for a model ────────────────────────────────
 
 function resolveMaxTokens(model: string | null): number {
-  if (!model) return 200_000;
-  const lower = model.toLowerCase();
-  for (const [key, thresholds] of Object.entries(MODEL_THRESHOLDS)) {
-    if (lower.includes(key)) return thresholds.maxTokens;
-  }
-  return 200_000;
+  return contextWindowFor(model) ?? 200_000;
 }
 
 // ── Per-agent efficiency computation ──────────────────────────────
