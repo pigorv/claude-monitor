@@ -3252,9 +3252,9 @@
 
 .tbs-cost {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  padding: 6px 16px;
+  padding: 12px 16px;
   position: relative;
   appearance: none;
   border: none;
@@ -3281,9 +3281,10 @@
 
 .tbs-context {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 6px 16px;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
 }
 
 .tbs-label {
@@ -3324,8 +3325,8 @@
 .tbs-context-head {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .tbs-context-pct {
@@ -3335,6 +3336,7 @@
 
 .tbs-track {
   position: relative;
+  flex: 1;
   height: 8px;
   background: var(--color-background-tertiary);
   border-radius: var(--radius-pill);
@@ -3372,7 +3374,8 @@
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--color-text-tertiary);
-  text-align: right;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ═══════════════════════════════════════════
