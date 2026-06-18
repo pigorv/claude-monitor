@@ -3258,3 +3258,123 @@
     left: 14px;
   }
 }
+
+/* ═══════════════════════════════════════════
+   Token Budget Summary — collapsed bar (#xxx).
+   Rounded bordered container split into a left
+   cost half and a right context-peak half by a
+   thin vertical divider. Collapsed state only;
+   the chevron is a static (inert) affordance.
+   ═══════════════════════════════════════════ */
+.token-budget-summary {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  align-items: stretch;
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.tbs-cost {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  position: relative;
+}
+
+.tbs-divider {
+  background: var(--color-border-primary);
+}
+
+.tbs-context {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+}
+
+.tbs-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.tbs-cost-value {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--font-mono);
+}
+
+.tbs-cost-amount {
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.tbs-cost-tokens {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.tbs-chevron {
+  margin-left: auto;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.tbs-context-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tbs-context-pct {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.tbs-track {
+  position: relative;
+  height: 8px;
+  background: var(--color-background-tertiary);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.tbs-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: var(--radius-pill);
+  transition: width 0.4s ease;
+}
+
+.tbs-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-1px);
+  z-index: 1;
+}
+
+.tbs-tick-danger {
+  background: var(--color-ctx-danger-text);
+  opacity: 0.5;
+}
+
+.tbs-tick-autocompact {
+  background: var(--color-border-primary);
+}
+
+.tbs-context-tokens {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  text-align: right;
+}
