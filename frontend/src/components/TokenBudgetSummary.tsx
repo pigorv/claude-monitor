@@ -27,15 +27,17 @@ function clampPct(n: number): number {
 interface TokenBudgetSummaryProps {
   budget: TokenBudget;
   model: string | null;
+  expanded: boolean;
+  onToggle: () => void;
 }
 
 /**
  * Collapsed token-budget bar: a single rounded, bordered container split by a
  * thin vertical divider into a left cost half and a right context-peak half.
- * The chevron is a static (non-interactive) affordance — the expandable panel
- * is a separate story.
+ * The cost half is an interactive button that toggles the expandable detail
+ * panel; the chevron rotates to reflect the open/closed state.
  */
-export function TokenBudgetSummary({ budget, model }: TokenBudgetSummaryProps) {
+export function TokenBudgetSummary({ budget, model, expanded, onToggle }: TokenBudgetSummaryProps) {
   const thresholds = resolveThresholds(model);
   const dangerPct = clampPct(thresholds.dangerPct);
   const autoCompactPct = clampPct(thresholds.autoCompactPct);
@@ -46,14 +48,20 @@ export function TokenBudgetSummary({ budget, model }: TokenBudgetSummaryProps) {
 
   return html`
     <div class="token-budget-summary">
-      <div class="tbs-cost">
+      <button
+        type="button"
+        class="tbs-cost"
+        onClick=${onToggle}
+        aria-expanded=${expanded}
+        aria-controls="token-budget-panel"
+      >
         <span class="tbs-label">COST</span>
         <span class="tbs-cost-value">
           <span class="tbs-cost-amount">${formatCost(budget.cost_total)}</span>
           <span class="tbs-cost-tokens">${formatTokens(budget.billed_tokens)} tokens</span>
         </span>
         <svg
-          class="tbs-chevron"
+          class=${"tbs-chevron" + (expanded ? " expanded" : "")}
           width="14"
           height="14"
           viewBox="0 0 24 24"
@@ -66,7 +74,7 @@ export function TokenBudgetSummary({ budget, model }: TokenBudgetSummaryProps) {
         >
           <polyline points="9 6 15 12 9 18" />
         </svg>
-      </div>
+      </button>
       <div class="tbs-divider"></div>
       <div class="tbs-context">
         <div class="tbs-context-head">
