@@ -5,7 +5,6 @@ import type { EventTypeCounts } from "../api/client";
 import { EventCard } from "./EventCard";
 import { AgentGroup } from "./AgentGroup";
 import { CompactionBanner } from "./CompactionBanner";
-import { TokenBudgetBar } from "./TokenBudgetBar";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { updateParams } from "../lib/url-state";
 import { toolTagClass } from "../lib/tool-tags";
@@ -15,8 +14,6 @@ interface TimelineProps {
   sessionId: string;
   sessionStart?: string;
   agents?: AgentRelationship[];
-  parentInputTokens?: number;
-  parentOutputTokens?: number;
   params?: URLSearchParams;
 }
 
@@ -238,7 +235,7 @@ export function groupTimelineItems(events: Event[], agents?: AgentRelationship[]
   return items;
 }
 
-export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, parentOutputTokens, params }: TimelineProps) {
+export function Timeline({ sessionId, sessionStart, agents, params }: TimelineProps) {
   const [events, setEvents] = useState<Event[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -368,25 +365,6 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
     return map;
   }, [events]);
 
-  // Token budget bar data
-  const budgetData = useMemo(() => {
-    if (!agents || agents.length === 0) return null;
-    const agentItems = agents
-      .filter((a) => (a.input_tokens_total || 0) + (a.output_tokens_total || 0) > 0)
-      .map((a) => ({
-        agentId: a.child_agent_id,
-        description: a.prompt_preview || a.child_agent_id.slice(0, 12),
-        tokens: (a.input_tokens_total || 0) + (a.output_tokens_total || 0),
-      }));
-    if (agentItems.length === 0) return null;
-
-    const agentTotal = agentItems.reduce((sum, a) => sum + a.tokens, 0);
-    const sessionTotal = (parentInputTokens || 0) + (parentOutputTokens || 0);
-    const parentTokens = Math.max(0, sessionTotal - agentTotal);
-
-    return { parentTokens, agents: agentItems };
-  }, [agents, parentInputTokens, parentOutputTokens]);
-
   return html`
     <div class="timeline">
       <div class="timeline-toolbar">
@@ -417,13 +395,6 @@ export function Timeline({ sessionId, sessionStart, agents, parentInputTokens, p
           <span class="timeline-count">${total} events</span>
         </div>
       </div>
-
-      ${budgetData && html`
-        <${TokenBudgetBar}
-          parentTokens=${budgetData.parentTokens}
-          agents=${budgetData.agents}
-        />
-      `}
 
       ${loading && events.length === 0 && html`<div class="status-text">Loading events…</div>`}
       ${error && events.length === 0 && html`<div class="error-text">${error}</div>`}
