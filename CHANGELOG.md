@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Context-window sizes (used for context utilization %, the chart's window label, and the "1M" badge) are now sourced from a single model-facts table (models.json) instead of being duplicated in the threshold config; resolved window values are unchanged.
+- Session Detail now shows a single Token Budget summary bar (cost and peak-context halves) above the tabs, replacing the five-card stat grid.
 
 ## [0.5.2] - 2026-06-17
 

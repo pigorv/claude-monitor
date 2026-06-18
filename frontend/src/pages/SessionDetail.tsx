@@ -6,9 +6,9 @@ import { TokenChart } from "../components/TokenChart";
 import { AgentTree } from "../components/AgentTree";
 import { BackToTop } from "../components/BackToTop";
 import { CopyButton } from "../components/CopyButton";
+import { TokenBudgetSummary } from "../components/TokenBudgetSummary";
 import { updateParams } from "../lib/url-state";
 import type { SessionDetailResponse } from "../../../src/shared/types";
-import { resolveThresholds } from "../lib/chart-config";
 import { modelClass, modelLabel, isLargeContext } from "../lib/model-meta";
 import "../styles/pills.css";
 import "../styles/session-detail.css";
@@ -53,12 +53,6 @@ function formatEndTime(endedAt: string | null): string {
   const diffDays = Math.floor(diffHr / 24);
   if (diffDays < 7) return `${diffDays}d ago`;
   return d.toLocaleDateString();
-}
-
-function peakAccentColor(pct: number): string {
-  if (pct >= 80) return "var(--color-ctx-danger-text)";
-  if (pct >= 40) return "var(--color-ctx-warn-text)";
-  return "var(--color-ctx-safe-text)";
 }
 
 type Tab = "timeline" | "context" | "agents";
@@ -171,13 +165,6 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
   const totalTokens = s.total_input_tokens + s.total_output_tokens;
   const modelsUsed: string[] = s.models_used ? JSON.parse(s.models_used) : [];
 
-  // Context tab stat card data
-  const headerThresholds = resolveThresholds(s.model);
-  const peakContextPct = s.peak_context_pct ?? 0;
-  const fileCount = data.file_activity?.files.length ?? 0;
-  const rereadFiles = data.file_activity?.files.filter(f => f.read_count >= 2) ?? [];
-  const totalRereads = rereadFiles.reduce((sum, f) => sum + (f.read_count - 1), 0);
-
   return html`
     <div class="page session-detail">
       <div class="session-header">
@@ -240,41 +227,7 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
         </div>
       </div>
 
-      <div class="context-stats-row">
-        <div class="stat-card">
-          <div class="stat-card-accent" style="background: ${peakAccentColor(peakContextPct)}"></div>
-          <div class="label">Peak Context</div>
-          <div class="value" style="color: ${peakAccentColor(peakContextPct)}">${peakContextPct.toFixed(0)}%</div>
-          <div class="detail">danger threshold 70%</div>
-          <div class="progress">
-            <div class="fill" style="width: ${Math.min(peakContextPct, 100)}%; background: ${peakAccentColor(peakContextPct)}"></div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card-accent" style="background: var(--color-accent)"></div>
-          <div class="label">Peak Tokens</div>
-          <div class="value">${data.peak_parent_tokens != null ? formatTokens(data.peak_parent_tokens) : "\u2014"}</div>
-          <div class="detail">of ${formatTokens(headerThresholds.maxTokens)} window \u00b7 parent only</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card-accent" style="background: ${s.compaction_count > 0 ? 'var(--color-status-warning-text)' : 'var(--color-border-primary)'}"></div>
-          <div class="label">Compactions</div>
-          <div class="value" style="color: ${s.compaction_count > 0 ? 'var(--color-status-warning-text)' : ''}">${s.compaction_count}</div>
-          <div class="detail">${s.compaction_count > 0 ? "auto-triggered" : "none"}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card-accent" style="background: var(--color-accent)"></div>
-          <div class="label">Files Loaded</div>
-          <div class="value">${fileCount}</div>
-          <div class="detail">${totalRereads > 0 ? `${totalRereads} re-reads across ${rereadFiles.length} files` : "no re-reads"}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card-accent" style="background: ${s.subagent_count > 0 ? 'var(--color-status-completed)' : 'var(--color-border-primary)'}"></div>
-          <div class="label">Agents</div>
-          <div class="value">${s.subagent_count}</div>
-          <div class="detail">${s.subagent_count > 0 ? "sub-agents" : "none"}</div>
-        </div>
-      </div>
+      <${TokenBudgetSummary} budget=${data.token_budget} model=${s.model} />
 
       <div class="tab-bar">
         <button
