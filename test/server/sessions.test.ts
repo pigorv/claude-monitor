@@ -485,3 +485,230 @@ describe('Sessions route: corrupt JSON in pill columns', () => {
     assert.equal(body.session.started_with, '{"type": "command", "name":');
   });
 });
+
+// ── token_budget in session detail ───────────────────────────────────
+
+describe('token_budget in session detail', () => {
+  let tmpDir: string;
+  let app: ReturnType<typeof createApp>;
+
+  beforeAll(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'token-budget-'));
+    const db = getDb(join(tmpDir, 'test.sqlite'));
+
+    const insertSession = db.prepare(`
+      INSERT INTO sessions (
+        id, project_path, project_name, model, source, status, started_at,
+        total_input_tokens, total_output_tokens, total_cache_read_tokens,
+        total_cache_write_tokens, total_input_tokens_billed,
+        total_cache_write_5m_tokens, total_cache_write_1h_tokens,
+        peak_context_pct, compaction_count, tool_call_count, subagent_count
+      ) VALUES (
+        @id, @project_path, @project_name, @model, @source, @status, @started_at,
+        @total_input_tokens, @total_output_tokens, @total_cache_read_tokens,
+        @total_cache_write_tokens, @total_input_tokens_billed,
+        @total_cache_write_5m_tokens, @total_cache_write_1h_tokens,
+        @peak_context_pct, @compaction_count, @tool_call_count, @subagent_count
+      )
+    `);
+
+    // "Full" session: resolvable model, all token columns populated, plus one
+    // sub-agent whose output is folded into total_output_tokens (de-inflation).
+    insertSession.run({
+      id: 'tb-full',
+      project_path: '/home/user/tbproj',
+      project_name: 'tbproj',
+      model: 'claude-sonnet-4-6',
+      source: 'startup',
+      status: 'completed',
+      started_at: '2026-04-01T00:00:00Z',
+      total_input_tokens: 10000,
+      // parent-only output 4000 + agent output 1000 (import-time inflation)
+      total_output_tokens: 5000,
+      total_cache_read_tokens: 50000,
+      total_cache_write_tokens: 8000,
+      total_input_tokens_billed: 10000,
+      total_cache_write_5m_tokens: 5000,
+      total_cache_write_1h_tokens: 3000,
+      peak_context_pct: 0.62,
+      compaction_count: 0,
+      tool_call_count: 3,
+      subagent_count: 1,
+    });
+
+    db.prepare(`
+      INSERT INTO agent_relationships (
+        parent_session_id, child_agent_id, model,
+        input_tokens_total, output_tokens_total, cache_read_total,
+        cache_write_5m_total, cache_write_1h_total, status, tool_call_count
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('tb-full', 'agent-tb-1', 'claude-haiku-4-5', 2000, 1000, 1000, 500, 0, 'completed', 4);
+
+    // "Zero-token" session: all token columns 0, resolvable model.
+    insertSession.run({
+      id: 'tb-zero',
+      project_path: '/home/user/tbproj',
+      project_name: 'tbproj',
+      model: 'claude-sonnet-4-6',
+      source: 'startup',
+      status: 'completed',
+      started_at: '2026-04-02T00:00:00Z',
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_cache_read_tokens: 0,
+      total_cache_write_tokens: 0,
+      total_input_tokens_billed: 0,
+      total_cache_write_5m_tokens: 0,
+      total_cache_write_1h_tokens: 0,
+      peak_context_pct: 0,
+      compaction_count: 0,
+      tool_call_count: 0,
+      subagent_count: 0,
+    });
+
+    // "Unresolvable model" session: real token counts, but model has no pricing.
+    insertSession.run({
+      id: 'tb-unresolvable',
+      project_path: '/home/user/tbproj',
+      project_name: 'tbproj',
+      model: 'gpt-4o',
+      source: 'startup',
+      status: 'completed',
+      started_at: '2026-04-03T00:00:00Z',
+      total_input_tokens: 1000,
+      total_output_tokens: 2000,
+      total_cache_read_tokens: 3000,
+      total_cache_write_tokens: 4000,
+      total_input_tokens_billed: 1000,
+      total_cache_write_5m_tokens: 2500,
+      total_cache_write_1h_tokens: 1500,
+      peak_context_pct: 0.5,
+      compaction_count: 0,
+      tool_call_count: 0,
+      subagent_count: 0,
+    });
+
+    app = createApp();
+  });
+
+  afterAll(() => {
+    closeDb();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('asserts all token_budget invariants on a fully-populated session', async () => {
+    const res = await app.request('/api/sessions/tb-full');
+    assert.equal(res.status, 200);
+    const body: SessionDetailResponse = await res.json();
+    const tb = body.token_budget;
+    assert.ok(tb, 'token_budget present');
+
+    // Behavior #2: by_type has exactly 5 entries in fixed order.
+    assert.equal(tb.by_type.length, 5);
+    assert.deepEqual(
+      tb.by_type.map((b) => b.type),
+      ['input', 'output', 'cache_read', 'cache_write_5m', 'cache_write_1h'],
+    );
+    for (const b of tb.by_type) {
+      assert.equal(typeof b.tokens, 'number');
+      assert.equal(typeof b.cost, 'number');
+    }
+
+    // This fixture resolves to a known price, so every cost field is a number.
+    assert.notEqual(tb.cost_total, null);
+    assert.notEqual(tb.parent.cost, null);
+    assert.notEqual(tb.agents.cost, null);
+    const costTotal = tb.cost_total!;
+    const parentCost = tb.parent.cost!;
+    const agentsCost = tb.agents.cost!;
+
+    // Behavior #3: parent.cost + agents.cost == cost_total (within 1e-6).
+    assert.ok(Math.abs(parentCost + agentsCost - costTotal) < 1e-6);
+
+    // Behavior #4: cost_total == sum(by_type.cost) (within 1e-6).
+    const byTypeCost = tb.by_type.reduce((s, b) => s + (b.cost ?? 0), 0);
+    assert.ok(Math.abs(costTotal - byTypeCost) < 1e-6);
+
+    // Behavior #5: sum(by_type.tokens) == billed_tokens (exact integers).
+    const byTypeTokens = tb.by_type.reduce((s, b) => s + b.tokens, 0);
+    assert.equal(byTypeTokens, tb.billed_tokens);
+
+    // Behavior #6: parent.tokens + agents.tokens == billed_tokens; agents.runs
+    // == inserted agent_relationships row count (1); de-inflation exercised.
+    assert.equal(tb.parent.tokens + tb.agents.tokens, tb.billed_tokens);
+    assert.equal(tb.agents.runs, 1);
+    // Expected billed tokens:
+    //   parent: input 10000 + cache_read 50000 + cw5m 5000 + cw1h 3000
+    //           + residual cache-write (8000-5000-3000=0)
+    //           + output (5000 - mergedAgentOutput 1000 = 4000) = 72000
+    //   agent:  input 2000 + cache_read 1000 + cw5m 500 + cw1h 0 + output 1000 = 4500
+    assert.equal(tb.parent.tokens, 72000);
+    assert.equal(tb.agents.tokens, 4500);
+    assert.equal(tb.billed_tokens, 76500);
+    // output by_type combines de-inflated parent (4000) + agent (1000) = 5000.
+    const outputBucket = tb.by_type.find((b) => b.type === 'output')!;
+    assert.equal(outputBucket.tokens, 5000);
+
+    // Costs are real (> 0) for the resolvable case.
+    assert.ok(costTotal > 0);
+    assert.ok(parentCost > 0);
+    assert.ok(agentsCost > 0);
+
+    // Behavior #7: context_peak fields.
+    assert.equal(tb.context_peak.pct, 0.62);
+    assert.equal(typeof tb.context_peak.peak_tokens, 'number');
+    assert.equal(typeof tb.context_peak.max_tokens, 'number');
+    assert.ok(tb.context_peak.max_tokens > 0);
+
+    // Behavior #8: parent.pct + agents.pct == 100 when billed_tokens > 0.
+    assert.equal(tb.parent.pct + tb.agents.pct, 100);
+  });
+
+  it('zero-token session yields pct 0 and no NaN', async () => {
+    const res = await app.request('/api/sessions/tb-zero');
+    assert.equal(res.status, 200);
+    const body: SessionDetailResponse = await res.json();
+    const tb = body.token_budget;
+
+    assert.equal(tb.billed_tokens, 0);
+    assert.equal(tb.cost_total, 0);
+    assert.equal(tb.parent.pct, 0);
+    assert.equal(tb.agents.pct, 0);
+
+    // No field is NaN (cost fields are a real 0 here, never null, since the
+    // model resolves; `?? 0` only keeps the NaN check well-typed).
+    assert.ok(!Number.isNaN(tb.billed_tokens));
+    assert.ok(!Number.isNaN(tb.cost_total ?? 0));
+    assert.ok(!Number.isNaN(tb.parent.tokens));
+    assert.ok(!Number.isNaN(tb.parent.cost ?? 0));
+    assert.ok(!Number.isNaN(tb.parent.pct));
+    assert.ok(!Number.isNaN(tb.agents.tokens));
+    assert.ok(!Number.isNaN(tb.agents.cost ?? 0));
+    assert.ok(!Number.isNaN(tb.agents.pct));
+    for (const b of tb.by_type) {
+      assert.ok(!Number.isNaN(b.tokens));
+      assert.ok(!Number.isNaN(b.cost ?? 0));
+    }
+  });
+
+  it('unresolvable model yields null cost with real token counts and 200', async () => {
+    const res = await app.request('/api/sessions/tb-unresolvable');
+    assert.equal(res.status, 200);
+    const body: SessionDetailResponse = await res.json();
+    const tb = body.token_budget;
+
+    // Behavior #9: with no priceable model, all cost fields are null (mirroring
+    // the list endpoint's undefined `cost_estimate_usd`); token counts stay real.
+    assert.equal(tb.cost_total, null);
+    assert.equal(tb.parent.cost, null);
+    assert.equal(tb.agents.cost, null);
+    for (const b of tb.by_type) {
+      assert.equal(b.cost, null);
+    }
+
+    // Real token counts: input 1000 + cache_read 3000 + cw5m 2500 + cw1h 1500
+    //   + residual cache-write (4000-2500-1500=0) + output 2000 = 10000.
+    assert.equal(tb.billed_tokens, 10000);
+    assert.ok(tb.billed_tokens > 0);
+  });
+});

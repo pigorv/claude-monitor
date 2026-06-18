@@ -17,6 +17,9 @@ interface ModelFacts {
 
 const MODELS = models as Record<string, ModelFacts>;
 
+/** Context window assumed for a model that can't be resolved to a known entry. */
+export const DEFAULT_CONTEXT_WINDOW = 200_000;
+
 /** Representative model id for each family, used for version-fallback. */
 const FAMILY_FALLBACK: Array<{ family: string; id: string }> = [
   { family: 'fable', id: 'claude-fable-5' },

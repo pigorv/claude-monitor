@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The session detail API now exposes a `token_budget` breakdown (billed tokens, total cost, parent vs. sub-agent split, per-token-type usage, and peak context) for each session. Cost fields are `null` for sessions with no priceable model, matching the session list's unpriced behavior.
 - The transcript parser now captures the `cache_creation` 5-minute / 1-hour split alongside the authoritative total cache-write token count.
 - Imports now persist the per-session cache-write 5m/1h split (and billed input tokens), plus per-subagent cache read/write totals, so cache usage is available throughout the dashboard.
 - Imports now persist each sub-agent's own model on its agent relationship, so a sub-agent running on a different model than its parent can be identified.

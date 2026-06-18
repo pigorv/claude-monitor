@@ -328,6 +328,27 @@ export interface EventAnnotation {
   token_delta?: number;
 }
 
+export type TokenType =
+  | 'input' | 'output' | 'cache_read' | 'cache_write_5m' | 'cache_write_1h';
+
+export interface TokenBudgetByType {
+  type: TokenType;
+  tokens: number;
+  // null when no model in the session resolves to a known price (mirrors the
+  // nullable `cost_estimate_usd` on the list endpoint). Tokens stay real.
+  cost: number | null;
+}
+
+export interface TokenBudget {
+  billed_tokens: number;
+  // null when the session has no priceable model (see TokenBudgetByType.cost).
+  cost_total: number | null;
+  parent: { tokens: number; cost: number | null; pct: number };
+  agents: { tokens: number; cost: number | null; runs: number; pct: number };
+  by_type: TokenBudgetByType[];        // exactly 5, fixed order
+  context_peak: { pct: number; peak_tokens: number; max_tokens: number };
+}
+
 export interface SessionDetailResponse {
   session: Session;
   token_timeline: TokenDataPoint[];
@@ -340,6 +361,7 @@ export interface SessionDetailResponse {
   file_activity?: FileActivityData;
   peak_parent_tokens?: number;
   event_annotations?: EventAnnotation[];
+  token_budget: TokenBudget;
 }
 
 export interface SessionStats {
