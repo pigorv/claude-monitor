@@ -1724,13 +1724,6 @@
   color: var(--color-text-primary);
 }
 
-/* Context stats row */
-.context-stats-row {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-}
-
 /* Compaction table */
 .compaction-table-section {
   margin-top: 8px;
@@ -3242,10 +3235,6 @@
    RESPONSIVE — Phone
    ═══════════════════════════════════════════ */
 @media (max-width: 480px) {
-  .context-stats-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .gantt-col-stats {
     display: none;
   }
