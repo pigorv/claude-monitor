@@ -54,6 +54,12 @@
   /* Agent gantt bars */
   --color-agent-bar-active:var(--purple-600); /* dark → var(--purple-400) */
   --color-agent-bar-done:var(--teal-400);     /* dark → var(--teal-200)  */
+  /* Token-type breakdown (TokenBudgetPanel) */
+  --color-token-input:var(--blue-600);              /* dark → var(--blue-50)   */
+  --color-token-output:var(--teal-400);             /* dark → var(--teal-200)  */
+  --color-token-cache-read:var(--purple-400);       /* dark → var(--purple-200)*/
+  --color-token-cache-write-5m:var(--amber-200);    /* dark → var(--amber-100) */
+  --color-token-cache-write-1h:var(--red-400);      /* dark → var(--red-200)   */
   /* Context graduated */
   --color-ctx-safe-bg:var(--teal-50);   --color-ctx-safe-text:var(--teal-800);
   --color-ctx-warn-bg:var(--amber-50);  --color-ctx-warn-text:var(--amber-800);
