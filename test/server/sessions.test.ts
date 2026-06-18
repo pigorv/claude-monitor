@@ -614,12 +614,20 @@ describe('token_budget in session detail', () => {
       assert.equal(typeof b.cost, 'number');
     }
 
+    // This fixture resolves to a known price, so every cost field is a number.
+    assert.notEqual(tb.cost_total, null);
+    assert.notEqual(tb.parent.cost, null);
+    assert.notEqual(tb.agents.cost, null);
+    const costTotal = tb.cost_total!;
+    const parentCost = tb.parent.cost!;
+    const agentsCost = tb.agents.cost!;
+
     // Behavior #3: parent.cost + agents.cost == cost_total (within 1e-6).
-    assert.ok(Math.abs(tb.parent.cost + tb.agents.cost - tb.cost_total) < 1e-6);
+    assert.ok(Math.abs(parentCost + agentsCost - costTotal) < 1e-6);
 
     // Behavior #4: cost_total == sum(by_type.cost) (within 1e-6).
-    const byTypeCost = tb.by_type.reduce((s, b) => s + b.cost, 0);
-    assert.ok(Math.abs(tb.cost_total - byTypeCost) < 1e-6);
+    const byTypeCost = tb.by_type.reduce((s, b) => s + (b.cost ?? 0), 0);
+    assert.ok(Math.abs(costTotal - byTypeCost) < 1e-6);
 
     // Behavior #5: sum(by_type.tokens) == billed_tokens (exact integers).
     const byTypeTokens = tb.by_type.reduce((s, b) => s + b.tokens, 0);
@@ -642,9 +650,9 @@ describe('token_budget in session detail', () => {
     assert.equal(outputBucket.tokens, 5000);
 
     // Costs are real (> 0) for the resolvable case.
-    assert.ok(tb.cost_total > 0);
-    assert.ok(tb.parent.cost > 0);
-    assert.ok(tb.agents.cost > 0);
+    assert.ok(costTotal > 0);
+    assert.ok(parentCost > 0);
+    assert.ok(agentsCost > 0);
 
     // Behavior #7: context_peak fields.
     assert.equal(tb.context_peak.pct, 0.62);
@@ -667,33 +675,35 @@ describe('token_budget in session detail', () => {
     assert.equal(tb.parent.pct, 0);
     assert.equal(tb.agents.pct, 0);
 
-    // No field is NaN.
+    // No field is NaN (cost fields are a real 0 here, never null, since the
+    // model resolves; `?? 0` only keeps the NaN check well-typed).
     assert.ok(!Number.isNaN(tb.billed_tokens));
-    assert.ok(!Number.isNaN(tb.cost_total));
+    assert.ok(!Number.isNaN(tb.cost_total ?? 0));
     assert.ok(!Number.isNaN(tb.parent.tokens));
-    assert.ok(!Number.isNaN(tb.parent.cost));
+    assert.ok(!Number.isNaN(tb.parent.cost ?? 0));
     assert.ok(!Number.isNaN(tb.parent.pct));
     assert.ok(!Number.isNaN(tb.agents.tokens));
-    assert.ok(!Number.isNaN(tb.agents.cost));
+    assert.ok(!Number.isNaN(tb.agents.cost ?? 0));
     assert.ok(!Number.isNaN(tb.agents.pct));
     for (const b of tb.by_type) {
       assert.ok(!Number.isNaN(b.tokens));
-      assert.ok(!Number.isNaN(b.cost));
+      assert.ok(!Number.isNaN(b.cost ?? 0));
     }
   });
 
-  it('unresolvable model yields zero cost with real token counts and 200', async () => {
+  it('unresolvable model yields null cost with real token counts and 200', async () => {
     const res = await app.request('/api/sessions/tb-unresolvable');
     assert.equal(res.status, 200);
     const body: SessionDetailResponse = await res.json();
     const tb = body.token_budget;
 
-    // Behavior #9: all cost fields 0, token counts real.
-    assert.equal(tb.cost_total, 0);
-    assert.equal(tb.parent.cost, 0);
-    assert.equal(tb.agents.cost, 0);
+    // Behavior #9: with no priceable model, all cost fields are null (mirroring
+    // the list endpoint's undefined `cost_estimate_usd`); token counts stay real.
+    assert.equal(tb.cost_total, null);
+    assert.equal(tb.parent.cost, null);
+    assert.equal(tb.agents.cost, null);
     for (const b of tb.by_type) {
-      assert.equal(b.cost, 0);
+      assert.equal(b.cost, null);
     }
 
     // Real token counts: input 1000 + cache_read 3000 + cw5m 2500 + cw1h 1500

@@ -334,14 +334,17 @@ export type TokenType =
 export interface TokenBudgetByType {
   type: TokenType;
   tokens: number;
-  cost: number;
+  // null when no model in the session resolves to a known price (mirrors the
+  // nullable `cost_estimate_usd` on the list endpoint). Tokens stay real.
+  cost: number | null;
 }
 
 export interface TokenBudget {
   billed_tokens: number;
-  cost_total: number;
-  parent: { tokens: number; cost: number; pct: number };
-  agents: { tokens: number; cost: number; runs: number; pct: number };
+  // null when the session has no priceable model (see TokenBudgetByType.cost).
+  cost_total: number | null;
+  parent: { tokens: number; cost: number | null; pct: number };
+  agents: { tokens: number; cost: number | null; runs: number; pct: number };
   by_type: TokenBudgetByType[];        // exactly 5, fixed order
   context_peak: { pct: number; peak_tokens: number; max_tokens: number };
 }

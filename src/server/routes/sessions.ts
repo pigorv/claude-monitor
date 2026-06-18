@@ -10,7 +10,7 @@ import type {
   AgentRelationship,
   TokenBudget,
 } from '../../shared/types.js';
-import { costBreakdown, contextWindowFor } from '../../shared/cost.js';
+import { costBreakdown, contextWindowFor, DEFAULT_CONTEXT_WINDOW } from '../../shared/cost.js';
 import { getSession, listSessions, listProjects, getAgentRelationships, getAllAgentToolCalls, getAllAgentTokenTimelines, getLinkedSessions } from '../../db/queries/sessions.js';
 import { getTokenTimeline, getMiniTimeline, getMiniTimelinesForSessions, getTurnCountsForSessions, getMessageMatchesForSessions, getEventCountBySession, getTokenTimelineAnnotations } from '../../db/queries/events.js';
 import { getSessionStats, getToolFrequency, getFileActivity, getPeakParentTokens, getPeakParentTokensForSessions } from '../../db/queries/stats.js';
@@ -92,8 +92,10 @@ function round6(x: number): number {
  * raw agent_relationships rows. Mirrors the cost assembly in
  * transcript-importer.ts / migrations.ts: parent output is de-inflated by the
  * merged sub-agent output, and the residual cache-write bucket is folded into
- * the 5m bucket (same rate for every model). When a model is unresolvable, the
- * cost for that term is 0 while token counts stay real (Behavior #9).
+ * the 5m bucket (same rate for every model). An unresolvable model contributes
+ * 0 to the cost sum (its tokens stay real); when NO term in the session resolves
+ * to a known price, every cost field is null instead — mirroring the nullable
+ * `cost_estimate_usd` on the list endpoint so the two views agree (Behavior #9).
  */
 function assembleTokenBudget(
   session: Session,
@@ -137,8 +139,8 @@ function assembleTokenBudget(
   };
 
   function term(model: string | null | undefined, parts: Parts) {
-    const perType = costBreakdown(model, parts)?.perType ?? zeroPerType;
-    return { parts, perType };
+    const breakdown = costBreakdown(model, parts);
+    return { parts, perType: breakdown?.perType ?? zeroPerType, resolved: breakdown != null };
   }
 
   const parentTerm = term(session.model, parentParts);
@@ -176,16 +178,21 @@ function assembleTokenBudget(
     buckets.cache_write_1h.cost += perType.cacheWrite1h;
   }
 
+  // null cost when nothing in the session resolves to a known price; otherwise
+  // a rounded number (an individual unresolvable term contributes 0).
+  const anyResolved = allTerms.some((t) => t.resolved);
+  const costOrNull = (x: number): number | null => (anyResolved ? round6(x) : null);
+
   const by_type = [
-    { type: 'input' as const, tokens: buckets.input.tokens, cost: round6(buckets.input.cost) },
-    { type: 'output' as const, tokens: buckets.output.tokens, cost: round6(buckets.output.cost) },
-    { type: 'cache_read' as const, tokens: buckets.cache_read.tokens, cost: round6(buckets.cache_read.cost) },
-    { type: 'cache_write_5m' as const, tokens: buckets.cache_write_5m.tokens, cost: round6(buckets.cache_write_5m.cost) },
-    { type: 'cache_write_1h' as const, tokens: buckets.cache_write_1h.tokens, cost: round6(buckets.cache_write_1h.cost) },
+    { type: 'input' as const, tokens: buckets.input.tokens, cost: costOrNull(buckets.input.cost) },
+    { type: 'output' as const, tokens: buckets.output.tokens, cost: costOrNull(buckets.output.cost) },
+    { type: 'cache_read' as const, tokens: buckets.cache_read.tokens, cost: costOrNull(buckets.cache_read.cost) },
+    { type: 'cache_write_5m' as const, tokens: buckets.cache_write_5m.tokens, cost: costOrNull(buckets.cache_write_5m.cost) },
+    { type: 'cache_write_1h' as const, tokens: buckets.cache_write_1h.tokens, cost: costOrNull(buckets.cache_write_1h.cost) },
   ];
 
   const billed_tokens = by_type.reduce((s, b) => s + b.tokens, 0);
-  const cost_total = round6(by_type.reduce((s, b) => s + b.cost, 0));
+  const cost_total = costOrNull(buckets.input.cost + buckets.output.cost + buckets.cache_read.cost + buckets.cache_write_5m.cost + buckets.cache_write_1h.cost);
 
   function termTokens(parts: Parts): number {
     return (
@@ -209,9 +216,9 @@ function assembleTokenBudget(
   }
 
   const parentTokens = termTokens(parentTerm.parts);
-  const parentCost = round6(termCost(parentTerm.perType));
+  const parentCost = costOrNull(termCost(parentTerm.perType));
   const agentsTokens = agentTerms.reduce((s, t) => s + termTokens(t.parts), 0);
-  const agentsCost = round6(agentTerms.reduce((s, t) => s + termCost(t.perType), 0));
+  const agentsCost = costOrNull(agentTerms.reduce((s, t) => s + termCost(t.perType), 0));
 
   const parentPct = billed_tokens > 0 ? Math.round((parentTokens / billed_tokens) * 100) : 0;
   const agentsPct = billed_tokens > 0 ? 100 - parentPct : 0;
@@ -225,7 +232,7 @@ function assembleTokenBudget(
     context_peak: {
       pct: session.peak_context_pct ?? 0,
       peak_tokens: peakParentTokens ?? 0,
-      max_tokens: contextWindowFor(session.model) ?? 200_000,
+      max_tokens: contextWindowFor(session.model) ?? DEFAULT_CONTEXT_WINDOW,
     },
   };
 }
