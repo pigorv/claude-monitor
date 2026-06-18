@@ -8,8 +8,9 @@ import { AgentTree } from '../../frontend/src/components/AgentTree.js';
 import { groupTimelineItems } from '../../frontend/src/components/Timeline.js';
 import { Dropdown } from '../../frontend/src/components/Dropdown.js';
 import { FilterBar } from '../../frontend/src/components/FilterBar.js';
+import { TokenBudgetSummary } from '../../frontend/src/components/TokenBudgetSummary.js';
 import { transformTimeline } from '../../frontend/src/lib/chart-config.js';
-import type { Event as SessionEvent, AgentRelationship, TokenDataPoint, ProjectInfo, EventAnnotation } from '../../src/shared/types.js';
+import type { Event as SessionEvent, AgentRelationship, TokenDataPoint, ProjectInfo, EventAnnotation, TokenBudget } from '../../src/shared/types.js';
 
 // ─── Heatmap ────────────────────────────────────────────
 
@@ -823,6 +824,71 @@ describe('transformTimeline annotation alignment', () => {
     ];
     const data = transformTimeline(timeline, 200000, annotations);
     assert.equal(data.annotations[0].index, 1, 'later-than-all annotation snaps to last index');
+  });
+});
+
+// ─── TokenBudgetSummary ─────────────────────────────────
+
+describe('TokenBudgetSummary', () => {
+  function makeBudget(overrides: Partial<TokenBudget> = {}): TokenBudget {
+    return {
+      billed_tokens: 1500,
+      cost_total: 1.2345,
+      parent: { tokens: 1000, cost: 0.9, pct: 67 },
+      agents: { tokens: 500, cost: 0.33, runs: 1, pct: 33 },
+      by_type: [],
+      context_peak: { pct: 42, peak_tokens: 120000, max_tokens: 200000 },
+      ...overrides,
+    };
+  }
+
+  it('renders the cost half with dollar amount and token total', () => {
+    const out = render(html`<${TokenBudgetSummary} budget=${makeBudget()} model=${'sonnet'} />`);
+    assert.ok(out.includes('token-budget-summary'), 'should render the container');
+    assert.ok(out.includes('COST'), 'should label the cost half');
+    assert.ok(out.includes('$1.23'), 'cost should be formatted to two decimals');
+    assert.ok(out.includes('1.5K tokens'), 'billed tokens should use the K formatter');
+  });
+
+  it('shows an em dash when the model is unpriced (cost_total null)', () => {
+    const out = render(html`<${TokenBudgetSummary} budget=${makeBudget({ cost_total: null })} model=${'sonnet'} />`);
+    assert.ok(out.includes('—'), 'null cost should render the em dash placeholder');
+    assert.ok(!out.includes('$'), 'no dollar sign when cost is null');
+  });
+
+  it('rounds the context-peak percentage and shows absolute peak / max', () => {
+    const out = render(html`<${TokenBudgetSummary} budget=${makeBudget({ context_peak: { pct: 42.6, peak_tokens: 120000, max_tokens: 200000 } })} model=${'sonnet'} />`);
+    assert.ok(out.includes('43%'), 'peak pct should be rounded');
+    assert.ok(out.includes('120.0K / 200.0K'), 'should show peak / max absolute tokens');
+  });
+
+  it('clamps the fill width at 100% when peak exceeds the window', () => {
+    const out = render(html`<${TokenBudgetSummary} budget=${makeBudget({ context_peak: { pct: 130, peak_tokens: 260000, max_tokens: 200000 } })} model=${'sonnet'} />`);
+    assert.ok(out.includes('width:100%'), 'fill width should cap at 100%');
+    assert.ok(out.includes('130%'), 'the numeric label still reflects the real (uncapped) pct');
+  });
+
+  it('places danger and auto-compact ticks at the model thresholds', () => {
+    const out = render(html`<${TokenBudgetSummary} budget=${makeBudget()} model=${'sonnet'} />`);
+    assert.ok(out.includes('tbs-tick-danger'), 'should render the danger tick');
+    assert.ok(out.includes('left:75%'), 'sonnet danger threshold is 75%');
+    assert.ok(out.includes('tbs-tick-autocompact'), 'should render the auto-compact tick');
+    assert.ok(out.includes('left:83.5%'), 'sonnet auto-compact threshold is 83.5%');
+  });
+
+  it('ramps the accent color with peak severity', () => {
+    const safe = render(html`<${TokenBudgetSummary} budget=${makeBudget({ context_peak: { pct: 20, peak_tokens: 40000, max_tokens: 200000 } })} model=${'sonnet'} />`);
+    assert.ok(safe.includes('var(--color-ctx-safe-text)'), 'low peak should use the safe token');
+    const warn = render(html`<${TokenBudgetSummary} budget=${makeBudget({ context_peak: { pct: 55, peak_tokens: 110000, max_tokens: 200000 } })} model=${'sonnet'} />`);
+    assert.ok(warn.includes('var(--color-ctx-warn-text)'), 'mid peak should use the warn token');
+    const danger = render(html`<${TokenBudgetSummary} budget=${makeBudget({ context_peak: { pct: 85, peak_tokens: 170000, max_tokens: 200000 } })} model=${'sonnet'} />`);
+    assert.ok(danger.includes('var(--color-ctx-danger-text)'), 'high peak should use the danger token');
+  });
+
+  it('renders cleanly with a null model (falls back to default thresholds)', () => {
+    const out = render(html`<${TokenBudgetSummary} budget=${makeBudget()} model=${null} />`);
+    assert.ok(out.includes('token-budget-summary'), 'should still render the bar with no model');
+    assert.ok(out.includes('CONTEXT PEAK'), 'should label the context half');
   });
 });
 
