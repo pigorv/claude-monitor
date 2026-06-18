@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import type { TokenBudget, TokenType } from "../../../src/shared/types";
 
 // Compact token formatter for the legends — K/M form. Mirrors the per-component
-// `formatTokens` helpers in TokenBudgetSummary.tsx / TokenBudgetBar.tsx.
+// `formatTokens` helper in TokenBudgetSummary.tsx.
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
