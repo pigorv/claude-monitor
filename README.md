@@ -8,9 +8,9 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
 <!-- hero:start -->
-<!-- hero captured-on: v0.5.0 -->
+<!-- hero captured-on: v0.5.2 -->
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/hero.gif" alt="claude-monitor walkthrough — session list with date-group headers and Sort dropdown, Timeline with Write/Edit full-cards showing code and diffs, Context chart, and 5-agent Gantt" style="max-width: 100%;" />
+  <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/hero.gif" alt="claude-monitor walkthrough — session list with date-group headers and Sort dropdown, then a session detail page with the Token Budget summary bar above Timeline (Write/Edit full-cards), Context chart, and 5-agent Gantt tabs" style="max-width: 100%;" />
 </p>
 <!-- hero:end -->
 
@@ -52,9 +52,11 @@ npx @pigorv/claude-monitor start
 
 <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-list.png" alt="Session list with recognition-first row layout: bold session titles with project name labels, right-rail telemetry ledger showing timestamps, model pills, duration and estimated cost, color-coded peak-context %, and TODAY / YESTERDAY date-group headers" width="700" />
 
+**Token Budget** — Every session detail page leads with a Token Budget summary bar above the tabs: estimated cost and billed token count on one side, peak context % (color-coded against the model's threshold) on the other. Click the cost to expand a breakdown panel — a parent-vs-sub-agents split (with run count) and a by-token-type breakdown (input, output, cache read, cache write 5m/1h), each showing tokens and cost; empty sections are hidden (no sub-agent split for solo sessions, no zero-usage token types). Cost prices every sub-agent at its own model with cache reads and writes included, and is backfilled across your whole history, so older sessions show a cost without a re-import. The expanded/collapsed state is remembered in the URL.
+
 **Context Pressure** — Interactive token chart (uPlot) with input/output/cache breakdown, model-specific thresholds (Fable 5 sessions are measured against their full 1M-token context window), compaction markers, and drag-to-zoom.
 
-<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-context.png" alt="Session detail page with header stats and a one-click Open in Terminal button, plus a context utilization chart showing two compaction drops and warning/danger threshold zones" width="700" />
+<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-context.png" alt="Session detail page leading with a Token Budget summary bar — cost and billed tokens beside a color-coded context-peak meter — above the Context tab's token utilization chart with warning and danger threshold zones" width="700" />
 
 **Thinking Inspection** — Expandable thinking blocks in the event timeline with infinite scroll. User messages appear in faint purple with an uppercase `USER` label and matching rail dot; assistant messages in neutral white with an `ASSISTANT` label — visually distinct from each other and from tool-call color signals (green=Write, teal=agent, orange=skill). Write and Edit tool calls render as full cards with rationale sourced from the nearest thinking block, a syntax-highlighted diff or content body (Prism.js), and per-card metadata (language · duration · output · cache); collapsible to ~10 lines with in-place expand, with long replies fading at the clip line. Thinking, skill expansions, and tool inputs also render as structured markdown / pretty-printed JSON / labeled `<system-reminder>` blocks — the same way across the Timeline, Agents tab, and sub-agent groups. `AskUserQuestion` prompts render as review cards with three zoom levels, from a collapsed one-line summary up to the full options grid showing exactly which option you picked. Every expanded block has a hover-revealed Copy button that puts the full, untruncated text on the clipboard.
 
@@ -68,7 +70,7 @@ npx @pigorv/claude-monitor start
 
 **Resume in Terminal** (macOS & Windows) — One click opens your terminal in the session's project folder with `claude --resume <id>` already running. macOS uses Terminal.app or iTerm2; Windows auto-detects Windows Terminal, then PowerShell, then `cmd.exe`. Pick your preferred app in Settings — the dropdown is platform-aware, and the button is disabled with a tooltip on unsupported platforms.
 
-**Shareable URLs** — Filters, search, sort, project selection, the active session-detail tab, and the selected agent are all reflected in the URL. Reload preserves the view, links are shareable, and back/forward cycle through tabs naturally.
+**Shareable URLs** — Filters, search, sort, project selection, the active session-detail tab, the selected agent, and the Token Budget breakdown's expanded state are all reflected in the URL. Reload preserves the view, links are shareable, and back/forward cycle through tabs naturally.
 
 **Background Re-import** — Re-import every transcript from Settings without freezing the dashboard. The run happens in the background with a live progress bar — processed-of-total plus a phase label ("Importing transcripts…" then "Compacting database…") — and reattaches to an in-flight run if you reload the page mid-import. Starting a second re-import while one is running is rejected rather than launching a parallel pass, and the database is compacted automatically when the run finishes (search index consolidation + VACUUM) so repeated re-imports don't bloat the file on disk.
 <!-- features:end -->

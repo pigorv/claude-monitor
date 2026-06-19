@@ -188,19 +188,19 @@ try {
   const modelTrigger   = page.locator(".filter-bar .dd-root").nth(1).locator(".dd-trigger");
   const sortTrigger    = page.locator(".filter-bar .dd-root").nth(2).locator(".dd-trigger");
 
-  // ── Beat 2: Project dropdown — open, peek, close ─────────────────
+  // ── Beat 2: Project dropdown — open, quick peek, close ───────────
   await clickWithRipple(projectTrigger);
   await page.waitForSelector(".filter-bar .dd-root.dd-open .dd-popover");
-  await dwell(900); // project list visible
+  await dwell(500); // project list visible — quick peek
   await clickWithRipple(projectTrigger); // click trigger again → toggle closed
-  await dwell(450);
+  await dwell(250);
 
-  // ── Beat 3: Model dropdown — open, peek, close ───────────────────
+  // ── Beat 3: Model dropdown — open, quick peek, close ─────────────
   await clickWithRipple(modelTrigger);
   await page.waitForSelector(".filter-bar .dd-root.dd-open .dd-popover");
-  await dwell(900);
+  await dwell(500); // quick peek
   await clickWithRipple(modelTrigger); // toggle closed
-  await dwell(450);
+  await dwell(250);
 
   // ── Beat 4: Search — type a query, then clear it ─────────────────
   const searchInput = page.locator(".filter-bar .search-input");
@@ -229,17 +229,30 @@ try {
   await page.waitForURL(/sess-dash-002/);
   await page.waitForSelector(".tab-bar");
 
-  // ── Beat 7: Timeline tab (default) — the event stream ────────────
+  // ── Beat 7: Token Budget — expand the cost breakdown ─────────────
+  // The cost half of the summary bar toggles a breakdown panel: a
+  // parent-vs-sub-agents split (with run count) and a by-token-type
+  // legend. sess-dash-002 ran 5 sub-agents, so both sections render.
+  // Collapse it again before the tab tour so the Context/Agents views
+  // sit at their natural scroll position.
+  const costBar = page.locator(".token-budget-summary .tbs-cost");
+  await clickWithRipple(costBar);
+  await page.waitForSelector(".token-budget-panel");
+  await dwell(1500); // let the breakdown read
+  await clickWithRipple(costBar); // collapse
+  await dwell(450);
+
+  // ── Beat 8: Timeline tab (default) — the event stream ────────────
   await page.evaluate(() => window.__demoCursor.moveTo(700, 520));
   await dwell(1900); // let the eye walk the 60-event timeline
 
-  // ── Beat 8: Context tab ──────────────────────────────────────────
+  // ── Beat 9: Context tab ──────────────────────────────────────────
   const contextTab = page.getByRole("button", { name: /^Context/ });
   await clickWithRipple(contextTab);
   await page.waitForSelector('text="Context utilization over time"');
   await dwell(1600); // chart needs a beat to read
 
-  // ── Beat 9: Agents Gantt — the climax ────────────────────────────
+  // ── Beat 10: Agents Gantt — the climax ───────────────────────────
   const agentsTab = page.getByRole("button", { name: /^Agents/ });
   await clickWithRipple(agentsTab);
   await page.waitForSelector('text="Agent concurrency"');
