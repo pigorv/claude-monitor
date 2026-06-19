@@ -35,12 +35,6 @@ function formatDuration(ms: number | null | undefined): string {
   return `${mins}m ${secs}s`;
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
-
 function formatEndTime(endedAt: string | null): string {
   if (!endedAt) return "in progress";
   const d = new Date(endedAt);
@@ -171,7 +165,6 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
   }
 
   const s = data.session;
-  const totalTokens = s.total_input_tokens + s.total_output_tokens;
   const modelsUsed: string[] = s.models_used ? JSON.parse(s.models_used) : [];
 
   return html`
@@ -205,8 +198,6 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="color:var(--color-text-tertiary)"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3.5V6L7.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
             ${formatDuration(s.duration_ms)}
           </span>
-          <span class="sep">·</span>
-          ${formatTokens(totalTokens)} tokens
           <span class="sep">·</span>
           ${s.tool_call_count} tool calls
           <span class="sep">·</span>

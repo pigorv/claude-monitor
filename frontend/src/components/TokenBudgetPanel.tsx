@@ -64,25 +64,28 @@ export function TokenBudgetPanel({ budget }: TokenBudgetPanelProps) {
         <span class="tbp-header-cost">${costHeader}</span>
       </div>
 
-      <div class="tbp-section">
-        <div class="tbp-section-label">PARENT VS AGENTS</div>
-        <div class="tbp-bar">
-          ${parent.tokens > 0 &&
-          html`<div class="tbp-seg" style=${`flex:${parent.tokens};background:${PARENT_COLOR}`}></div>`}
-          ${agents.tokens > 0 &&
-          html`<div class="tbp-seg" style=${`flex:${agents.tokens};background:${AGENTS_COLOR}`}></div>`}
-        </div>
-        <div class="tbp-legend">
-          <div class="tbp-legend-item">
-            <span class="tbp-legend-dot" style=${`background:${PARENT_COLOR}`}></span>
-            ${parent.pct}% parent · ${formatTokens(parent.tokens)} · ${formatCost(parent.cost)}
+      ${agents.runs > 0 &&
+      html`
+        <div class="tbp-section">
+          <div class="tbp-section-label">PARENT VS AGENTS</div>
+          <div class="tbp-bar">
+            ${parent.tokens > 0 &&
+            html`<div class="tbp-seg" style=${`flex:${parent.tokens};background:${PARENT_COLOR}`}></div>`}
+            ${agents.tokens > 0 &&
+            html`<div class="tbp-seg" style=${`flex:${agents.tokens};background:${AGENTS_COLOR}`}></div>`}
           </div>
-          <div class="tbp-legend-item">
-            <span class="tbp-legend-dot" style=${`background:${AGENTS_COLOR}`}></span>
-            ${agents.pct}% agents · ${formatTokens(agents.tokens)} · ${formatCost(agents.cost)} · across ${agents.runs} run${agents.runs !== 1 ? "s" : ""}
+          <div class="tbp-legend">
+            <div class="tbp-legend-item">
+              <span class="tbp-legend-dot" style=${`background:${PARENT_COLOR}`}></span>
+              ${parent.pct}% parent · ${formatTokens(parent.tokens)} · ${formatCost(parent.cost)}
+            </div>
+            <div class="tbp-legend-item">
+              <span class="tbp-legend-dot" style=${`background:${AGENTS_COLOR}`}></span>
+              ${agents.pct}% agents · ${formatTokens(agents.tokens)} · ${formatCost(agents.cost)} · across ${agents.runs} run${agents.runs !== 1 ? "s" : ""}
+            </div>
           </div>
         </div>
-      </div>
+      `}
 
       <div class="tbp-section">
         <div class="tbp-section-label">BY TOKEN TYPE</div>
@@ -99,14 +102,16 @@ export function TokenBudgetPanel({ budget }: TokenBudgetPanelProps) {
             )}
         </div>
         <div class="tbp-legend">
-          ${by_type.map(
-            (entry) => html`
-              <div class="tbp-legend-item">
-                <span class="tbp-legend-dot" style=${`background:${typeColor(entry.type)}`}></span>
-                ${TYPE_LABEL[entry.type]} · ${formatTokens(entry.tokens)} · ${formatCost(entry.cost)}
-              </div>
-            `,
-          )}
+          ${by_type
+            .filter((entry) => entry.tokens > 0)
+            .map(
+              (entry) => html`
+                <div class="tbp-legend-item">
+                  <span class="tbp-legend-dot" style=${`background:${typeColor(entry.type)}`}></span>
+                  ${TYPE_LABEL[entry.type]} · ${formatTokens(entry.tokens)} · ${formatCost(entry.cost)}
+                </div>
+              `,
+            )}
         </div>
       </div>
     </div>
