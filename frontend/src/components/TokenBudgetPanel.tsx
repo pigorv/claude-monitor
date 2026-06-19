@@ -67,8 +67,10 @@ export function TokenBudgetPanel({ budget }: TokenBudgetPanelProps) {
       <div class="tbp-section">
         <div class="tbp-section-label">PARENT VS AGENTS</div>
         <div class="tbp-bar">
-          <div class="tbp-seg" style=${`flex:${parent.tokens};background:${PARENT_COLOR}`}></div>
-          <div class="tbp-seg" style=${`flex:${agents.tokens};background:${AGENTS_COLOR}`}></div>
+          ${parent.tokens > 0 &&
+          html`<div class="tbp-seg" style=${`flex:${parent.tokens};background:${PARENT_COLOR}`}></div>`}
+          ${agents.tokens > 0 &&
+          html`<div class="tbp-seg" style=${`flex:${agents.tokens};background:${AGENTS_COLOR}`}></div>`}
         </div>
         <div class="tbp-legend">
           <div class="tbp-legend-item">
@@ -85,14 +87,16 @@ export function TokenBudgetPanel({ budget }: TokenBudgetPanelProps) {
       <div class="tbp-section">
         <div class="tbp-section-label">BY TOKEN TYPE</div>
         <div class="tbp-bar">
-          ${by_type.map(
-            (entry) => html`
-              <div
-                class="tbp-seg"
-                style=${`flex:${entry.tokens};background:${typeColor(entry.type)}`}
-              ></div>
-            `,
-          )}
+          ${by_type
+            .filter((entry) => entry.tokens > 0)
+            .map(
+              (entry) => html`
+                <div
+                  class="tbp-seg"
+                  style=${`flex:${entry.tokens};background:${typeColor(entry.type)}`}
+                ></div>
+              `,
+            )}
         </div>
         <div class="tbp-legend">
           ${by_type.map(
