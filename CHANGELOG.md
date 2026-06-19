@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-19
+
 ### Added
 
 - The session detail API now exposes a `token_budget` breakdown (billed tokens, total cost, parent vs. sub-agent split, per-token-type usage, and peak context) for each session. Cost fields are `null` for sessions with no priceable model, matching the session list's unpriced behavior.
