@@ -7,6 +7,7 @@ import { AgentTree } from "../components/AgentTree";
 import { BackToTop } from "../components/BackToTop";
 import { CopyButton } from "../components/CopyButton";
 import { TokenBudgetSummary } from "../components/TokenBudgetSummary";
+import { TokenBudgetPanel } from "../components/TokenBudgetPanel";
 import { updateParams } from "../lib/url-state";
 import type { SessionDetailResponse } from "../../../src/shared/types";
 import { modelClass, modelLabel, isLargeContext } from "../lib/model-meta";
@@ -125,6 +126,14 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
     updateParams({ tab: next }, "push");
   }
 
+  // Token-budget panel expand state is URL-only (?budget=open) so it survives
+  // tab switches, reload, sharing, and back/forward. It's view-state, not
+  // navigation, so toggling uses "replace" to avoid back-button noise.
+  const budgetExpanded = params.get("budget") === "open";
+  function toggleBudget() {
+    updateParams({ budget: budgetExpanded ? null : "open" }, "replace");
+  }
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -227,7 +236,8 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
         </div>
       </div>
 
-      <${TokenBudgetSummary} budget=${data.token_budget} model=${s.model} />
+      <${TokenBudgetSummary} budget=${data.token_budget} model=${s.model} expanded=${budgetExpanded} onToggle=${toggleBudget} />
+      ${budgetExpanded && html`<${TokenBudgetPanel} budget=${data.token_budget} />`}
 
       <div class="tab-bar">
         <button
@@ -252,7 +262,7 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
 
       <div class="tab-content">
         ${tab === "timeline" && html`
-          <${Timeline} sessionId=${id} sessionStart=${s.started_at} agents=${data.agents} parentInputTokens=${s.total_input_tokens} parentOutputTokens=${s.total_output_tokens} params=${params} />
+          <${Timeline} sessionId=${id} sessionStart=${s.started_at} agents=${data.agents} params=${params} />
         `}
         ${tab === "context" && html`
           <${TokenChart}

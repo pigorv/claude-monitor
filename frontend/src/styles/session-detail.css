@@ -2394,21 +2394,6 @@
   margin-top: 14px;
 }
 
-/* ── Token Budget Bar ── */
-.token-budget { background: var(--color-background-primary); border: 1px solid var(--color-border-primary); border-radius: var(--radius-lg); padding: 14px 18px; margin: 16px 0; box-shadow: var(--shadow-sm); }
-.token-budget-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.token-budget-title { font-size: 12px; font-weight: 700; color: var(--color-text-primary); }
-.token-budget-total { font-size: 12px; font-family: var(--font-mono); color: var(--color-text-primary); }
-.token-bar { width: 100%; height: 28px; background: var(--color-background-tertiary); border-radius: 5px; display: flex; overflow: hidden; gap: 0; position: relative; }
-.token-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-family: var(--font-mono); font-weight: 600; color: var(--color-text-inverse); text-shadow: 0 1px 2px color-mix(in srgb, var(--color-text-primary) 20%, transparent); min-width: 2px; transition: opacity .15s; cursor: default; }
-.token-seg:first-child { border-radius: 6px 0 0 6px; }
-.token-seg:last-child { border-radius: 0 6px 6px 0; }
-.token-seg:only-child { border-radius: 6px; }
-.token-seg:hover { opacity: .85; }
-.token-legend { display: flex; justify-content: space-between; margin-top: 8px; flex-wrap: wrap; }
-.token-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-secondary); }
-.token-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-
 /* ── Expand hint for agent tool truncation ── */
 .expand-hint { font-size: 10px; color: var(--color-status-completed); padding: 4px 16px 4px 32px; cursor: pointer; font-weight: 500; }
 .expand-hint:hover { text-decoration: underline; }
@@ -3257,7 +3242,7 @@
    ═══════════════════════════════════════════ */
 .token-budget-summary {
   display: grid;
-  grid-template-columns: 1fr 1px 1fr;
+  grid-template-columns: auto 1px 1fr;
   align-items: stretch;
   background: var(--color-background-primary);
   border: 1px solid var(--color-border-primary);
@@ -3267,10 +3252,27 @@
 
 .tbs-cost {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 12px;
   padding: 12px 16px;
   position: relative;
+  appearance: none;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.tbs-cost:hover {
+  background: var(--color-background-hover);
+}
+
+.tbs-cost:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 .tbs-divider {
@@ -3279,8 +3281,9 @@
 
 .tbs-context {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
   padding: 12px 16px;
 }
 
@@ -3310,15 +3313,21 @@
 
 .tbs-chevron {
   margin-left: auto;
+  align-self: center;
   color: var(--color-text-tertiary);
   flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.tbs-chevron.expanded {
+  transform: rotate(90deg);
 }
 
 .tbs-context-head {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .tbs-context-pct {
@@ -3328,6 +3337,7 @@
 
 .tbs-track {
   position: relative;
+  flex: 1;
   height: 8px;
   background: var(--color-background-tertiary);
   border-radius: var(--radius-pill);
@@ -3365,5 +3375,101 @@
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--color-text-tertiary);
-  text-align: right;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   Token Budget Panel — expanded body of the
+   compact summary bar. Header (billed tokens +
+   cost) over two multi-segment stacked-bar
+   tracks (parent-vs-agents, by-token-type),
+   each with a matching legend.
+   ═══════════════════════════════════════════ */
+.token-budget-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
+}
+
+.tbp-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tbp-header-tokens {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.tbp-header-tokens strong {
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.tbp-header-cost {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.tbp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tbp-section-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.tbp-bar {
+  width: 100%;
+  height: 10px;
+  background: var(--color-background-tertiary);
+  border-radius: var(--radius-pill);
+  display: flex;
+  overflow: hidden;
+}
+
+.tbp-seg {
+  height: 100%;
+  min-width: 2px;
+  transition: opacity 0.15s;
+}
+
+.tbp-seg:hover {
+  opacity: 0.85;
+}
+
+.tbp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.tbp-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tbp-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
