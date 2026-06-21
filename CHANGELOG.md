@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- The Timeline toolbar no longer shows a standalone "N events" count; each filter pill already displays its own per-type count.
+
 ## [0.6.0] - 2026-06-19
 
 ### Added

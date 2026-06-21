@@ -236,12 +236,6 @@
   gap: 6px;
 }
 
-.timeline-toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
 .timeline-toolbar label {
   display: flex;
   align-items: center;
@@ -256,12 +250,6 @@
 
 .checkbox-label input[type="checkbox"] {
   accent-color: var(--color-accent);
-}
-
-.timeline-count {
-  font-size: 11px;
-  color: var(--color-text-tertiary);
-  margin-left: auto;
 }
 
 /* Event cards — timeline rail */

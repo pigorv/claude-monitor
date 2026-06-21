@@ -390,10 +390,6 @@ export function Timeline({ sessionId, sessionStart, agents, params }: TimelinePr
             </button>
           `)}
         </div>
-
-        <div class="timeline-toolbar-right">
-          <span class="timeline-count">${total} events</span>
-        </div>
       </div>
 
       ${loading && events.length === 0 && html`<div class="status-text">Loading events…</div>`}
