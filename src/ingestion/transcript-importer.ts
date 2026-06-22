@@ -495,7 +495,7 @@ async function deriveSessionIdFromFile(filePath: string): Promise<string | null>
  * The parent transcript is at: {projectDir}/{sessionId}.jsonl
  * The subagent dir is at: {projectDir}/{sessionId}/subagents/
  */
-function discoverSubagentFiles(parentTranscriptPath: string): string[] {
+export function discoverSubagentFiles(parentTranscriptPath: string): string[] {
   const parentDir = dirname(parentTranscriptPath);
   const parentBasename = basename(parentTranscriptPath, '.jsonl');
   const subagentsDir = join(parentDir, parentBasename, 'subagents');
