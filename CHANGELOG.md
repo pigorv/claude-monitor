@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Internal sanitization primitives (`Pseudonymizer`) for the upcoming transcript export feature: seeded deterministic pseudonymization of tokens, file paths, and MCP tool names, plus non-deterministic size-preserving text scrambling.
+
 ### Removed
 
 - The Timeline toolbar no longer shows a standalone "N events" count; each filter pill already displays its own per-type count.
