@@ -1,13 +1,15 @@
 import { Hono } from 'hono';
-import { buildSessionBundle } from '../../export/session-bundle.js';
+import { buildSessionBundle, SessionExportError } from '../../export/session-bundle.js';
 
 const sessionExport = new Hono();
 
 // GET /api/sessions/:id/export → sanitized, importable zip bundle for one
 // session. Goes through the ONE shared sanitizer layer (buildSessionBundle),
-// the same code path the CLI uses. The known actionable errors from
+// the same code path the CLI uses. Only the known actionable errors from
 // buildSessionBundle (unknown session / null transcript_path / missing file)
-// become a 404 carrying the error's actionable message — never a 500 stack.
+// become a 404 carrying the error's actionable message. Anything unexpected is
+// re-thrown so the app's global onError reports a real 500 instead of a
+// misleading "not found".
 sessionExport.get('/api/sessions/:id/export', async (c) => {
   const id = c.req.param('id');
 
@@ -15,8 +17,10 @@ sessionExport.get('/api/sessions/:id/export', async (c) => {
   try {
     bundle = await buildSessionBundle(id);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return c.json({ error: message }, 404);
+    if (err instanceof SessionExportError) {
+      return c.json({ error: err.message }, 404);
+    }
+    throw err;
   }
 
   const { zip, filename } = bundle;

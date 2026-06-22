@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Buffer } from 'node:buffer';
 import { inflateRawSync } from 'node:zlib';
-import { buildSessionBundle } from '../../src/export/session-bundle.js';
+import { buildSessionBundle, SessionExportError } from '../../src/export/session-bundle.js';
 import { importTranscripts } from '../../src/ingestion/transcript-importer.js';
 import { getDb, closeDb } from '../../src/db/connection.js';
 import { getSession, upsertSession } from '../../src/db/queries/sessions.js';
@@ -137,6 +137,8 @@ describe('buildSessionBundle', () => {
     await assert.rejects(
       () => buildSessionBundle('does-not-exist'),
       (err: Error) => {
+        // Typed so the route can 404 these without masking unexpected 500s.
+        assert.ok(err instanceof SessionExportError);
         assert.match(err.message, /does-not-exist/);
         assert.match(err.message, /no such session|import/i);
         return true;
@@ -149,6 +151,7 @@ describe('buildSessionBundle', () => {
     await assert.rejects(
       () => buildSessionBundle('null-path'),
       (err: Error) => {
+        assert.ok(err instanceof SessionExportError);
         assert.match(err.message, /null-path/);
         assert.match(err.message, /transcript/i);
         return true;
@@ -161,6 +164,7 @@ describe('buildSessionBundle', () => {
     await assert.rejects(
       () => buildSessionBundle('gone'),
       (err: Error) => {
+        assert.ok(err instanceof SessionExportError);
         assert.match(err.message, /no longer exists/i);
         return true;
       },

@@ -1,4 +1,4 @@
-import { basename, join } from 'node:path';
+import { basename } from 'node:path';
 import { createReadStream, existsSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { Buffer } from 'node:buffer';
@@ -26,6 +26,19 @@ export interface SessionBundle {
   zip: Buffer;
   filename: string;
   audit: AuditSummary;
+}
+
+/**
+ * Thrown for the known, user-actionable export failures (unknown session,
+ * null transcript path, missing transcript file). Callers can map these to a
+ * 404 while letting any *unexpected* error surface as a real 500 instead of
+ * masquerading as "not found".
+ */
+export class SessionExportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SessionExportError';
+  }
 }
 
 /**
@@ -61,19 +74,19 @@ async function sanitizeFile(sanitizer: Sanitizer, filePath: string): Promise<str
 export async function buildSessionBundle(sessionId: string, seed?: Buffer): Promise<SessionBundle> {
   const session = getSession(sessionId);
   if (!session) {
-    throw new Error(
+    throw new SessionExportError(
       `Cannot export session "${sessionId}": no such session. Run "claude-monitor import" first, or check the session id.`,
     );
   }
 
   const transcriptPath = session.transcript_path;
   if (!transcriptPath) {
-    throw new Error(
+    throw new SessionExportError(
       `Cannot export session "${sessionId}": its transcript path was never recorded. Re-import the session with "claude-monitor import --force".`,
     );
   }
   if (!existsSync(transcriptPath)) {
-    throw new Error(
+    throw new SessionExportError(
       `Cannot export session "${sessionId}": the transcript file no longer exists at ${transcriptPath}. Re-import the session before exporting.`,
     );
   }
@@ -90,7 +103,10 @@ export async function buildSessionBundle(sessionId: string, seed?: Buffer): Prom
   // Reuse the importer's discovery helper — no duplicated /subagents/ logic.
   for (const subFile of discoverSubagentFiles(transcriptPath)) {
     const subJsonl = await sanitizeFile(sanitizer, subFile);
-    const name = join(base, 'subagents', basename(subFile));
+    // ZIP entry names must use forward slashes regardless of host OS
+    // (APPNOTE 4.4.17) — `path.join` would emit `\` on Windows and break
+    // subagent discovery when the bundle is re-imported on macOS/Linux.
+    const name = `${base}/subagents/${basename(subFile)}`;
     entries.push({ name, data: Buffer.from(subJsonl, 'utf8') });
   }
 
