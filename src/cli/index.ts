@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { VERSION } from '../shared/constants.js';
+import { exportCommand } from './commands/export.js';
 import { importCommand } from './commands/import.js';
 import { startCommand } from './commands/start.js';
 import { statusCommand } from './commands/status.js';
@@ -11,6 +12,7 @@ Usage: claude-monitor <command> [options]
 
 Commands:
   import [path]   One-time import of a single file or directory
+  export <id>     Export a single session as a sanitized, re-importable zip
   start           Start dashboard server + auto-import new sessions every 5s
   status          Show DB stats and server status
   help            Show this help message
@@ -38,6 +40,9 @@ async function main(): Promise<void> {
   switch (command) {
     case 'import':
       await importCommand(args.slice(1));
+      break;
+    case 'export':
+      await exportCommand(args.slice(1));
       break;
     case 'start':
       await startCommand(args.slice(1));

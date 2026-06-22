@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Internal sanitization primitives (`Pseudonymizer`) for the upcoming transcript export feature: seeded deterministic pseudonymization of tokens, file paths, and MCP tool names, plus non-deterministic size-preserving text scrambling.
+- Export a single session as a sanitized, shareable, re-importable bundle — via the `claude-monitor export <session-id>` CLI command or the `GET /api/sessions/:id/export` endpoint — with all paths and content pseudonymized or scrambled while the structure (timeline, token curve, compaction, agent tree) is preserved.
 
 ### Removed
 
