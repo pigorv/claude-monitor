@@ -10,7 +10,7 @@ import {
   computeYScale,
 } from "../lib/chart-config";
 import { CHART } from "../lib/chart-palette";
-import { modelLabel } from "../lib/model-meta";
+import { modelLabelFull } from "../lib/model-meta";
 
 interface TokenChartProps {
   timeline: TokenDataPoint[];
@@ -109,7 +109,7 @@ export function TokenChart({ timeline, model, compactionDetails, session, fileAc
     return html`<div class="status-text">No token data available for this session.</div>`;
   }
 
-  const modelName = modelLabel(model, "unknown");
+  const modelName = modelLabelFull(model, "unknown");
 
   // File activity toggle: main-only (default) vs including subagents
   const [includeSubagents, setIncludeSubagents] = useState(false);
