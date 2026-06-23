@@ -198,6 +198,12 @@ describe('resolveModel', () => {
     assert.equal(oneM.context_window, 1_000_000);
     assert.equal(oneM.pricing.input, 3);
   });
+
+  it('[1m] marker is Sonnet-scoped — leaves a non-sonnet window untouched', () => {
+    const haiku = resolveModel('claude-haiku-4-5[1m]');
+    assert.ok(haiku);
+    assert.equal(haiku.context_window, 200_000);
+  });
 });
 
 describe('sessionCostUsd', () => {

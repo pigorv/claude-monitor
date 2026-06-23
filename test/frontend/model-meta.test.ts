@@ -84,6 +84,12 @@ describe('modelVersion', () => {
     assert.equal(modelVersion('claude-3-5-haiku'), null);
   });
 
+  it('returns null for a legacy id where a date follows the family', () => {
+    // family directly followed by a release date, no version — must not read
+    // the date ("20241022") as the version
+    assert.equal(modelVersion('claude-3-5-sonnet-20241022'), null);
+  });
+
   it('returns null for null', () => {
     assert.equal(modelVersion(null), null);
   });
@@ -108,6 +114,10 @@ describe('isOneMSonnet', () => {
 
   it('is false for fable', () => {
     assert.equal(isOneMSonnet('claude-fable-5'), false);
+  });
+
+  it('is false for a [1m] non-sonnet (the family check, not just the marker)', () => {
+    assert.equal(isOneMSonnet('claude-opus-4-8[1m]'), false);
   });
 
   it('is false for null', () => {

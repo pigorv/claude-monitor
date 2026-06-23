@@ -48,6 +48,9 @@ export function isLargeContext(model: string | null | undefined): boolean {
  * Version suffix following the family token ("4.6", "4.8", "5"), or null when
  * no version follows the family (e.g. legacy "claude-3-5-haiku") or null/empty.
  * A trailing release date (e.g. "-20251001") and a "[1m]" marker are ignored.
+ * Legacy ids where the family is followed directly by a date instead of a
+ * version (e.g. "claude-3-5-sonnet-20241022") also return null — a major above
+ * 99 is a date, not a version.
  */
 export function modelVersion(model: string | null | undefined): string | null {
   const key = modelKey(model);
@@ -57,6 +60,7 @@ export function modelVersion(model: string | null | undefined): string | null {
   const rest = lower.slice(idx + key.length);
   const match = /^-(\d+)(?:-(\d+))?/.exec(rest);
   if (!match) return null;
+  if (Number(match[1]) > 99) return null;
   return match[2] != null ? `${match[1]}.${match[2]}` : match[1];
 }
 

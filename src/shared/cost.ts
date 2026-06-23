@@ -50,13 +50,16 @@ function escapeRegExp(s: string): string {
  * swallow a future `claude-opus-4-10`. That also removes any dependence on
  * the order of keys in models.json.
  *
- * A `[1m]` marker (e.g. `claude-sonnet-4-6[1m]`) keeps the base entry's id and
- * pricing but overrides the context window to 1,000,000.
+ * A `[1m]` marker on a Sonnet id (e.g. `claude-sonnet-4-6[1m]`) keeps the base
+ * entry's id and pricing but overrides the context window to 1,000,000. The
+ * marker is scoped to Sonnet — the only family with a sub-1M base window that
+ * has a 1M variant — so it stays in step with the threshold resolvers, which
+ * also gate the 1M profile on Sonnet.
  */
 export function resolveModel(model: string | null | undefined): ResolvedModel | null {
   if (!model) return null;
   const lower = model.toLowerCase();
-  const oneM = /\[1m\]/.test(lower);
+  const oneM = /\[1m\]/.test(lower) && lower.includes('sonnet');
 
   for (const key of Object.keys(MODELS)) {
     if (new RegExp(`${escapeRegExp(key)}(?![0-9])`).test(lower)) {
