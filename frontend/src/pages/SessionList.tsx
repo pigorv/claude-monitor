@@ -9,7 +9,7 @@ import { updateParams } from "../lib/url-state";
 import { migrateProjectFilterKey } from "../lib/migrate-project-filter";
 import { projectColor, formatTokenCount } from "../lib/format";
 import { ctxLevel } from "../lib/ctx";
-import { modelClass, modelLabel, isLargeContext } from "../lib/model-meta";
+import { modelClass, modelLabel, modelVersion, isOneMSonnet } from "../lib/model-meta";
 import type { SessionSummary, ProjectInfo } from "../../../src/shared/types";
 import { SNIPPET_MARK_START, SNIPPET_MARK_END } from "../../../src/shared/search";
 import "../styles/pills.css";
@@ -122,10 +122,10 @@ function ModelPill({ s }: { s: SessionSummary }) {
       ${multi
         ? s.models_used!.map(
             (m: string, i: number) =>
-              html`${i > 0 ? html`<span class="model-switch">→</span>` : null}${modelLabel(m)}`,
+              html`${i > 0 ? html`<span class="model-switch">→</span>` : null}${modelLabel(m)}${modelVersion(m) ? html`<span class="pill-ver">${modelVersion(m)}</span>` : null}`,
           )
-        : modelLabel(s.model)}
-      ${isLargeContext(last) ? html` <span class="ctx-label">1M</span>` : null}
+        : html`${modelLabel(s.model)}${modelVersion(s.model) ? html`<span class="pill-ver">${modelVersion(s.model)}</span>` : null}`}
+      ${isOneMSonnet(last) ? html` <span class="ctx-label">1M</span>` : null}
     </span>
   `;
 }
