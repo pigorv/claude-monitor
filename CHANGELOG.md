@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Model labels now show the version alongside the family (e.g. "Sonnet 4.6", "Opus 4.8"), and a teal "1M" badge marks the 1M-context Sonnet variant so it's distinguishable from the standard 200K Sonnet.
+
 ### Fixed
 
 - Sessions running a 1M-context model variant (a model id tagged `[1m]`) now compute context utilization against 1,000,000 tokens instead of the base model's 200K window.
