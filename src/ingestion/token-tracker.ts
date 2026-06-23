@@ -1,4 +1,4 @@
-import { MODEL_THRESHOLDS } from '../shared/constants.js';
+import { MODEL_THRESHOLDS, SONNET_1M_THRESHOLDS } from '../shared/constants.js';
 import { contextWindowFor } from '../shared/cost.js';
 import type { ContextThresholds, TokenDataPoint, TranscriptMessage } from '../shared/types.js';
 
@@ -40,6 +40,8 @@ export function resolveThreshold(model: string | null | undefined): ContextThres
   if (!model) return MODEL_THRESHOLDS['sonnet'];
 
   const lower = model.toLowerCase();
+  // The 1M-context Sonnet variant ([1m]) follows the 1M compaction profile.
+  if (/\[1m\]/.test(lower) && lower.includes('sonnet')) return SONNET_1M_THRESHOLDS;
   for (const key of Object.keys(MODEL_THRESHOLDS)) {
     if (lower.includes(key)) return MODEL_THRESHOLDS[key];
   }

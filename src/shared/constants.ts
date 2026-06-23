@@ -4,7 +4,7 @@ import type { EventType } from './types.js';
 
 // Re-export MODEL_THRESHOLDS from the browser-safe module so existing
 // backend imports (`from '../shared/constants.js'`) keep working.
-export { MODEL_THRESHOLDS } from './model-thresholds.js';
+export { MODEL_THRESHOLDS, SONNET_1M_THRESHOLDS } from './model-thresholds.js';
 
 // Injected at build time by tsup (see tsup.config.ts `define`)
 export const VERSION = process.env.APP_VERSION ?? '0.0.0-dev';

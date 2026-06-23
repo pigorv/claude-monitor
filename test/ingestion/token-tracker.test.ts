@@ -84,6 +84,19 @@ describe('resolveThreshold', () => {
     assert.equal(resolveThreshold(null).model, 'sonnet');
     assert.equal(resolveThreshold(undefined).model, 'sonnet');
   });
+
+  it('uses the 1M compaction profile for the [1m] sonnet variant', () => {
+    const t = resolveThreshold('claude-sonnet-4-6[1m]');
+    assert.equal(t.maxTokens, 1_000_000);
+    assert.equal(t.autoCompactPct, 96.7);
+    assert.equal(t.warningPct, 60.0);
+    assert.equal(t.dangerPct, 70.0);
+  });
+
+  it('keeps the 200K compaction profile for the plain sonnet', () => {
+    const t = resolveThreshold('claude-sonnet-4-6');
+    assert.equal(t.autoCompactPct, 83.5);
+  });
 });
 
 // ── estimateContextPct ─────────────────────────────────────────────
