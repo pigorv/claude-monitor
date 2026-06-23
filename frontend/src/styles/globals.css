@@ -385,6 +385,15 @@ nav a.active {
   font-family: var(--font-mono);
 }
 
+/* Version sub-badge — secondary tag sitting just after the family name */
+.pill-ver {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  margin-left: var(--space-1);
+}
+
 .model-pill.opus {
   background: var(--color-interactive-selected-bg);
   color: var(--color-interactive-selected-text);
