@@ -385,12 +385,13 @@ nav a.active {
   font-family: var(--font-mono);
 }
 
-/* Version sub-badge — secondary tag sitting just after the family name */
+/* Version sub-badge — sits just after the family name, same color (inherited
+   from the pill) so it reads as part of the name; lighter weight keeps a subtle
+   hierarchy without the tiny/dimmed look. */
 .pill-ver {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: var(--font-weight-medium);
-  color: var(--color-text-tertiary);
   margin-left: var(--space-1);
 }
 
