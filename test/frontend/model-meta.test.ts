@@ -1,6 +1,13 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
-import { modelClass, modelLabel, isLargeContext } from '../../frontend/src/lib/model-meta.js';
+import {
+  modelClass,
+  modelLabel,
+  isLargeContext,
+  modelVersion,
+  isOneMSonnet,
+  modelLabelFull,
+} from '../../frontend/src/lib/model-meta.js';
 
 describe('modelLabel', () => {
   it('labels a fable model "Fable"', () => {
@@ -49,5 +56,87 @@ describe('isLargeContext', () => {
 
   it('is false for an unknown string', () => {
     assert.equal(isLargeContext('some-random-model'), false);
+  });
+});
+
+describe('modelVersion', () => {
+  it('reads "4.6" from a sonnet model', () => {
+    assert.equal(modelVersion('claude-sonnet-4-6'), '4.6');
+  });
+
+  it('reads "4.8" from an opus model', () => {
+    assert.equal(modelVersion('claude-opus-4-8'), '4.8');
+  });
+
+  it('reads a major-only "5" from a fable model', () => {
+    assert.equal(modelVersion('claude-fable-5'), '5');
+  });
+
+  it('ignores a trailing release date', () => {
+    assert.equal(modelVersion('claude-haiku-4-5-20251001'), '4.5');
+  });
+
+  it('ignores a "[1m]" marker', () => {
+    assert.equal(modelVersion('claude-sonnet-4-6[1m]'), '4.6');
+  });
+
+  it('returns null for a legacy id whose numbers precede the family', () => {
+    assert.equal(modelVersion('claude-3-5-haiku'), null);
+  });
+
+  it('returns null for null', () => {
+    assert.equal(modelVersion(null), null);
+  });
+
+  it('returns null for an empty string', () => {
+    assert.equal(modelVersion(''), null);
+  });
+});
+
+describe('isOneMSonnet', () => {
+  it('is true for a 1M sonnet', () => {
+    assert.equal(isOneMSonnet('claude-sonnet-4-6[1m]'), true);
+  });
+
+  it('is false for a plain sonnet', () => {
+    assert.equal(isOneMSonnet('claude-sonnet-4-6'), false);
+  });
+
+  it('is false for opus', () => {
+    assert.equal(isOneMSonnet('claude-opus-4-8'), false);
+  });
+
+  it('is false for fable', () => {
+    assert.equal(isOneMSonnet('claude-fable-5'), false);
+  });
+
+  it('is false for null', () => {
+    assert.equal(isOneMSonnet(null), false);
+  });
+});
+
+describe('modelLabelFull', () => {
+  it('composes family and version ("Sonnet 4.6")', () => {
+    assert.equal(modelLabelFull('claude-sonnet-4-6'), 'Sonnet 4.6');
+  });
+
+  it('composes "Opus 4.8"', () => {
+    assert.equal(modelLabelFull('claude-opus-4-8'), 'Opus 4.8');
+  });
+
+  it('composes "Fable 5"', () => {
+    assert.equal(modelLabelFull('claude-fable-5'), 'Fable 5');
+  });
+
+  it('falls back to family-only when there is no version', () => {
+    assert.equal(modelLabelFull('claude-3-5-haiku'), 'Haiku');
+  });
+
+  it('returns the nullLabel verbatim for null', () => {
+    assert.equal(modelLabelFull(null, 'Unknown'), 'Unknown');
+  });
+
+  it('defaults null to the "—" empty-state label', () => {
+    assert.equal(modelLabelFull(null), '—');
   });
 });
