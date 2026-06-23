@@ -103,6 +103,12 @@ describe('estimateContextPct', () => {
   it('returns 0 for zero tokens', () => {
     assert.equal(estimateContextPct(0, 'opus'), 0);
   });
+
+  it('computes against 1M for a [1m] model variant', () => {
+    // base sonnet would be 50% at 100k; the [1m] variant is computed against 1M
+    const pct = estimateContextPct(100_000, 'claude-sonnet-4-6[1m]');
+    assert.equal(pct, 10);
+  });
 });
 
 // ── buildTokenSnapshots ────────────────────────────────────────────

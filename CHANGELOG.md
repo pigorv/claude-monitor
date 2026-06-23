@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Sessions running a 1M-context model variant (a model id tagged `[1m]`) now compute context utilization against 1,000,000 tokens instead of the base model's 200K window.
+
 ### Removed
 
 - The Timeline toolbar no longer shows a standalone "N events" count; each filter pill already displays its own per-type count.

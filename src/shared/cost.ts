@@ -49,22 +49,34 @@ function escapeRegExp(s: string): string {
  * non-digit or end-of-string — so a key like `claude-opus-4-1` does not
  * swallow a future `claude-opus-4-10`. That also removes any dependence on
  * the order of keys in models.json.
+ *
+ * A `[1m]` marker (e.g. `claude-sonnet-4-6[1m]`) keeps the base entry's id and
+ * pricing but overrides the context window to 1,000,000.
  */
 export function resolveModel(model: string | null | undefined): ResolvedModel | null {
   if (!model) return null;
   const lower = model.toLowerCase();
+  const oneM = /\[1m\]/.test(lower);
 
   for (const key of Object.keys(MODELS)) {
     if (new RegExp(`${escapeRegExp(key)}(?![0-9])`).test(lower)) {
       const facts = MODELS[key];
-      return { id: key, pricing: facts.pricing, context_window: facts.context_window };
+      return {
+        id: key,
+        pricing: facts.pricing,
+        context_window: oneM ? 1_000_000 : facts.context_window,
+      };
     }
   }
 
   for (const { family, id } of FAMILY_FALLBACK) {
     if (lower.includes(family)) {
       const facts = MODELS[id];
-      return { id, pricing: facts.pricing, context_window: facts.context_window };
+      return {
+        id,
+        pricing: facts.pricing,
+        context_window: oneM ? 1_000_000 : facts.context_window,
+      };
     }
   }
 

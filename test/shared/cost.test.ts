@@ -177,6 +177,27 @@ describe('resolveModel', () => {
     assert.equal(resolveModel(null), null);
     assert.equal(resolveModel(undefined), null);
   });
+
+  it('[1m] marker overrides context window to 1M but keeps base id + pricing', () => {
+    const base = resolveModel('claude-sonnet-4-6');
+    assert.ok(base);
+    assert.equal(base.context_window, 200_000);
+
+    const oneM = resolveModel('claude-sonnet-4-6[1m]');
+    assert.ok(oneM);
+    assert.equal(oneM.context_window, 1_000_000);
+    // id and pricing match the base entry, untouched by the marker
+    assert.equal(oneM.id, base.id);
+    assert.deepEqual(oneM.pricing, base.pricing);
+  });
+
+  it('[1m] marker works through the family fallback too', () => {
+    const oneM = resolveModel('claude-sonnet-4-99[1m]');
+    assert.ok(oneM);
+    assert.equal(oneM.id, 'claude-sonnet-4-6');
+    assert.equal(oneM.context_window, 1_000_000);
+    assert.equal(oneM.pricing.input, 3);
+  });
 });
 
 describe('sessionCostUsd', () => {
