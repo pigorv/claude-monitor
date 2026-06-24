@@ -10,7 +10,7 @@ import { TokenBudgetSummary } from "../components/TokenBudgetSummary";
 import { TokenBudgetPanel } from "../components/TokenBudgetPanel";
 import { updateParams } from "../lib/url-state";
 import type { SessionDetailResponse } from "../../../src/shared/types";
-import { modelClass, modelLabel, isLargeContext } from "../lib/model-meta";
+import { modelClass, modelLabel, modelVersion, isOneMSonnet } from "../lib/model-meta";
 import "../styles/pills.css";
 import "../styles/session-detail.css";
 
@@ -181,15 +181,15 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
             ? html`
               <span class="model-pill ${modelClass(modelsUsed[modelsUsed.length - 1])}">
                 ${modelsUsed.map((m: string, i: number) => html`
-                  ${i > 0 ? html`<span class="model-switch">→</span>` : null}${modelLabel(m, "Unknown")}
+                  ${i > 0 ? html`<span class="model-switch">→</span>` : null}${modelLabel(m, "Unknown")}${modelVersion(m) ? html`<span class="pill-ver">${modelVersion(m)}</span>` : null}
                 `)}
-                ${isLargeContext(modelsUsed[modelsUsed.length - 1]) ? html` <span class="ctx-label">1M</span>` : null}
+                ${isOneMSonnet(modelsUsed[modelsUsed.length - 1]) ? html` <span class="ctx-label">1M</span>` : null}
               </span>
             `
             : html`
               <span class="model-pill ${modelClass(s.model)}">
-                ${modelLabel(s.model, "Unknown")}
-                ${isLargeContext(s.model) ? html` <span class="ctx-label">1M</span>` : null}
+                ${modelLabel(s.model, "Unknown")}${modelVersion(s.model) ? html`<span class="pill-ver">${modelVersion(s.model)}</span>` : null}
+                ${isOneMSonnet(s.model) ? html` <span class="ctx-label">1M</span>` : null}
               </span>
             `
           }

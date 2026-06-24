@@ -205,11 +205,15 @@
   }
 }
 
-/* Context label for 1M models */
+/* 1M-context disambiguator — small filled teal chip on the model pill */
 .ctx-label {
-  font-size: 10px;
-  opacity: 0.7;
+  font-size: 9px;
   font-weight: 700;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  letter-spacing: 0.04em;
 }
 
 /* ── Right — telemetry ledger (4 lines, mono) ────────────────── */
