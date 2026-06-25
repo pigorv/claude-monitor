@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Export a single session as a sanitized, shareable, re-importable bundle — via the `claude-monitor export <session-id>` CLI command or the `GET /api/sessions/:id/export` endpoint — with all paths and content pseudonymized or scrambled while the structure (timeline, token curve, compaction, agent tree) is preserved.
 - Model labels now show the version alongside the family (e.g. "Sonnet 4.6", "Opus 4.8"), and a teal "1M" badge marks the 1M-context Sonnet variant so it's distinguishable from the standard 200K Sonnet.
 
 ### Fixed

@@ -5,6 +5,7 @@ import * as logger from '../shared/logger.js';
 import { corsMiddleware } from './middleware.js';
 import { health } from './routes/health.js';
 import { sessions } from './routes/sessions.js';
+import { sessionExport } from './routes/session-export.js';
 import { events } from './routes/events.js';
 import { stats } from './routes/stats.js';
 import { reimport } from './routes/reimport.js';
@@ -28,6 +29,9 @@ export function createApp(options?: AppOptions): Hono {
 
   app.use('*', corsMiddleware);
   app.route('/', health);
+  // Register the per-session export before the sessions routes so the static
+  // `/export` segment is matched and never shadowed by `/api/sessions/:id`.
+  app.route('/', sessionExport);
   app.route('/', sessions);
   app.route('/', events);
   app.route('/', stats);
