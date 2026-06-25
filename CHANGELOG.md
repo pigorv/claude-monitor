@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Export a single session as a sanitized, shareable, re-importable bundle — via the `claude-monitor export <session-id>` CLI command or the `GET /api/sessions/:id/export` endpoint — with all paths and content pseudonymized or scrambled while the structure (timeline, token curve, compaction, agent tree) is preserved.
+- Model labels now show the version alongside the family (e.g. "Sonnet 4.6", "Opus 4.8"), and a teal "1M" badge marks the 1M-context Sonnet variant so it's distinguishable from the standard 200K Sonnet.
+
+### Fixed
+
+- Sessions running a 1M-context model variant (a model id tagged `[1m]`) now compute context utilization against 1,000,000 tokens instead of the base model's 200K window.
+- The 1M-context Sonnet variant now uses the 1M auto-compaction/warning/danger thresholds (matching Opus/Fable) instead of the 200K Sonnet's, so the chart's compaction line and budget ticks land in the right place.
 
 ### Removed
 

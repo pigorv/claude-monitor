@@ -25,3 +25,21 @@ export const MODEL_THRESHOLDS: Record<string, ContextThresholds> = Object.fromEn
     { ...pcts, maxTokens: contextWindowFor(family) ?? 200_000 },
   ]),
 );
+
+/**
+ * Thresholds for the 1M-context Sonnet variant (model ids tagged `[1m]`).
+ * Claude Code's auto-compaction reserves roughly the same *absolute* headroom
+ * regardless of window size — the 200K Sonnet's 83.5% leaves ~33K free, and
+ * that same ~33K against a 1M window lands near 96.7%. So the 1M Sonnet follows
+ * the 1M-model (opus/fable) compaction profile, not the 200K Sonnet's. Keyed
+ * separately from MODEL_THRESHOLDS so the family-detection loops that iterate
+ * its keys stay unpolluted; `resolveThreshold`/`resolveThresholds` branch to it
+ * explicitly on the `[1m]` marker.
+ */
+export const SONNET_1M_THRESHOLDS: ContextThresholds = {
+  model: 'sonnet',
+  autoCompactPct: 96.7,
+  warningPct: 60.0,
+  dangerPct: 70.0,
+  maxTokens: contextWindowFor('claude-sonnet-4-6[1m]') ?? 1_000_000,
+};

@@ -1,5 +1,5 @@
 import type { TokenDataPoint, ContextThresholds, EventAnnotation } from "../../../src/shared/types";
-import { MODEL_THRESHOLDS } from "../../../src/shared/model-thresholds";
+import { MODEL_THRESHOLDS, SONNET_1M_THRESHOLDS } from "../../../src/shared/model-thresholds";
 import { contextWindowFor } from "../../../src/shared/cost";
 import type uPlot from "uplot";
 import { CHART } from './chart-palette';
@@ -13,8 +13,13 @@ export function resolveThresholds(model: string | null | undefined): ChartThresh
   let base = MODEL_THRESHOLDS.sonnet;
   if (model) {
     const lower = model.toLowerCase();
-    for (const key of Object.keys(MODEL_THRESHOLDS)) {
-      if (lower.includes(key)) { base = MODEL_THRESHOLDS[key]; break; }
+    // The 1M-context Sonnet variant ([1m]) follows the 1M compaction profile.
+    if (/\[1m\]/.test(lower) && lower.includes('sonnet')) {
+      base = SONNET_1M_THRESHOLDS;
+    } else {
+      for (const key of Object.keys(MODEL_THRESHOLDS)) {
+        if (lower.includes(key)) { base = MODEL_THRESHOLDS[key]; break; }
+      }
     }
   }
   // Source the context window from models.json; keep the family's pct thresholds.
