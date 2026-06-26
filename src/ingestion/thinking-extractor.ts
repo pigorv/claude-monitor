@@ -343,6 +343,7 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
   startTimestamp: string;
   endTimestamp: string;
   result?: string;
+  hasFailed: boolean;
 }> {
   const agents: Array<{
     agentId: string;
@@ -354,6 +355,7 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
     startTimestamp: string;
     endTimestamp: string;
     result?: string;
+    hasFailed: boolean;
   }> = [];
 
   // Track seen agentIds to merge resumed agents with same ID
@@ -383,6 +385,7 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
         ? (evt.metadata.agentId as string)
         : null;
       const agentId = realAgentId ? `agent-${realAgentId}` : `agent-${i}`;
+      const hasFailed = evt.metadata?.tool_error === true;
 
       // Find the range of events that belong to this agent
       let endIdx = i;
@@ -419,6 +422,7 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
         existing.endIdx = endIdx;
         existing.endTimestamp = endIdx > i ? events[endIdx].timestamp : evt.timestamp;
         if (evt.output_data) existing.result = evt.output_data;
+        existing.hasFailed = existing.hasFailed || hasFailed;
         continue;
       }
 
@@ -433,6 +437,7 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
         startTimestamp: evt.timestamp,
         endTimestamp: endIdx > i ? events[endIdx].timestamp : evt.timestamp,
         result: evt.output_data ?? undefined,
+        hasFailed,
       });
     }
   }
