@@ -1,10 +1,10 @@
 ---
-description: Manual-QA a claude-monitor PR — run the app, walk the "How to validate" flow in a browser, record a video, run regression smoke tests, and report a per-step PASS/FAIL verdict. Read-only on GitHub.
+description: Manual-QA a claude-monitor PR — run the app, walk the "How to validate" flow in a browser, record a video, run regression smoke tests, and report a per-step PASS/FAIL verdict in chat, then offer to post the verdict to the PR.
 ---
 
 You have been invoked via `/cm-qa`. Run the **cm-qa** skill end-to-end.
 
-Read `.claude/skills/cm-qa/SKILL.md` first and follow it phase by phase. Do not skip the regression smoke tests (Phase 4b) or the video delivery (Phase 5).
+Read `.claude/skills/cm-qa/SKILL.md` first and follow it phase by phase. Do not skip the regression smoke tests (Phase 4b) or the video delivery (Phase 5). Results go to **chat first**; only post to the PR (Phase 6) after an explicit `go`.
 
 ## Arguments
 
@@ -25,4 +25,4 @@ Read `.claude/skills/cm-qa/SKILL.md` first and follow it phase by phase. Do not 
 /cm-qa 142 --no-video
 ```
 
-This skill is **read-only on GitHub**: it reports the verdict and video to you, never to the PR. Posting to the PR is a separate, explicit step.
+This skill reports the verdict and video to **you in chat** every run. It will then offer to mirror the verdict onto the PR as a comment — but posts only after you reply `go`. It never reviews, approves, pushes, or merges.
