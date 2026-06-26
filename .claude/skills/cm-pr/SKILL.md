@@ -168,18 +168,42 @@ Open `.github/pull_request_template.md`, then fill each section. Keep it tight �
 
 If you (the agent) actually ran the commands during the implementation, list the exact commands and outputs you observed. If you didn't, mark them with `[not run]` and let the user fill in — don't fabricate test results.
 
-**`## How to validate`** — what *a reviewer* should do, locally, in ≤ 2 minutes. This is the section the new template added; treat it as required, not optional. Format:
+**`## How to validate`** — what *a reviewer* (or the `cm-qa` manual-QA skill) should do, locally, to confirm the change. This is the section the new template added; treat it as required, not optional. It has two parts: the **happy-path steps** for the new behavior, and a **Regression smoke tests** subsection for the surfaces this PR could have knocked over.
+
+Write every step as **an action + an expected observation** — concrete enough that someone (or `cm-qa`) can execute it without you in the room and score it PASS/FAIL. A step with no observable expectation ("check it works") is not a validation step; either give it an expectation or cut it.
+
+Scale the detail to the change. A one-line config tweak needs two steps; a new UI surface plus a migration needs the full flow plus the right smoke checks. Don't pad a trivial PR, and don't under-spec a risky one.
 
 ```
+### Steps
 1. `git checkout <branch> && npm install && npm run build`
 2. `npm test` — expect all green; the new test in `test/ingestion/foo.test.ts` covers the regression
-3. `npm run dev` then open `http://localhost:4173/#/sessions` — the long-tool-output column should now read "12.4 KB" (was previously empty for sessions older than X)
-4. Regression check: open any pre-existing session — Timeline tab still renders, agent tree unchanged
+3. `node dist/index.js start --no-open`, then open `http://localhost:4173/#/sessions` — the long-tool-output column reads "12.4 KB" (was empty for sessions older than X)
+4. Open that session's detail → **Context** tab — the chart renders the new compaction marker at sequence 31
+
+### Regression smoke tests
+- **Dashboard UI:** open one pre-existing session → click all three tabs (Timeline / Context / Agents) — each renders, no console errors
+- **Ingestion:** `POST /api/reimport` (or re-run `import --force`) — session count and a known token total unchanged; second reimport doesn't duplicate events
 ```
+
+**Auto-derive the Regression smoke tests from the ticked Affected area boxes** (Phase 2). For every box you ticked, drop in the matching smoke check so the reviewer confirms the change didn't break the neighbouring surface:
+
+| Ticked area | Smoke test to list |
+|---|---|
+| Ingestion | Reimport an existing transcript; session count + a known token total unchanged; a second reimport doesn't duplicate events (idempotency). |
+| Dashboard UI | Open a pre-existing session → click every tab (Timeline / Context / Agents); each renders without a blank panel or console error. |
+| CLI | `node dist/index.js status` and `--help` exit 0 with sane output; if a flag changed, exercise old + new forms. |
+| Analysis | Open a session with a known compaction + subagent; compaction markers and agent tree still populate. |
+| Database | Boot against the existing DB (no migrate error); if a migration is new, confirm a second boot is a no-op. |
+| Build & CI | `npm run build`, `npm test`, `npm run typecheck` all green. |
+
+List smoke tests only for the areas this PR actually touched — don't bolt on all six. If the diff touches a surface you didn't tick under Affected area, that's a signal to re-check the boxes.
 
 Each step is **a command or click + an expected observation**. Don't write "test it works" — write what "works" looks like.
 
-For pure-refactor PRs where there's nothing visible to validate, write: `Behavior unchanged. Validate by running \`npm test\` and \`npm run typecheck\` — both green.` and stop. Don't pad.
+For pure-refactor PRs where there's nothing visible to validate, write: `Behavior unchanged. Validate by running \`npm test\` and \`npm run typecheck\` — both green.` and stop. Don't pad, and skip the smoke-test subsection.
+
+> The `cm-qa` skill consumes this block verbatim — it executes the Steps and the Regression smoke tests, records a video, and reports a per-step PASS/FAIL. The more precise the expected observations here, the more useful that QA pass is.
 
 **`## Risk / rollout notes`** — explicitly check for these signals and call them out (or write `None.`):
 
@@ -264,7 +288,7 @@ When the user replies `go` (or `apply`, `lgtm`, `ship it`, etc. — interpret li
 1. **Push the branch.** Use `git push -u origin <branch>`. On network failure, retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s). On other failures (e.g. non-fast-forward), stop and surface the error — do **not** force-push without a fresh, explicit instruction.
 2. **Create or edit the PR.** Use the exact command from the proposal. Pass the body via heredoc — never via `-b "$BODY"` (escaping is fragile).
 3. **Print the PR URL.** Read it from the `gh pr create` stdout (or `gh pr view --json url -q .url`). Show it on its own line so it's clickable.
-4. **Offer the next step.** One sentence: "Want me to subscribe to PR activity (CI + review comments) so I can autofix?" — but do not subscribe unless the user agrees.
+4. **Offer the next steps.** One line, two options — but don't act on either without agreement: "Want me to (a) run `/cm-qa` to walk the validate flow in a browser and record a video, or (b) subscribe to PR activity (CI + review comments) so I can autofix?"
 
 Do not run any other commands after the PR is open. Do not "verify" by re-fetching the PR. The URL is the receipt.
 
