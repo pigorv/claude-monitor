@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The session-detail agent-efficiency aggregate now excludes failed agent spawns, so a failed spawn no longer trips the "2+ agents" gate or skews the averages, token totals, or peak-concurrency figures.
 - Sessions running a 1M-context model variant (a model id tagged `[1m]`) now compute context utilization against 1,000,000 tokens instead of the base model's 200K window.
 - The 1M-context Sonnet variant now uses the 1M auto-compaction/warning/danger thresholds (matching Opus/Fable) instead of the 200K Sonnet's, so the chart's compaction line and budget ticks land in the right place.
 
