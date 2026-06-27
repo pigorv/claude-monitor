@@ -1,5 +1,5 @@
 ---
-description: Manual-QA a claude-monitor PR — run the app, walk the "How to validate" flow in a browser, record a video, run regression smoke tests, and report a per-step PASS/FAIL verdict in chat, then offer to post the verdict to the PR.
+description: Manual-QA a claude-monitor PR — run the app, walk the "How to validate" flow in a browser, record an MP4 video (GitHub-embeddable), run regression smoke tests, and report a per-step PASS/FAIL verdict in chat, then offer to post the verdict to the PR.
 ---
 
 You have been invoked via `/cm-qa`. Run the **cm-qa** skill end-to-end.

@@ -28,6 +28,27 @@ playwright-cli video-stop recordings/login-flow-2024-01-15.webm
 playwright-cli video-stop recordings/checkout-test-run-42.webm
 ```
 
+## Converting WebM to MP4
+
+playwright-cli only records WebM. Some destinations don't accept it — notably **GitHub**, which won't embed WebM inline in comments or PR descriptions. Transcode to MP4 (H.264) with `ffmpeg`:
+
+```bash
+ffmpeg -y -i recordings/run.webm \
+  -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p \
+  -movflags +faststart -an \
+  recordings/run.mp4
+```
+
+- `-c:v libx264 -pix_fmt yuv420p` — the H.264/yuv420p combo every browser, QuickTime, and GitHub can play.
+- `-movflags +faststart` — moves the index to the front so the file streams without a full download.
+- `-an` — drops audio; playwright recordings have none.
+
+Sanity-check the result before relying on it:
+
+```bash
+ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name recordings/run.mp4
+```
+
 ## Tracing vs Video
 
 | Feature | Video | Tracing |
