@@ -13,7 +13,7 @@ description: >
   a visual confirmation that the flow works. Delivers to chat first; offers to
   mirror the verdict as a PR comment only on an explicit `go`. Never pushes,
   reviews, or merges.
-allowed-tools: Bash(gh:*), Bash(git:*), Bash(jq:*), Bash(npm:*), Bash(node:*), Bash(curl:*), Bash(sqlite3:*), Bash(playwright-cli:*), Bash(ffmpeg:*), Bash(ffprobe:*), Bash(mkdir:*), Bash(ls:*), Read, Grep, Glob, AskUserQuestion, SendUserFile
+allowed-tools: Bash(gh:*), Bash(git:*), Bash(jq:*), Bash(npm:*), Bash(node:*), Bash(curl:*), Bash(sqlite3:*), Bash(playwright-cli:*), Bash(xvfb-run:*), Bash(ffmpeg:*), Bash(ffprobe:*), Bash(mkdir:*), Bash(ls:*), Bash(rm:*), Read, Write, Grep, Glob, AskUserQuestion, SendUserFile
 argument-hint: "[<pr-number|pr-url>] [--base <branch>] [--no-video] [--keep-running]"
 ---
 
@@ -127,6 +127,42 @@ If empty and the PR's steps reference a fixture transcript, import it (`node dis
 
 Drive the browser with `playwright-cli`, recording video. Use the established pattern (see `.claude/skills/playwright-cli/references/video-recording.md`):
 
+> **Two environment realities that will silently ruin the video — handle both before you record:**
+>
+> 1. **Record headed, under a virtual framebuffer — never headless.** Headless Chromium composites a blank surface to the recorder, so the DOM renders correctly (your snapshots/`eval` read the right text) but **the video comes out fully white**. ffprobe still reports a valid file. Always record with a real display: `xvfb-run -a -s "-screen 0 1400x900x24"` driving a browser launched with `headless: false`.
+> 2. **`playwright-cli` may not be on PATH.** If `command -v playwright-cli` is empty, fall back to the `playwright` npm package (it's a project dep) via a small Node script. Point `executablePath` at the pre-installed Chromium (`ls /opt/pw-browsers` to find the build, e.g. `/opt/pw-browsers/chromium-<build>/chrome-linux/chrome`) instead of running `playwright install`.
+
+Node fallback recorder (run from the repo root so `playwright` resolves; launch headed and let Xvfb provide the display):
+
+```js
+// qa-record.mjs — run with: xvfb-run -a -s "-screen 0 1400x900x24" node qa-record.mjs
+import { chromium } from 'playwright';
+const browser = await chromium.launch({
+  executablePath: '/opt/pw-browsers/chromium-<build>/chrome-linux/chrome', // from `ls /opt/pw-browsers`
+  headless: false,                                  // headless => blank/white video
+  args: ['--no-sandbox', '--disable-dev-shm-usage'],
+});
+const context = await browser.newContext({
+  viewport: { width: 1400, height: 900 },
+  recordVideo: { dir: 'recordings', size: { width: 1400, height: 900 } },
+});
+const page = await context.newPage();
+const consoleErrors = [], pageErrors = [], netFailures = [];
+page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+page.on('pageerror', e => pageErrors.push(String(e)));
+page.on('response', r => { if (r.status() >= 400) netFailures.push(`${r.status()} ${r.url()}`); });
+// Walk each (action, expected) pair, pausing (~1.5s) between steps so it's watchable.
+// NOTE: detail route is hash-based and SINGULAR — `#/session/<id>`, not `#/sessions/<id>`.
+await page.goto('http://localhost:4173/#/sessions', { waitUntil: 'networkidle' });
+// ...navigate, click tabs, assert via page.evaluate(() => document.body.innerText)...
+await page.close();
+await context.close();
+await browser.close();
+console.log(JSON.stringify({ consoleErrors, pageErrors, netFailures }, null, 2));
+```
+
+If `playwright-cli` *is* available, the equivalent CLI pattern is:
+
 ```bash
 mkdir -p recordings
 playwright-cli open
@@ -151,11 +187,20 @@ ffmpeg -y -i "recordings/pr-<number>-qa.webm" \
 rm -f "recordings/pr-<number>-qa.webm"   # keep only the MP4
 ```
 
-Why these flags: `-c:v libx264 -pix_fmt yuv420p` produces the H.264/yuv420p combo every browser, QuickTime, and GitHub can play; `-movflags +faststart` moves the index to the front so it streams without a full download; `-an` drops audio (the recording has none). Verify it actually produced a playable file before you rely on it:
+Why these flags: `-c:v libx264 -pix_fmt yuv420p` produces the H.264/yuv420p combo every browser, QuickTime, and GitHub can play; `-movflags +faststart` moves the index to the front so it streams without a full download; `-an` drops audio (the recording has none). Verify it is a playable container:
 
 ```bash
 ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name "recordings/pr-<number>-qa.mp4"
 ```
+
+**ffprobe is NOT a content check — a fully-white/blank video reports a perfectly valid duration, codec, and size.** Before you deliver, you MUST confirm a frame actually shows the app. Extract a frame from the middle of the flow and **`Read` the PNG with your own eyes** — only call the video good once you can see real app content (a session, a badge, a chart) in it:
+
+```bash
+ffmpeg -hide_banner -y -ss <mid-seconds> -i "recordings/pr-<number>-qa.mp4" -frames:v 1 recordings/frame-check.png
+# then Read recordings/frame-check.png and confirm it is NOT blank, then: rm -f recordings/frame-check.png
+```
+
+Do **not** lean on a brightness/luma heuristic to decide "blank" — this dashboard renders a **light theme**, so a correct frame is *bright*; "high average luma" does not mean "white/blank". The only reliable check is looking at an extracted frame. If the frame is blank, you recorded headless or without a display — re-record headed under `xvfb-run` (see above) and re-verify.
 
 **If `ffmpeg` is missing:** try `command -v ffmpeg` first. If absent and you can install it (`apt-get install -y ffmpeg`), do so. If you genuinely can't get `ffmpeg`, fall back to delivering the `.webm` — but call it out clearly in the report ("⚠️ ffmpeg unavailable — video is WebM, which GitHub can't embed inline") so the user knows why the format regressed.
 
@@ -266,6 +311,7 @@ Rules for the comment:
 
 - Stop the background dev server unless `--keep-running` was passed.
 - `playwright-cli close` if still open.
+- Delete throwaway artifacts: the Node fallback recorder script (e.g. `qa-record.mjs`) and any `recordings/frame-check.png` you extracted to verify content.
 - Leave the MP4 recording on disk under `recordings/` (gitignored territory — don't commit it). The intermediate `.webm` should already be removed by the Phase 3 transcode; delete any stragglers.
 
 ## Interplay with cm-pr
