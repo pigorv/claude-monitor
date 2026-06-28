@@ -5,7 +5,7 @@ import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { parseLine, parseTranscript, parseTranscriptWithTitle } from '../../src/ingestion/jsonl-parser.js';
 
-const FIXTURE_PATH = join(import.meta.dirname, '..', 'fixtures', 'sample-session.jsonl');
+const FIXTURE_PATH = join(import.meta.dirname, '..', 'fixtures', 'happy', 'sample-session.jsonl');
 
 describe('parseLine', () => {
   it('should return null for empty lines', () => {

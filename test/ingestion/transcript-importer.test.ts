@@ -681,7 +681,7 @@ describe('importTranscript with sample fixture', () => {
   });
 
   it('imports the sample-session.jsonl fixture', async () => {
-    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'sample-session.jsonl');
+    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'happy', 'sample-session.jsonl');
 
     const result = await importTranscript(fixturePath);
     assert.equal(result.sessionId, 'sess-001');

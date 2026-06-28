@@ -28,7 +28,7 @@ async function waitFor(fn: () => boolean, timeoutMs = 5000, intervalMs = 100): P
   throw new Error(`waitFor timed out after ${timeoutMs}ms`);
 }
 
-const FIXTURE = join(import.meta.dirname!, '..', 'fixtures', 'sample-session.jsonl');
+const FIXTURE = join(import.meta.dirname!, '..', 'fixtures', 'happy', 'sample-session.jsonl');
 
 /** Materialize the sample transcript under a chosen session id (the fixture bakes "sess-001"). */
 function writeTranscriptWithId(destPath: string, sessionId: string): void {

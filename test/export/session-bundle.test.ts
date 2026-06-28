@@ -74,7 +74,7 @@ const DB_PATH = join(TEST_DIR, 'test.sqlite');
 function layOutTranscript(projDir: string): { parentPath: string } {
   mkdirSync(projDir, { recursive: true });
   const parentPath = join(projDir, 'sess-001.jsonl');
-  copyFileSync(join(FIXTURES, 'sample-session.jsonl'), parentPath);
+  copyFileSync(join(FIXTURES, 'happy', 'sample-session.jsonl'), parentPath);
 
   const subagentsDir = join(projDir, 'sess-001', 'subagents');
   mkdirSync(subagentsDir, { recursive: true });

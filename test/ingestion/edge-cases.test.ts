@@ -153,7 +153,7 @@ describe('parseTranscript edge cases', () => {
   });
 
   it('parses agent transcript fixture correctly', async () => {
-    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'sample-agent-transcript.jsonl');
+    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'happy', 'sample-agent-transcript.jsonl');
     const messages = [];
     for await (const msg of parseTranscript(fixturePath)) {
       messages.push(msg);
@@ -283,7 +283,7 @@ describe('Transcript importer edge cases', () => {
   });
 
   it('imports the agent transcript fixture', async () => {
-    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'sample-agent-transcript.jsonl');
+    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'happy', 'sample-agent-transcript.jsonl');
 
     const result = await importTranscript(fixturePath);
     assert.ok(result.sessionId);
@@ -298,7 +298,7 @@ describe('Transcript importer edge cases', () => {
 
   it('re-imports a transcript with force flag', async () => {
     // Verify re-import works with force flag
-    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'sample-session.jsonl');
+    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'happy', 'sample-session.jsonl');
     const result = await importTranscript(fixturePath, { force: true });
     assert.equal(result.sessionId, 'sess-001');
     assert.equal(result.skipped, false);
