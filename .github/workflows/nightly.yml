@@ -1,10 +1,9 @@
-name: CI
+name: Nightly
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch: {}
 
 jobs:
   typecheck:
@@ -126,9 +125,57 @@ jobs:
           name: coverage
           path: coverage/
 
-  # e2e-smoke:
-  #   Deferred PR-gate slow layer (see docs/TESTING.md). To be wired by a sibling issue.
-  #   name: E2E smoke
+  # ---------------------------------------------------------------------------
+  # Nightly slow-layer placeholders (see docs/TESTING.md "Nightly" tier).
+  #
+  # The jobs below are intentionally commented out. Each is a sketch reserving
+  # a hook for a slow test layer that a sibling issue of #132 will wire in.
+  # Every line is prefixed with `#` so nothing here runs until activated.
+  # ---------------------------------------------------------------------------
+  #
+  # e2e-full:
+  #   Full end-to-end suite (L4). Deferred to a sibling issue of #132.
+  #   name: E2E (full)
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: npm
+  #     - run: npm ci
+  #     - name: Download dist
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: dist
+  #         path: dist/
+  #     - run: npm run test:e2e
+  #
+  # perf:
+  #   Performance / scale benchmarks (L5). Deferred to a sibling issue of #132.
+  #   name: Performance
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: npm
+  #     - run: npm ci
+  #     - name: Download dist
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: dist
+  #         path: dist/
+  #     - run: npm run test:perf
+  #
+  # a11y:
+  #   Accessibility checks (L5). Deferred to a sibling issue of #132.
+  #   name: Accessibility
   #   needs: build
   #   runs-on: ubuntu-latest
   #   timeout-minutes: 20
@@ -144,4 +191,19 @@ jobs:
   #       with:
   #         name: dist
   #         path: dist/
-  #     - run: npm run test:e2e
+  #     - run: npm run test:a11y
+  #
+  # schema-drift-canary:
+  #   Schema-drift canary (L3). Deferred to a sibling issue of #132.
+  #   name: Schema drift canary
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 15
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: npm
+  #     - run: npm ci
+  #     - run: npm run test:schema-drift

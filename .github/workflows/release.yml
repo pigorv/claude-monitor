@@ -10,17 +10,17 @@ permissions:
   id-token: write
 
 jobs:
-  release:
-    name: Publish to npm
+  quality-gate:
+    name: Quality gate
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: 22
           cache: npm
 
       - run: npm ci
@@ -29,7 +29,25 @@ jobs:
 
       - run: npm run build
 
-      - run: npm test
+      - run: npm run coverage
+
+  publish:
+    name: Publish to npm
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
 
       - run: npm publish --access public
 
@@ -37,3 +55,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "${{ github.ref_name }}" --generate-notes
+
+# Release-tier extras (tracked for sibling issues, see docs/TESTING.md):
+#   - Packaged-tarball acceptance: pack the published artifact and smoke-test
+#     it as a consumer would install it (`npm pack` → install → run).
+#   - Migration upgrade-path: verify the DB schema migrations apply cleanly
+#     against a prior-version database before publish.
+#   - Full pyramid: run the complete unit + integration + e2e suite as the
+#     release-tier gate.
