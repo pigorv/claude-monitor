@@ -98,8 +98,9 @@ export function computeAgentEfficiency(
   if (agentTokenTimeline.length > 0) {
     peakContextTokens = 0;
     for (const point of agentTokenTimeline) {
-      if (point.input_tokens > peakContextTokens) {
-        peakContextTokens = point.input_tokens;
+      const effective = point.input_tokens + point.cache_read_tokens + point.cache_write_tokens;
+      if (effective > peakContextTokens) {
+        peakContextTokens = effective;
       }
       if (point.is_compaction) {
         agentCompactionCount++;
