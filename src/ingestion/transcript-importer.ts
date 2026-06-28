@@ -119,15 +119,11 @@ export async function importTranscript(
   // Compute tool call and subagent counts once (used by summary and session record)
   const toolCounts = new Map<string, number>();
   let toolCallCount = 0;
-  let subagentCount = 0;
   for (const e of parsedEvents) {
     if (e.event_type === 'tool_call_start') {
       toolCallCount++;
       if (e.tool_name) {
         toolCounts.set(e.tool_name, (toolCounts.get(e.tool_name) ?? 0) + 1);
-      }
-      if (e.tool_name === 'Task' || e.tool_name === 'Agent') {
-        subagentCount++;
       }
     }
   }
@@ -135,6 +131,7 @@ export async function importTranscript(
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([name]) => name);
+  const subagentCount = agentInfos.filter((a) => !a.hasFailed).length;
 
   // Build token snapshots
   const model = deriveModel(messages);
@@ -227,7 +224,7 @@ export async function importTranscript(
         agent.startTimestamp,
         agent.endTimestamp,
         endMs > startMs ? endMs - startMs : null,
-        'completed',
+        agent.hasFailed ? 'failed' : 'completed',
       );
     }
   })();

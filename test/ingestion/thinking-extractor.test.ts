@@ -391,3 +391,37 @@ describe('extractAllEvents', () => {
     assert.equal(agents[0].agentId, 'agent-ab92a2555e4bfa5a5');
   });
 });
+
+describe('assignAgentIds', () => {
+  it('should expose hasFailed for failed and non-failed agent spawns', () => {
+    const events: ReturnType<typeof extractAllEvents> = [
+      {
+        event_type: 'tool_call_start',
+        timestamp: '2026-01-01T00:00:00.000Z',
+        tool_name: 'Agent',
+        tool_use_id: 'agent-failed',
+        input_data: JSON.stringify({ description: 'Failing', subagent_type: 'Explore' }),
+        metadata: { agentId: 'failedid', tool_error: true },
+      },
+      {
+        event_type: 'tool_call_start',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        tool_name: 'Task',
+        tool_use_id: 'agent-ok',
+        input_data: JSON.stringify({ description: 'Working', subagent_type: 'Explore' }),
+        metadata: { agentId: 'okid' },
+      },
+    ];
+
+    const agents = assignAgentIds(events);
+    assert.equal(agents.length, 2);
+
+    const failed = agents.find((a) => a.agentId === 'agent-failedid');
+    assert.ok(failed);
+    assert.equal(failed.hasFailed, true);
+
+    const ok = agents.find((a) => a.agentId === 'agent-okid');
+    assert.ok(ok);
+    assert.equal(ok.hasFailed, false);
+  });
+});

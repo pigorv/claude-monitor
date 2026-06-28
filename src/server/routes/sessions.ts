@@ -341,8 +341,9 @@ sessions.get('/api/sessions/:id', (c) => {
 
   // Agent efficiency aggregates
   let agentEfficiency = undefined;
-  if (agents.length >= 2) {
-    const durations = agents.filter(a => a.duration_ms != null).map(a => a.duration_ms!);
+  const realAgents = agents.filter((a) => a.status !== 'failed' && a.status !== 'error');
+  if (realAgents.length >= 2) {
+    const durations = realAgents.filter(a => a.duration_ms != null).map(a => a.duration_ms!);
     const avgDuration = durations.length > 0 ? Math.round(durations.reduce((s, d) => s + d, 0) / durations.length) : null;
 
     let compressionSum = 0;
@@ -354,7 +355,7 @@ sessions.get('/api/sessions/:id', (c) => {
 
     // Compute peak concurrency from timestamps
     const timeEvents: Array<{ time: number; delta: number }> = [];
-    for (const a of agents) {
+    for (const a of realAgents) {
       if (a.started_at && a.ended_at) {
         timeEvents.push({ time: new Date(a.started_at).getTime(), delta: 1 });
         timeEvents.push({ time: new Date(a.ended_at).getTime(), delta: -1 });
@@ -367,7 +368,7 @@ sessions.get('/api/sessions/:id', (c) => {
       if (current > peakConcurrency) peakConcurrency = current;
     }
 
-    for (const a of agents) {
+    for (const a of realAgents) {
       if (a.compression_ratio != null && a.compression_ratio > 0) {
         compressionSum += a.compression_ratio;
         compressionCount++;
@@ -384,7 +385,7 @@ sessions.get('/api/sessions/:id', (c) => {
     }
 
     agentEfficiency = {
-      total_agents: agents.length,
+      total_agents: realAgents.length,
       aggregate_tokens: aggregateTokens,
       avg_compression_ratio: compressionCount > 0 ? Math.round((compressionSum / compressionCount) * 10) / 10 : null,
       agents_with_compaction: agentsWithCompaction,

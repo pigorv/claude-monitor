@@ -1548,3 +1548,95 @@ describe('importTranscript skip/dedupe matrix', () => {
     assert.equal(rel.cache_write_1h_total, 40 + 30);
   });
 });
+
+// A parent transcript that spawns two Agents: the first fails instantly (the
+// tool_result carries `is_error: true` and no `agentId`, e.g. an unknown
+// `subagent_type`), the second completes normally. sessionId === 'fail-sess'.
+const FAILED_SPAWN_JSONL = [
+  JSON.stringify({
+    parentUuid: null, cwd: '/tmp/project', sessionId: 'fail-sess', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: 'Spawn two agents.' },
+    timestamp: '2026-01-01T00:01:00.000Z', uuid: 'f-u-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'f-u-1', cwd: '/tmp/project', sessionId: 'fail-sess', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [
+        { type: 'text', text: 'Spawning the first agent.' },
+        { type: 'tool_use', id: 'agent-fail', name: 'Agent', input: { description: 'broken', prompt: 'do work', subagent_type: 'Nonexistent' } },
+      ],
+      usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:05.000Z', uuid: 'f-a-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'f-a-1', cwd: '/tmp/project', sessionId: 'fail-sess', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'agent-fail', is_error: true, content: "Agent type 'Nonexistent' not found" }] },
+    timestamp: '2026-01-01T00:01:06.000Z', uuid: 'f-u-2',
+  }),
+  JSON.stringify({
+    parentUuid: 'f-u-2', cwd: '/tmp/project', sessionId: 'fail-sess', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [
+        { type: 'text', text: 'Spawning the second agent.' },
+        { type: 'tool_use', id: 'agent-ok', name: 'Agent', input: { description: 'works', prompt: 'do work', subagent_type: 'Explore' } },
+      ],
+      usage: { input_tokens: 1200, output_tokens: 150, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:10.000Z', uuid: 'f-a-2',
+  }),
+  JSON.stringify({
+    parentUuid: 'f-a-2', cwd: '/tmp/project', sessionId: 'fail-sess', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'agent-ok', content: 'Done.' }] },
+    timestamp: '2026-01-01T00:01:20.000Z', uuid: 'f-u-3',
+  }),
+  JSON.stringify({
+    parentUuid: 'f-u-3', cwd: '/tmp/project', sessionId: 'fail-sess', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'Both done.' }],
+      usage: { input_tokens: 1500, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:25.000Z', uuid: 'f-a-3',
+  }),
+].join('\n');
+
+describe('importTranscript failed agent spawns', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  it('records a failed spawn as status=failed and excludes it from subagent_count', async () => {
+    const filePath = join(TEST_DIR, 'fail-sess.jsonl');
+    writeFileSync(filePath, FAILED_SPAWN_JSONL);
+
+    await importTranscript(filePath);
+
+    // The failed spawn must not inflate the session's subagent count.
+    const session = getSession('fail-sess');
+    assert.ok(session);
+    assert.equal(session.subagent_count, 1);
+
+    // Both agents get a row, but only the failed one is marked 'failed'.
+    const rows = getDb()
+      .prepare('SELECT status FROM agent_relationships WHERE parent_session_id = ?')
+      .all('fail-sess') as Array<{ status: string }>;
+    assert.equal(rows.length, 2);
+    const statuses = rows.map((r) => r.status).sort();
+    assert.deepEqual(statuses, ['completed', 'failed']);
+  });
+});
