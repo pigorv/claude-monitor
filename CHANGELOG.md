@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test coverage is now measured with Vitest's v8 provider (`npm run coverage`) and gated in CI: global thresholds plus per-file ≥95% line coverage on the correctness-critical ingestion/db modules, with the coverage report uploaded as a build artifact and summarized on each run.
 - The test suite is split into `unit` and `integration` Vitest projects, runnable via `npm run test:unit` and `npm run test:integration`; `npm test` and `npm run coverage` still run the full suite.
 
+### Changed
+
+- CI now runs as separate, named jobs (typecheck, build, unit, integration, coverage) so a failing check is attributable at a glance; a new nightly scheduled workflow runs the full suite, and releases are gated behind a quality-gate job that must pass before `npm publish`.
+
 ### Fixed
 
 - Failed `Agent`/`Task` spawns (e.g. an unknown `subagent_type` that errors instantly) are now recorded with status `failed` instead of a phantom `completed` subagent — they no longer inflate the session's subagent count, and the agent-efficiency aggregate excludes them so a failed spawn no longer trips the "2+ agents" gate or skews the averages, token totals, or peak-concurrency figures.
