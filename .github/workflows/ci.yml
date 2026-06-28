@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  check:
-    name: Check
+  typecheck:
+    name: Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -24,7 +24,93 @@ jobs:
 
       - run: npm run typecheck
 
+  build:
+    name: Build
+    needs: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
       - run: npm run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  unit:
+    name: Unit
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run test:unit
+
+  integration:
+    name: Integration
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - run: npm run test:integration
+
+  coverage:
+    name: Coverage
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
       - run: npm run coverage
 
@@ -39,3 +125,23 @@ jobs:
         with:
           name: coverage
           path: coverage/
+
+  # e2e-smoke:
+  #   Deferred PR-gate slow layer (see docs/TESTING.md). To be wired by a sibling issue.
+  #   name: E2E smoke
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 20
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: npm
+  #     - run: npm ci
+  #     - name: Download dist
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: dist
+  #         path: dist/
+  #     - run: npm run test:e2e
