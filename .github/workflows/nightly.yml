@@ -1,0 +1,209 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+  build:
+    name: Build
+    needs: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  unit:
+    name: Unit
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run test:unit
+
+  integration:
+    name: Integration
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - run: npm run test:integration
+
+  coverage:
+    name: Coverage
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - run: npm run coverage
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          node -e "const t=require('./coverage/coverage-summary.json').total;console.log('| Metric | % |\n|---|---|\n| Lines | '+t.lines.pct+' |\n| Statements | '+t.statements.pct+' |\n| Functions | '+t.functions.pct+' |\n| Branches | '+t.branches.pct+' |')" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+
+  # ---------------------------------------------------------------------------
+  # Nightly slow-layer placeholders (see docs/TESTING.md "Nightly" tier).
+  #
+  # The jobs below are intentionally commented out. Each is a sketch reserving
+  # a hook for a slow test layer that a sibling issue of #132 will wire in.
+  # Every line is prefixed with `#` so nothing here runs until activated.
+  # ---------------------------------------------------------------------------
+  #
+  # e2e-full:
+  #   Full end-to-end suite (L4). Deferred to a sibling issue of #132.
+  #   name: E2E (full)
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: npm
+  #     - run: npm ci
+  #     - name: Download dist
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: dist
+  #         path: dist/
+  #     - run: npm run test:e2e
+  #
+  # perf:
+  #   Performance / scale benchmarks (L5). Deferred to a sibling issue of #132.
+  #   name: Performance
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: npm
+  #     - run: npm ci
+  #     - name: Download dist
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: dist
+  #         path: dist/
+  #     - run: npm run test:perf
+  #
+  # a11y:
+  #   Accessibility checks (L5). Deferred to a sibling issue of #132.
+  #   name: Accessibility
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 20
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: npm
+  #     - run: npm ci
+  #     - name: Download dist
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: dist
+  #         path: dist/
+  #     - run: npm run test:a11y
+  #
+  # schema-drift-canary:
+  #   Schema-drift canary (L3). Deferred to a sibling issue of #132.
+  #   name: Schema drift canary
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 15
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: npm
+  #     - run: npm ci
+  #     - run: npm run test:schema-drift
