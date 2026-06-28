@@ -217,6 +217,8 @@ npm run typecheck      # TypeScript type checking
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and conventions.
 
+See [docs/TESTING.md](./docs/TESTING.md) for the testing strategy — the L0–L6 pyramid, quality gates, and coverage targets.
+
 ## License
 
 [MIT](./LICENSE)
