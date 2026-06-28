@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Model labels now show the version alongside the family (e.g. "Sonnet 4.6", "Opus 4.8"), and a teal "1M" badge marks the 1M-context Sonnet variant so it's distinguishable from the standard 200K Sonnet.
 - Added `docs/TESTING.md`, a living test-strategy document covering the L0–L6 testing pyramid, quality gates, coverage targets, and the fixture-corpus taxonomy — linked from the README and CONTRIBUTING guides.
 - Test coverage is now measured with Vitest's v8 provider (`npm run coverage`) and gated in CI: global thresholds plus per-file ≥95% line coverage on the correctness-critical ingestion/db modules, with the coverage report uploaded as a build artifact and summarized on each run.
+- The test suite is split into `unit` and `integration` Vitest projects, runnable via `npm run test:unit` and `npm run test:integration`; `npm test` and `npm run coverage` still run the full suite.
 
 ### Fixed
 
