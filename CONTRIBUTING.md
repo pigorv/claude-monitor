@@ -54,6 +54,8 @@ npm test
 
 Test files are in `test/` and follow the pattern `*.test.ts`. Fixtures are in `test/fixtures/`.
 
+For the full testing strategy — the L0–L6 pyramid, quality gates, coverage targets, and fixture corpus — see [docs/TESTING.md](./docs/TESTING.md).
+
 ## Architecture
 
 See `CLAUDE.md` for architecture details covering the ingestion pipeline, database schema, API routes, and analysis engine.
