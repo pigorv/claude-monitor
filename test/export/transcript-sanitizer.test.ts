@@ -75,7 +75,7 @@ describe('createSanitizer — content is gone (Behavior #6)', () => {
     'localhost',
   ];
 
-  for (const fixture of ['sample-session.jsonl', 'sample-agent-transcript.jsonl']) {
+  for (const fixture of ['happy/sample-session.jsonl', 'happy/sample-agent-transcript.jsonl']) {
     it(`no source content survives verbatim in ${fixture}`, () => {
       const { out } = sanitizeAll(fixture);
       const joined = out.filter((l): l is string => l !== null).join('\n');
@@ -181,7 +181,7 @@ describe('createSanitizer — drops and malformed (Behavior #8)', () => {
 
 describe('createSanitizer — audit (Behavior #11)', () => {
   it('is a counts-only object with the expected fields', () => {
-    const { audit } = sanitizeAll('sample-session.jsonl');
+    const { audit } = sanitizeAll('happy/sample-session.jsonl');
     // All numeric except the per-type breakdown map.
     for (const key of [
       'emitted',

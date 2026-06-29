@@ -222,30 +222,36 @@ boundary on the dashboard:
 
 ## Fixture-corpus taxonomy
 
-Tests are only as trustworthy as the transcripts they run against. We organize
-fixtures into categories so each level can draw on representative inputs. Fixtures
-live under `test/fixtures/` (today: `sample-session.jsonl`,
-`sample-agent-transcript.jsonl`).
+Tests are only as trustworthy as the transcripts they run against. Fixtures live
+under `test/fixtures/`, grouped into seven taxonomy directories so each level can
+draw on representative inputs:
 
-- **Minimal / happy-path** — small, well-formed transcripts that exercise the common
-  case (e.g. `sample-session.jsonl`). The baseline for L0–L2.
-- **Subagent transcripts** — transcripts containing sub-agent (child) sessions, used
-  to verify agent attribution and the parent/child relationship
-  (e.g. `sample-agent-transcript.jsonl`).
-- **Compaction cases** — transcripts with one or more compaction events, used to pin
-  compaction-boundary detection and the input-token-drop heuristic.
-- **Schema-drift / malformed** — transcripts with unknown fields, missing optionals,
-  truncated lines, or otherwise off-spec content, used by the L3 contract layer to
-  prove we degrade gracefully rather than miscount.
-- **Large-scale** — large transcripts used by the L5 performance/scale tests to
-  assert ingest and render stay within bounds.
+- **`happy/`** — small, well-formed transcripts for the common case
+  (`sample-session.jsonl`, `sample-agent-transcript.jsonl`). The baseline for L0–L2.
+- **`legacy-format/`** — loose / older shapes the parser must still ingest (no
+  top-level `version`, bare-string `message.content`, absent `usage`).
+- **`corrupt/`** — off-spec content the importer must degrade on rather than crash
+  (truncated final line, mid-file malformed JSON, raw non-UTF8 bytes), exercised by
+  the L3 contract layer.
+- **`plan-impl-pair/`** — a plan + implementation session pair whose plan text
+  matches, so the session-linker pairs them.
+- **`large/`** — a large transcript with an authentic token curve, for the L5
+  performance/scale tests.
+- **`compaction/`** — a slice spanning a real >30% effective-context drop, so
+  compaction-boundary detection fires.
+- **`subagent/`** — a parent transcript plus its child subagent file, for agent
+  attribution and the parent/child relationship.
 
-**Pseudonymization expectation.** Any corpus derived from real sessions and intended
-to be shared (committed to the repo or distributed) must be pseudonymized — paths,
-prompts, and other identifying content scrubbed — before it leaves a developer's
-machine. The export pipeline already contains the sanitization building blocks for
-this (see `test/export/pseudonymizer.test.ts` and
-`test/export/transcript-sanitizer.test.ts`).
+See [`test/fixtures/README.md`](../test/fixtures/README.md) for the full per-dir
+detail — which fixtures are hand-authored vs **derived** from real sessions, how to
+add one, and how to re-derive via `scripts/derive-fixture.mts`.
+
+**Pseudonymization is enforced, not just expected.** Any fixture derived from a real
+session is produced only through the sanitizer (`scripts/derive-fixture.mts`), and
+every `test/fixtures/**/*.jsonl` is scanned by the PII gate
+(`test/fixtures/pii-gate.test.ts`, part of `npm test`), which fails the build on a
+real home path, non-synthetic `/home/<seg>/`, non-`@example.*` email, or this
+machine's home path / username.
 
 ## The regression-test rule
 

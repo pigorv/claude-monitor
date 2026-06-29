@@ -1,0 +1,3 @@
+{"parentUuid":null,"cwd":"/tmp/project","sessionId":"sess-corrupt","version":"2.1.0","type":"user","message":{"role":"user","content":"hi"},"timestamp":"2026-01-01T00:00:00.000Z","uuid":"corrupt-u3"}
+{"type":"user","uuid":"corrupt-bad",ÿþÿ"sessionId":"sess-corrupt"}
+{"parentUuid":null,"cwd":"/tmp/project","sessionId":"sess-corrupt","version":"2.1.0","type":"assistant","message":{"model":"claude-opus-4-6","role":"assistant","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1200,"output_tokens":40}},"timestamp":"2026-01-01T00:00:02.000Z","uuid":"corrupt-a3"}

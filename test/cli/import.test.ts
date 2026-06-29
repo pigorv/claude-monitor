@@ -6,7 +6,7 @@ import { mkdirSync, writeFileSync, rmSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 const CLI = join(import.meta.dirname, '..', '..', 'dist', 'index.js');
-const FIXTURE = join(import.meta.dirname, '..', 'fixtures', 'sample-session.jsonl');
+const FIXTURE = join(import.meta.dirname, '..', 'fixtures', 'happy', 'sample-session.jsonl');
 
 let testHome: string;
 
