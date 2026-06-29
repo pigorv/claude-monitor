@@ -15,9 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test coverage is now measured with Vitest's v8 provider (`npm run coverage`) and gated in CI: global thresholds plus per-file ≥95% line coverage on the correctness-critical ingestion/db modules, with the coverage report uploaded as a build artifact and summarized on each run.
 - The test suite is split into `unit` and `integration` Vitest projects, runnable via `npm run test:unit` and `npm run test:integration`; `npm test` and `npm run coverage` still run the full suite.
 - A golden JSONL fixture corpus under `test/fixtures/` (happy-path, legacy-format, corrupt, plan/impl-pair, large, compaction, and subagent cases) documented in `test/fixtures/README.md`, with a PII gate (`test/fixtures/pii-gate.test.ts`) that fails the build if any fixture leaks a real path, email, or machine identifier; real-session fixtures are re-derivable through the sanitizer via `scripts/derive-fixture.mts`.
+- Consumer specs (`test/fixtures/corpus-consumers.test.ts`) exercise each fixture taxonomy through the real pipeline — corrupt/legacy parsing, compaction detection, subagent attribution, and plan→implementation linking — so the corpus is verified behavior, not just inert data.
 
 ### Changed
 
+- `npm run typecheck` now also typechecks the `scripts/` dev tools (e.g. `scripts/derive-fixture.mts`), so a `src/` signature change that breaks fixture re-derivation is caught in CI.
 - CI now runs as separate, named jobs (typecheck, build, unit, integration, coverage) so a failing check is attributable at a glance; a new nightly scheduled workflow runs the full suite, and releases are gated behind a quality-gate job that must pass before `npm publish`.
 
 ### Fixed

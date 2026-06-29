@@ -61,6 +61,22 @@ function loadFixtures(): Fixture[] {
 
 const FIXTURES_LIST = loadFixtures();
 
+// The only emails the corpus may contain are the IETF reserved domains/TLDs
+// (RFC 2606 / RFC 6761). A plain `startsWith('example.')` would also wave
+// through real registrable domains like `example.evil.com`, so match the
+// reserved set exactly (allowing subdomains such as `mail.example.com`).
+const RESERVED_EMAIL_DOMAINS = new Set(['example.com', 'example.org', 'example.net']);
+const RESERVED_EMAIL_TLDS = ['.example', '.test', '.invalid'];
+
+function isAllowedEmailDomain(domain: string): boolean {
+  const d = domain.toLowerCase().replace(/\.$/, '');
+  if (RESERVED_EMAIL_DOMAINS.has(d)) return true;
+  for (const base of RESERVED_EMAIL_DOMAINS) {
+    if (d.endsWith(`.${base}`)) return true; // e.g. mail.example.com
+  }
+  return RESERVED_EMAIL_TLDS.some((tld) => d.endsWith(tld));
+}
+
 interface Violation {
   file: string;
   match: string;
@@ -113,7 +129,7 @@ describe('fixture corpus PII gate', () => {
       const re = /([A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.-]+)/g;
       for (const m of text.matchAll(re)) {
         const domain = m[1].split('@')[1];
-        if (!domain.toLowerCase().startsWith('example.')) {
+        if (!isAllowedEmailDomain(domain)) {
           violations.push({ file: rel, match: m[0], rule: 'email' });
         }
       }
@@ -168,6 +184,28 @@ describe('fixture corpus PII gate', () => {
       [],
       `Fixture(s) leak this machine's home path or username:\n${formatViolations(violations)}`,
     );
+  });
+
+  it('email allowlist accepts reserved domains and rejects look-alikes', () => {
+    for (const ok of [
+      'example.com',
+      'example.org',
+      'mail.example.com',
+      'alice.example',
+      'svc.test',
+      'x.invalid',
+    ]) {
+      assert.equal(isAllowedEmailDomain(ok), true, `${ok} should be allowed`);
+    }
+    for (const bad of [
+      'example.evil.com',
+      'gmail.com',
+      'examplexcom',
+      'notexample.com',
+      'example.com.evil.io',
+    ]) {
+      assert.equal(isAllowedEmailDomain(bad), false, `${bad} should be rejected`);
+    }
   });
 
   it('every taxonomy dir has >=1 .jsonl', () => {

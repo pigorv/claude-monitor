@@ -45,7 +45,7 @@
     "test:integration": "vitest run --project integration",
     "coverage": "vitest run --coverage",
     "lint:tokens": "node scripts/lint-tokens.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json",
     "demo:seed": "node scripts/demo-seed.mjs",
     "demo:screenshots": "node scripts/demo-screenshots.mjs",
     "demo:walkthrough": "node scripts/demo-walkthrough.mjs",
