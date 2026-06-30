@@ -193,17 +193,20 @@ jobs:
   #         path: dist/
   #     - run: npm run test:a11y
   #
-  # schema-drift-canary:
-  #   Schema-drift canary (L3). Deferred to a sibling issue of #132.
-  #   name: Schema drift canary
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 15
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: 22
-  #         cache: npm
-  #     - run: npm ci
-  #     - run: npm run test:schema-drift
+  schema-drift-canary:
+    name: Schema drift canary
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run test:schema-drift
