@@ -45,8 +45,12 @@ const KNOWN_LINE_TYPES = new Set<string>([
 const KNOWN_SYSTEM_SUBTYPES = new Set<string>([
   // skipped (SKIP_SYSTEM_SUBTYPES in jsonl-parser.ts)
   'turn_duration',
-  // ignored — present in corpus
+  // ignored — present in corpus. compact_boundary / away_summary are Claude Code
+  // marker lines (no `message` wrapper, so the parser skips them at the wrapper
+  // check); local_command is a user-command echo.
   'local_command',
+  'compact_boundary',
+  'away_summary',
 ]);
 
 /** Recognized top-level envelope keys. */
