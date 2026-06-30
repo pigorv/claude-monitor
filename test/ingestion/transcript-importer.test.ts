@@ -1640,3 +1640,146 @@ describe('importTranscript failed agent spawns', () => {
     assert.deepEqual(statuses, ['completed', 'failed']);
   });
 });
+
+// ── Subagent efficiency metric population (regression for issue #93 / dd96be9) ──
+
+// A parent whose Task tool_result carries an `agentId` matching the on-disk
+// subagent file (agent-lnk.jsonl). This mirrors what real Claude Code transcripts
+// do, producing exactly ONE linked agent_relationships row — unlike
+// writeParentWithSubagent(), which omits agentId and yields two unlinked rows.
+const PARENT_LINKED_JSONL = [
+  JSON.stringify({
+    parentUuid: null, cwd: '/tmp/project', sessionId: 'parent-linked', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: 'Please investigate the bug.' },
+    timestamp: '2026-01-01T00:01:00.000Z', uuid: 'pl-u-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'pl-u-1', cwd: '/tmp/project', sessionId: 'parent-linked', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [
+        { type: 'text', text: "I'll spawn an agent." },
+        { type: 'tool_use', id: 'task-lnk', name: 'Task', input: { description: 'investigate', prompt: 'Investigate the bug', subagent_type: 'general-purpose' } },
+      ],
+      usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:05.000Z', uuid: 'pl-a-1',
+  }),
+  // tool_result carries the real subagent id as a sibling `agentId` field.
+  JSON.stringify({
+    parentUuid: 'pl-a-1', cwd: '/tmp/project', sessionId: 'parent-linked', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'task-lnk', content: 'Found the bug.', agentId: 'lnk' }] },
+    timestamp: '2026-01-01T00:01:20.000Z', uuid: 'pl-u-2',
+  }),
+  JSON.stringify({
+    parentUuid: 'pl-u-2', cwd: '/tmp/project', sessionId: 'parent-linked', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'The bug is fixed.' }],
+      usage: { input_tokens: 1500, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:25.000Z', uuid: 'pl-a-2',
+  }),
+].join('\n');
+
+// The subagent transcript (agent-lnk.jsonl). Two assistant messages carry usage
+// with all cache fields 0; effective context peak === max(input) === 900.
+const SUBAGENT_LINKED_JSONL = [
+  JSON.stringify({
+    parentUuid: null, cwd: '/tmp/project', sessionId: 'parent-linked', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: 'Investigate the bug' },
+    timestamp: '2026-01-01T00:01:06.000Z', uuid: 'sl-u-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'sl-u-1', cwd: '/tmp/project', sessionId: 'parent-linked', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [
+        { type: 'text', text: 'Reading the file.' },
+        { type: 'tool_use', id: 'sl-tool-1', name: 'Read', input: { file_path: '/tmp/project/bug.ts' } },
+      ],
+      usage: { input_tokens: 800, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:10.000Z', uuid: 'sl-a-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'sl-a-1', cwd: '/tmp/project', sessionId: 'parent-linked', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'sl-tool-1', content: 'const x = 1;' }] },
+    timestamp: '2026-01-01T00:01:11.000Z', uuid: 'sl-u-2',
+  }),
+  JSON.stringify({
+    parentUuid: 'sl-u-2', cwd: '/tmp/project', sessionId: 'parent-linked', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'Found the bug.' }],
+      usage: { input_tokens: 900, output_tokens: 40, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:15.000Z', uuid: 'sl-a-2',
+  }),
+].join('\n');
+
+/** Lay out the linked parent + its subagent on disk. Returns the parent path. */
+function writeLinkedParentWithSubagent(): { parentPath: string } {
+  const projDir = join(TEST_DIR, 'proj-linked');
+  const parentPath = join(projDir, 'parent-linked.jsonl');
+  const subagentsDir = join(projDir, 'parent-linked', 'subagents');
+  const subagentPath = join(subagentsDir, 'agent-lnk.jsonl');
+  mkdirSync(subagentsDir, { recursive: true });
+  writeFileSync(parentPath, PARENT_LINKED_JSONL);
+  writeFileSync(subagentPath, SUBAGENT_LINKED_JSONL);
+  return { parentPath };
+}
+
+describe('importTranscript subagent efficiency', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  // Regression: the per-agent efficiency pass must run AFTER subagent transcripts
+  // are imported, populating peak_context_tokens / compression_ratio /
+  // agent_compaction_count on the single linked row. Before the fix these were NULL.
+  it('populates efficiency columns on the linked subagent row after parent import', async () => {
+    const { parentPath } = writeLinkedParentWithSubagent();
+
+    await importTranscript(parentPath);
+
+    const db = getDb();
+
+    // Lock in the linkage: exactly one row for the file-backed agent id.
+    const count = db.prepare(
+      'SELECT count(*) AS n FROM agent_relationships WHERE child_agent_id = ?',
+    ).get('agent-lnk') as { n: number };
+    assert.equal(count.n, 1, 'expected exactly one linked agent_relationships row');
+
+    const row = db.prepare(
+      'SELECT peak_context_tokens, compression_ratio, agent_compaction_count FROM agent_relationships WHERE parent_session_id = ? AND child_agent_id = ?',
+    ).get('parent-linked', 'agent-lnk') as {
+      peak_context_tokens: number | null;
+      compression_ratio: number | null;
+      agent_compaction_count: number | null;
+    };
+    assert.ok(row, 'linked agent row must exist');
+
+    // Effective context peak === max input across the two timeline points (cache 0).
+    assert.equal(row.peak_context_tokens, 900);
+    // compression_ratio is derived from the effective peak — non-null and positive.
+    assert.notEqual(row.compression_ratio, null);
+    assert.ok((row.compression_ratio as number) > 0, 'compression_ratio must be > 0');
+    // agent_compaction_count is populated (0 here, but must NOT be NULL).
+    assert.notEqual(row.agent_compaction_count, null);
+  });
+});

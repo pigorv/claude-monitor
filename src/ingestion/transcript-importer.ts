@@ -229,7 +229,11 @@ export async function importTranscript(
     }
   })();
 
-    // Compute agent efficiency metrics (second pass, after all data is inserted)
+  // After importing the parent, discover and import subagent transcripts
+  const subagentEventCount = await importSubagentTranscripts(sessionId, filePath, { force: options.force });
+
+    // Compute agent efficiency metrics (second pass, after all data is inserted —
+    // including subagent transcripts, so the per-agent token timelines are populated)
     if (agentInfos.length > 0) {
       const agents = agentInfos.map((a) => ({
         started_at: a.startTimestamp,
@@ -295,9 +299,6 @@ export async function importTranscript(
         });
       }
     }
-
-  // After importing the parent, discover and import subagent transcripts
-  const subagentEventCount = await importSubagentTranscripts(sessionId, filePath, { force: options.force });
 
   // Update session totals to include agent tokens so that
   // parentTokens = sessionTotal - agentTotal yields a correct positive value

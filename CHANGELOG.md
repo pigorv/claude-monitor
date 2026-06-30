@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Agent efficiency metrics (peak context, compression ratio, compaction count) now populate for subagent-file-backed agents instead of always showing empty/NULL, and the peak is measured against the effective cached context rather than the tiny uncached input.
 - Failed `Agent`/`Task` spawns (e.g. an unknown `subagent_type` that errors instantly) are now recorded with status `failed` instead of a phantom `completed` subagent — they no longer inflate the session's subagent count, and the agent-efficiency aggregate excludes them so a failed spawn no longer trips the "2+ agents" gate or skews the averages, token totals, or peak-concurrency figures.
 - Sessions running a 1M-context model variant (a model id tagged `[1m]`) now compute context utilization against 1,000,000 tokens instead of the base model's 200K window.
 - The 1M-context Sonnet variant now uses the 1M auto-compaction/warning/danger thresholds (matching Opus/Fable) instead of the 200K Sonnet's, so the chart's compaction line and budget ticks land in the right place.
