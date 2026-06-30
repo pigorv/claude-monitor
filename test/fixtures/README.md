@@ -98,3 +98,48 @@ non-UTF8 fixture doesn't throw) and **fails** on any of:
 It also asserts that **each of the seven taxonomy dirs contains at least one
 `.jsonl`**. Opaque UUID / session-id strings are intentionally allowed — they are
 not PII and the sanitizer keeps them on purpose.
+
+## The schema-drift canary
+
+`schema-drift-canary.test.ts` scans every `test/fixtures/**/*.jsonl` and flags
+any structural field (top-level, `message.*`, `usage.*`, `cache_creation.*`, or a
+content-block key) or unrecognized `type` / `subtype` value that is not in the
+manifest `src/ingestion/jsonl-schema-manifest.ts`. It is the corpus's L3
+contract: because Claude Code transcript-format drift is the project's top
+failure mode (see `docs/TESTING.md`), this canary is what turns a silently-added
+upstream field into a visible signal instead of a dropped one.
+
+### The manifest
+
+`src/ingestion/jsonl-schema-manifest.ts` is a typed allowlist split — by inline
+comment — into two categories:
+
+- **handled** — fields the ingestion pipeline actively reads and consumes.
+- **ignored** — fields seen in real transcripts but intentionally not consumed
+  (e.g. `usage.service_tier`, top-level `gitBranch`, system
+  `subtype: compact_boundary`).
+
+Both categories are listed so the corpus scans to **zero** unknowns.
+`cache_creation` additionally accepts any `ephemeral_*` granularity key.
+
+### Warning on PR, blocking in nightly
+
+A normal `npm test` run (and PR CI) only prints a `console.warn` drift report and
+**passes** — so a newly-appeared upstream field never blocks an unrelated PR.
+`npm run test:schema-drift` (which sets `SCHEMA_DRIFT_STRICT=1`) instead asserts
+and **fails** on any unknown field, and the nightly CI workflow runs it as a
+blocking `schema-drift-canary` job.
+
+### Update procedure (when the canary warns)
+
+When the canary warns about a new field, make a conscious choice and update
+`src/ingestion/jsonl-schema-manifest.ts`:
+
+1. **Wire it in** — if the parser should consume the field, add the handling to
+   `src/ingestion/jsonl-parser.ts` and add the field to the relevant **handled**
+   set; **or**
+2. **Ignore it** — if it's safe to ignore, add it to the relevant **ignored**
+   set with a brief comment saying why.
+
+Then re-run `npm run test:schema-drift` to confirm it's green. The point is that
+drift becomes a deliberate decision, never a silent miscount.
