@@ -20,28 +20,36 @@ describe('analyzeCompactions', () => {
     `).run('sess-1', '/tmp/a', 'completed', '2026-01-15T10:00:00Z');
 
     const insertEvent = db.prepare(`
-      INSERT INTO events (session_id, event_type, event_source, tool_name,
-        timestamp, sequence_num, input_tokens, metadata)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO events (session_id, agent_id, event_type, event_source, tool_name,
+        timestamp, sequence_num, input_tokens, cache_read_tokens, cache_write_tokens, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    // 1. Manual compaction with tokens_before and trigger metadata.
-    insertEvent.run('sess-1', 'compaction', 'transcript_import', null,
-      '2026-01-15T10:01:00Z', 1, 150000, '{"trigger":"manual"}');
-    // 2. Later event carrying input_tokens — the lookahead at lines 44-46
-    //    finds this and uses it for tokens_after.
-    insertEvent.run('sess-1', 'assistant_message', 'transcript_import', null,
-      '2026-01-15T10:02:00Z', 2, 42000, null);
-    // 3. Thinking event (covers line 65 in likely_dropped).
-    insertEvent.run('sess-1', 'thinking', 'transcript_import', null,
-      '2026-01-15T10:03:00Z', 3, null, null);
-    // 4. Tool event (covers the tool_name branch in likely_dropped).
-    insertEvent.run('sess-1', 'tool_call_start', 'transcript_import', 'Read',
-      '2026-01-15T10:04:00Z', 4, null, null);
-    // 5. Second compaction with corrupt metadata — exercises the JSON.parse
-    //    catch path and leaves trigger at its 'auto' default.
-    insertEvent.run('sess-1', 'compaction', 'transcript_import', null,
-      '2026-01-15T10:05:00Z', 5, 100000, '{not valid json');
+    // seq 1 — parent assistant event forming the pre-drop peak. Effective
+    // context = 20000 + 120000 + 10000 = 150000, well above raw input_tokens.
+    insertEvent.run('sess-1', null, 'assistant_message', 'transcript_import', null,
+      '2026-01-15T10:01:00Z', 1, 20000, 120000, 10000, null);
+    // seq 2 — SUBAGENT event (non-NULL agent_id) with a huge effective context.
+    //   It is the immediate predecessor of the first compaction. If the
+    //   agent_id IS NULL filter were missing, this row would be chosen for
+    //   tokens_before. It must NOT be (Behavior #6).
+    insertEvent.run('sess-1', 'agent-x', 'assistant_message', 'transcript_import', null,
+      '2026-01-15T10:01:30Z', 2, 900000, 900000, 900000, null);
+    // seq 3 — Manual compaction (post-drop). Effective context =
+    //   10000 + 30000 + 2000 = 42000, lower than the preceding parent peak.
+    insertEvent.run('sess-1', null, 'compaction', 'transcript_import', null,
+      '2026-01-15T10:02:00Z', 3, 10000, 30000, 2000, '{"trigger":"manual"}');
+    // seq 4 — Thinking event (covers thinking_blocks branch in likely_dropped).
+    insertEvent.run('sess-1', null, 'thinking', 'transcript_import', null,
+      '2026-01-15T10:03:00Z', 4, null, null, null, null);
+    // seq 5 — Tool event (covers the tool_name branch in likely_dropped).
+    insertEvent.run('sess-1', null, 'tool_call_start', 'transcript_import', 'Read',
+      '2026-01-15T10:04:00Z', 5, null, null, null, null);
+    // seq 6 — Second compaction with corrupt metadata — exercises the
+    //   JSON.parse catch path and leaves trigger at its 'auto' default.
+    //   Effective context = 5000 + 90000 + 5000 = 100000.
+    insertEvent.run('sess-1', null, 'compaction', 'transcript_import', null,
+      '2026-01-15T10:05:00Z', 6, 5000, 90000, 5000, '{not valid json');
   });
 
   afterAll(() => {
@@ -49,15 +57,20 @@ describe('analyzeCompactions', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('reports manual trigger, tokens_after, and likely_dropped descriptions', () => {
+  it('reports manual trigger, effective-context before/after, and likely_dropped descriptions', () => {
     const details = analyzeCompactions('sess-1');
     assert.equal(details.length, 2);
 
     const manual = details[0];
     assert.equal(manual.trigger, 'manual');
-    // tokens_after equals the seeded follow-up event's input_tokens (42000).
+    // tokens_after = effective context of the compaction event itself (42000),
+    // NOT its raw input_tokens (10000).
     assert.equal(manual.tokens_after, 42000);
+    // tokens_before = effective context of the nearest preceding PARENT event
+    // (seq 1 peak = 150000), NOT the subagent row at seq 2.
     assert.equal(manual.tokens_before, 150000);
+    // Genuine drop: before >= after, so "Tokens Lost" >= 0.
+    assert.ok(manual.tokens_before >= manual.tokens_after);
 
     // likely_dropped includes thinking, assistant, and tool descriptions.
     assert.ok(
@@ -74,12 +87,26 @@ describe('analyzeCompactions', () => {
     );
   });
 
+  it('never uses a subagent row for tokens_before/after', () => {
+    const details = analyzeCompactions('sess-1');
+    // The subagent row at seq 2 has effective context 2,700,000. If it were
+    // ever read, tokens_before would blow up. Assert both compactions stay
+    // within the parent-event range.
+    for (const d of details) {
+      assert.ok(d.tokens_before < 900000, `subagent context leaked into tokens_before: ${d.tokens_before}`);
+      assert.ok(d.tokens_after < 900000, `subagent context leaked into tokens_after: ${d.tokens_after}`);
+    }
+  });
+
   it('defaults to auto trigger when metadata is corrupt', () => {
     const details = analyzeCompactions('sess-1');
     const corrupt = details[1];
     assert.equal(corrupt.trigger, 'auto');
-    assert.equal(corrupt.tokens_before, 100000);
-    // No later event carries input_tokens, so tokens_after stays 0.
-    assert.equal(corrupt.tokens_after, 0);
+    // tokens_after = effective context of the second compaction event (100000).
+    assert.equal(corrupt.tokens_after, 100000);
+    // tokens_before = effective context of the nearest preceding parent event
+    // with tokens — that is the first compaction (seq 3, effective 42000);
+    // seq 4/5 carry no input_tokens.
+    assert.equal(corrupt.tokens_before, 42000);
   });
 });
