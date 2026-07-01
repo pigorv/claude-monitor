@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { importTranscript, importTranscripts, filterCoveredSubagents, type ImportResult } from '../../src/ingestion/transcript-importer.js';
 import { getDb, closeDb } from '../../src/db/connection.js';
 import { getSession, sessionExists } from '../../src/db/queries/sessions.js';
-import { listEventsBySession, getTokenTimeline } from '../../src/db/queries/events.js';
+import { listEventsBySession, getTokenTimeline, getMiniTimeline } from '../../src/db/queries/events.js';
 
 const TEST_DIR = join(tmpdir(), `claude-monitor-test-${Date.now()}`);
 const DB_PATH = join(TEST_DIR, 'test.sqlite');
@@ -1781,5 +1781,76 @@ describe('importTranscript subagent efficiency', () => {
     assert.ok((row.compression_ratio as number) > 0, 'compression_ratio must be > 0');
     // agent_compaction_count is populated (0 here, but must NOT be NULL).
     assert.notEqual(row.agent_compaction_count, null);
+  });
+});
+
+// ── Compaction event emission (T1.1) ───────────────────────────────
+
+describe('importTranscript — compaction events', () => {
+  const FIXTURE = join(process.cwd(), 'test/fixtures/compaction/compaction-session.jsonl');
+  const SESSION_ID = '064b1fea-7fc0-4545-a0f7-30926b99f02d';
+
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  it('emits compaction events matching sessions.compaction_count, with token parity and no agent_id', async () => {
+    await importTranscript(FIXTURE, { force: true });
+
+    const session = getSession(SESSION_ID);
+    assert.ok(session, 'session must exist');
+
+    const db = getDb();
+
+    // AC #1: ≥1 compaction row, count === sessions.compaction_count.
+    const compactionRows = db.prepare(
+      "SELECT * FROM events WHERE session_id = ? AND event_type = 'compaction'",
+    ).all(SESSION_ID) as Array<{
+      timestamp: string;
+      sequence_num: number;
+      input_tokens: number | null;
+      output_tokens: number | null;
+      cache_read_tokens: number | null;
+      cache_write_tokens: number | null;
+      agent_id: string | null;
+    }>;
+    assert.ok(compactionRows.length >= 1, 'expected at least one compaction event');
+    assert.equal(compactionRows.length, session.compaction_count, 'compaction rows must equal sessions.compaction_count');
+
+    // AC #3: no compaction row carries an agent_id (parent-only).
+    for (const row of compactionRows) {
+      assert.equal(row.agent_id, null, 'compaction rows must have NULL agent_id');
+    }
+
+    // AC #2: each compaction row is the same turn (timestamp + token columns)
+    // it would have been as an assistant_message — verified by confirming a
+    // usage-bearing turn exists at that timestamp; and non-compacted turns
+    // remain 'assistant_message'.
+    for (const row of compactionRows) {
+      assert.ok(row.timestamp, 'compaction row must carry a timestamp');
+      const effective =
+        (row.input_tokens ?? 0) + (row.cache_read_tokens ?? 0) + (row.cache_write_tokens ?? 0);
+      assert.ok(effective > 0, 'compaction row must retain its token columns');
+    }
+    // At least one assistant_message survives (only compacted turns re-typed).
+    const asstCount = db.prepare(
+      "SELECT count(*) AS n FROM events WHERE session_id = ? AND event_type = 'assistant_message' AND agent_id IS NULL",
+    ).get(SESSION_ID) as { n: number };
+    assert.ok(asstCount.n > 0, 'non-compacted turns must remain assistant_message');
+
+    // AC #4: timeline queries surface the compaction point. getMiniTimeline
+    // coerces to a real boolean; getTokenTimeline carries SQLite's 0/1, so
+    // assert truthiness rather than strict identity there.
+    const timeline = getTokenTimeline(SESSION_ID);
+    assert.ok(timeline.some((p) => Boolean(p.is_compaction)), 'getTokenTimeline must flag a compaction point');
+
+    const mini = getMiniTimeline(SESSION_ID);
+    assert.ok(mini.some((p) => p.is_compaction === true), 'getMiniTimeline must preserve a compaction point');
   });
 });
