@@ -125,8 +125,8 @@ describe('EventCard', () => {
     const out = render(html`<${EventCard} event=${evt} />`);
     assert.ok(out.includes('compaction-banner'), 'should render compaction banner');
     assert.ok(out.includes('Auto-compaction triggered'), 'should show title');
-    assert.ok(out.includes('500.0K'), 'should show before tokens');
-    assert.ok(out.includes('200.0K'), 'should show after tokens');
+    assert.ok(!out.includes('500.0K'), 'should not show before tokens');
+    assert.ok(!out.includes('200.0K'), 'should not show after tokens');
     assert.ok(out.includes('85%'), 'should show context percentage');
   });
 
