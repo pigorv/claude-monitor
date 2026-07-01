@@ -122,13 +122,21 @@ comment — into two categories:
 Both categories are listed so the corpus scans to **zero** unknowns.
 `cache_creation` additionally accepts any `ephemeral_*` granularity key.
 
-### Warning on PR, blocking in nightly
+### Warning in the test suite, strict on demand
 
 A normal `npm test` run (and PR CI) only prints a `console.warn` drift report and
 **passes** — so a newly-appeared upstream field never blocks an unrelated PR.
 `npm run test:schema-drift` (which sets `SCHEMA_DRIFT_STRICT=1`) instead asserts
-and **fails** on any unknown field, and the nightly CI workflow runs it as a
-blocking `schema-drift-canary` job.
+and **fails** on any unknown field; run it locally to hard-check the committed
+corpus against the manifest (for example after refreshing a fixture).
+
+> **Scope.** This canary lints the *committed* corpus against the manifest — it
+> only sees drift once a fixture carrying a new field is committed, and the export
+> sanitizer (`src/export/transcript-sanitizer.ts`) keeps only `usage.*` and
+> `subtype` values verbatim while dropping other unknown fields, so those are the
+> classes it can catch through *derived* fixtures. Discovering drift in *live*
+> data means running the same `findUnknownFields` detector over your real
+> `~/.claude/projects` transcripts — a local step, not shared CI.
 
 ### Update procedure (when the canary warns)
 
