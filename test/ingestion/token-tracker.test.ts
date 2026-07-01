@@ -5,7 +5,6 @@ import {
   estimateContextPct,
   buildTokenSnapshots,
   computeAggregates,
-  snapshotsToDataPoints,
   dedupeByMessageId,
 } from '../../src/ingestion/token-tracker.js';
 import type { TranscriptMessage } from '../../src/shared/types.js';
@@ -275,26 +274,6 @@ describe('computeAggregates', () => {
     const snapshots = buildTokenSnapshots(messages, 'claude-sonnet-4-6');
     const agg = computeAggregates(snapshots);
     assert.equal(agg.peak_context_pct, 75); // 150k / 200k
-  });
-});
-
-// ── snapshotsToDataPoints ──────────────────────────────────────────
-
-describe('snapshotsToDataPoints', () => {
-  it('converts snapshots to data points', () => {
-    const messages: TranscriptMessage[] = [
-      assistantMsg({ timestamp: '2026-01-01T00:01:00Z', input_tokens: 100_000, output_tokens: 500 }),
-      assistantMsg({ timestamp: '2026-01-01T00:02:00Z', input_tokens: 40_000, output_tokens: 200 }), // compaction
-    ];
-
-    const snapshots = buildTokenSnapshots(messages);
-    const dataPoints = snapshotsToDataPoints(snapshots);
-
-    assert.equal(dataPoints.length, 2);
-    assert.equal(dataPoints[0].event_type, 'assistant_message');
-    assert.equal(dataPoints[0].is_compaction, false);
-    assert.equal(dataPoints[1].event_type, 'compaction');
-    assert.equal(dataPoints[1].is_compaction, true);
   });
 });
 

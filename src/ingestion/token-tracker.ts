@@ -1,6 +1,6 @@
 import { MODEL_THRESHOLDS, SONNET_1M_THRESHOLDS } from '../shared/constants.js';
 import { contextWindowFor } from '../shared/cost.js';
-import type { ContextThresholds, TokenDataPoint, TranscriptMessage } from '../shared/types.js';
+import type { ContextThresholds, TranscriptMessage } from '../shared/types.js';
 
 // ── Token snapshot computed from a single assistant message ─────────
 
@@ -204,20 +204,4 @@ export function computeAggregates(snapshots: TokenSnapshot[]): TokenAggregates {
     peak_context_pct: Math.round(peakContextPct * 100) / 100,
     compaction_count: compactionCount,
   };
-}
-
-/**
- * Convert TokenSnapshots to TokenDataPoints (the format stored in DB / returned by API).
- */
-export function snapshotsToDataPoints(snapshots: TokenSnapshot[]): TokenDataPoint[] {
-  return snapshots.map((s) => ({
-    timestamp: s.timestamp,
-    input_tokens: s.input_tokens,
-    output_tokens: s.output_tokens,
-    cache_read_tokens: s.cache_read_tokens,
-    cache_write_tokens: s.cache_write_tokens,
-    context_pct: s.context_pct,
-    event_type: s.is_compaction ? 'compaction' : 'assistant_message',
-    is_compaction: s.is_compaction,
-  }));
 }
