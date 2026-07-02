@@ -43,6 +43,7 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
+    "test:schema-drift": "SCHEMA_DRIFT_STRICT=1 vitest run test/fixtures/schema-drift-canary.test.ts",
     "coverage": "vitest run --coverage",
     "lint:tokens": "node scripts/lint-tokens.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json",
