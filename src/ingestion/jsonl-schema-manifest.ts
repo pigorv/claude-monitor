@@ -86,11 +86,12 @@ const KNOWN_TOP_LEVEL = new Set<string>([
 /** Recognized keys on the `message` wrapper object. */
 const KNOWN_MESSAGE = new Set<string>([
   // handled
-  'role',
   'content',
   'id',
   'model',
   'usage',
+  // ignored — structural, kept verbatim by the sanitizer, never read by the parser
+  'role',
 ]);
 
 /** Recognized keys on the `message.usage` object. */
@@ -143,6 +144,26 @@ const KNOWN_BLOCK = new Set<string>([
   'tool_use_id',
   'content',
   'is_error',
+  // handled — agent attribution on tool_result blocks: declared on
+  // ToolResultBlock (src/shared/types.ts), read by thinking-extractor, and
+  // re-emitted by the export sanitizer on derived fixtures.
+  'agentId',
+  'agentType',
+]);
+
+/**
+ * Recognized keys inside the top-level `toolUseResult` object. The parser reads
+ * exactly these two (jsonl-parser.ts copies them onto the tool_result block),
+ * and the export sanitizer strips everything else — so on sanitized fixtures
+ * this set is exhaustive by construction. Raw-transcript `toolUseResult`
+ * payloads carry arbitrary tool output; the canary only ever sees sanitized
+ * fixtures, so a descent here is safe and keeps drift in the two contract
+ * fields visible.
+ */
+const KNOWN_TOOL_USE_RESULT = new Set<string>([
+  // handled
+  'agentId',
+  'agentType',
 ]);
 
 /** Type guard: a non-null, non-array object usable as a Record. */
@@ -155,10 +176,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * `type`/`subtype` discriminant values) not covered by the manifest.
  *
  * Traversal is bounded: it descends only into `message`, `message.usage`,
- * `message.usage.cache_creation`, and each `message.content[]` block. It never
- * recurses into a tool-call block's `input`, into `text`/`thinking`/`signature`
- * values, into a `tool_result` block's `content`, or into the top-level
- * `toolUseResult` — those carry arbitrary user/tool data, not contract fields.
+ * `message.usage.cache_creation`, each `message.content[]` block, and the
+ * top-level `toolUseResult` (whose two contract fields the parser reads). It
+ * never recurses into a tool-call block's `input`, into `text`/`thinking`/
+ * `signature` values, or into a `tool_result` block's `content` — those carry
+ * arbitrary user/tool data, not contract fields.
  *
  * Pure and total: never throws on a malformed record. A non-object
  * `message`/`usage`/`cache_creation` or a non-array `content` is simply treated
@@ -172,6 +194,17 @@ export function findUnknownFields(record: unknown): UnknownField[] {
   for (const key of Object.keys(record)) {
     if (!KNOWN_TOP_LEVEL.has(key)) {
       unknowns.push({ path: key, key });
+    }
+  }
+
+  // toolUseResult — the parser reads agentId/agentType from it; the sanitizer
+  // guarantees derived fixtures carry nothing else.
+  const toolUseResult = record['toolUseResult'];
+  if (isRecord(toolUseResult)) {
+    for (const key of Object.keys(toolUseResult)) {
+      if (!KNOWN_TOOL_USE_RESULT.has(key)) {
+        unknowns.push({ path: `toolUseResult.${key}`, key });
+      }
     }
   }
 
@@ -223,7 +256,7 @@ export function findUnknownFields(record: unknown): UnknownField[] {
         if (!isRecord(block)) continue;
         for (const key of Object.keys(block)) {
           if (!KNOWN_BLOCK.has(key)) {
-            unknowns.push({ path: `content[].${key}`, key });
+            unknowns.push({ path: `message.content[].${key}`, key });
           }
         }
       }

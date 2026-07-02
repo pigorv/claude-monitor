@@ -102,9 +102,11 @@ not PII and the sanitizer keeps them on purpose.
 ## The schema-drift canary
 
 `schema-drift-canary.test.ts` scans every `test/fixtures/**/*.jsonl` and flags
-any structural field (top-level, `message.*`, `usage.*`, `cache_creation.*`, or a
-content-block key) or unrecognized `type` / `subtype` value that is not in the
-manifest `src/ingestion/jsonl-schema-manifest.ts`. It is the corpus's L3
+any structural field (top-level, `message.*`, `usage.*`, `cache_creation.*`,
+`toolUseResult.*`, or a content-block key) or unrecognized `type` / `subtype`
+value that is not in the manifest `src/ingestion/jsonl-schema-manifest.ts`. The
+detector itself is unit-tested in `test/ingestion/jsonl-schema-manifest.test.ts`;
+this file holds only the corpus scan. It is the corpus's L3
 contract: because Claude Code transcript-format drift is the project's top
 failure mode (see `docs/TESTING.md`), this canary is what turns a silently-added
 upstream field into a visible signal instead of a dropped one.
