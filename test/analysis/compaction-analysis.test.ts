@@ -45,11 +45,44 @@ describe('analyzeCompactions', () => {
     // seq 5 — Tool event (covers the tool_name branch in likely_dropped).
     insertEvent.run('sess-1', null, 'tool_call_start', 'transcript_import', 'Read',
       '2026-01-15T10:04:00Z', 5, null, null, null, null);
-    // seq 6 — Second compaction with corrupt metadata — exercises the
+    // seq 6 — parent assistant turn re-inflating context after the first
+    //   compaction: effective = 30000 + 130000 + 5000 = 165000. This is the
+    //   pre-drop peak for the second compaction, keeping before >= after
+    //   (importer-produced data always has a token-bearing row between
+    //   compactions).
+    insertEvent.run('sess-1', null, 'assistant_message', 'transcript_import', null,
+      '2026-01-15T10:04:30Z', 6, 30000, 130000, 5000, null);
+    // seq 7 — Second compaction with corrupt metadata — exercises the
     //   JSON.parse catch path and leaves trigger at its 'auto' default.
     //   Effective context = 5000 + 90000 + 5000 = 100000.
     insertEvent.run('sess-1', null, 'compaction', 'transcript_import', null,
-      '2026-01-15T10:05:00Z', 6, 5000, 90000, 5000, '{not valid json');
+      '2026-01-15T10:05:00Z', 7, 5000, 90000, 5000, '{not valid json');
+
+    // sess-2 — a compaction with NO preceding token-bearing row: exercises the
+    // fallback clamp (tokensBefore = tokensAfter) that keeps "Tokens Lost"
+    // from going negative.
+    db.prepare(`
+      INSERT INTO sessions (id, project_path, status, started_at)
+      VALUES (?, ?, ?, ?)
+    `).run('sess-2', '/tmp/b', 'completed', '2026-01-15T11:00:00Z');
+    insertEvent.run('sess-2', null, 'compaction', 'transcript_import', null,
+      '2026-01-15T11:01:00Z', 1, 8000, 40000, 2000, null);
+
+    // sess-3 — regression for the same-turn-sibling hazard: the compacted
+    // turn's own thinking row (seq 1) carries the IDENTICAL post-drop usage
+    // (importer enrichment applies usage to every line of the turn). Without
+    // the metadata preference the backward scan stops on it and reports
+    // before == after. The importer persists the true pre-drop peak in
+    // metadata.compaction.tokens_before.
+    db.prepare(`
+      INSERT INTO sessions (id, project_path, status, started_at)
+      VALUES (?, ?, ?, ?)
+    `).run('sess-3', '/tmp/c', 'completed', '2026-01-15T12:00:00Z');
+    insertEvent.run('sess-3', null, 'thinking', 'transcript_import', null,
+      '2026-01-15T12:01:00.100Z', 1, 5000, 25000, 2000, null);
+    insertEvent.run('sess-3', null, 'compaction', 'transcript_import', null,
+      '2026-01-15T12:01:00.900Z', 2, 5000, 25000, 2000,
+      '{"compaction":{"tokens_before":160000,"context_pct_before":80.2}}');
   });
 
   afterAll(() => {
@@ -105,8 +138,37 @@ describe('analyzeCompactions', () => {
     // tokens_after = effective context of the second compaction event (100000).
     assert.equal(corrupt.tokens_after, 100000);
     // tokens_before = effective context of the nearest preceding parent event
-    // with tokens — that is the first compaction (seq 3, effective 42000);
+    // with tokens — the re-inflated turn at seq 6 (effective 165000);
     // seq 4/5 carry no input_tokens.
-    assert.equal(corrupt.tokens_before, 42000);
+    assert.equal(corrupt.tokens_before, 165000);
+  });
+
+  it('never reports a negative token loss', () => {
+    for (const sessionId of ['sess-1', 'sess-2', 'sess-3']) {
+      for (const d of analyzeCompactions(sessionId)) {
+        assert.ok(
+          d.tokens_before >= d.tokens_after,
+          `${sessionId}: tokens_before (${d.tokens_before}) < tokens_after (${d.tokens_after})`,
+        );
+      }
+    }
+  });
+
+  it('falls back to tokens_after when no token-bearing row precedes the compaction', () => {
+    const details = analyzeCompactions('sess-2');
+    assert.equal(details.length, 1);
+    // Effective context of the compaction row itself: 8000 + 40000 + 2000.
+    assert.equal(details[0].tokens_after, 50000);
+    assert.equal(details[0].tokens_before, 50000);
+  });
+
+  it('prefers metadata tokens_before over the backward scan (same-turn sibling hazard)', () => {
+    const details = analyzeCompactions('sess-3');
+    assert.equal(details.length, 1);
+    // tokens_after = effective context of the compaction row (32000).
+    assert.equal(details[0].tokens_after, 32000);
+    // The scan would stop at the seq-1 sibling (identical usage → 32000);
+    // the importer-persisted pre-drop peak must win.
+    assert.equal(details[0].tokens_before, 160000);
   });
 });

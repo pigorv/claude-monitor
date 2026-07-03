@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Compaction turns are now recorded as dedicated `compaction` events at import time so the timeline and mini-timeline reliably flag where auto-compaction occurred (existing databases need a force reimport to backfill these events).
+- Compaction turns are now recorded as dedicated `compaction` events at import time so the timeline and mini-timeline reliably flag where auto-compaction occurred (existing databases need a force reimport to backfill these events). The importer persists the pre-drop context in event metadata so the compaction-details table reports the true tokens lost and the banner shows the pre-compaction pressure; compacted turns with no text block (tool-only) still get a marker.
 - Agent efficiency metrics (peak context, compression ratio, compaction count) now populate for subagent-file-backed agents instead of always showing empty/NULL, and the peak is measured against the effective cached context rather than the tiny uncached input.
 - Failed `Agent`/`Task` spawns (e.g. an unknown `subagent_type` that errors instantly) are now recorded with status `failed` instead of a phantom `completed` subagent — they no longer inflate the session's subagent count, and the agent-efficiency aggregate excludes them so a failed spawn no longer trips the "2+ agents" gate or skews the averages, token totals, or peak-concurrency figures.
 - Sessions running a 1M-context model variant (a model id tagged `[1m]`) now compute context utilization against 1,000,000 tokens instead of the base model's 200K window.

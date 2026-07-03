@@ -4,6 +4,7 @@ import render from 'preact-render-to-string';
 import { html } from 'htm/preact';
 import { Heatmap } from '../../frontend/src/components/Heatmap.js';
 import { EventCard } from '../../frontend/src/components/EventCard.js';
+import { CompactionBanner } from '../../frontend/src/components/CompactionBanner.js';
 import { AgentTree } from '../../frontend/src/components/AgentTree.js';
 import { groupTimelineItems } from '../../frontend/src/components/Timeline.js';
 import { Dropdown } from '../../frontend/src/components/Dropdown.js';
@@ -120,14 +121,28 @@ describe('EventCard', () => {
       event_type: 'compaction',
       input_tokens: 500000,
       output_tokens: 200000,
-      context_pct: 85,
+      context_pct: 18,
     });
     const out = render(html`<${EventCard} event=${evt} />`);
     assert.ok(out.includes('compaction-banner'), 'should render compaction banner');
     assert.ok(out.includes('Auto-compaction triggered'), 'should show title');
     assert.ok(!out.includes('500.0K'), 'should not show before tokens');
     assert.ok(!out.includes('200.0K'), 'should not show after tokens');
-    assert.ok(out.includes('85%'), 'should show context percentage');
+    // The row's own context_pct is the POST-drop value — it must not be
+    // presented as the pressure that triggered compaction.
+    assert.ok(!out.includes('18%'), 'should not show post-drop context percentage');
+    assert.ok(out.includes('Context window compacted'), 'should show neutral description without metadata');
+  });
+
+  it('renders pre-drop pressure from compaction metadata', () => {
+    const evt = makeEvent({
+      event_type: 'compaction',
+      context_pct: 18,
+      metadata: JSON.stringify({ compaction: { tokens_before: 160452, context_pct_before: 80.2 } }),
+    });
+    const out = render(html`<${EventCard} event=${evt} />`);
+    assert.ok(out.includes('Context pressure reached 80% before compaction'), 'should show pre-drop percentage');
+    assert.ok(!out.includes('18%'), 'should not show post-drop context percentage');
   });
 
   it('renders thinking event with summary preview', () => {
@@ -194,6 +209,59 @@ describe('EventCard', () => {
       const expected = t === 'tool_call_start' ? 'tool-row-standalone' : 'event-card';
       assert.ok(out.includes(expected), `${t} should render ${expected}`);
     }
+  });
+});
+
+// ─── CompactionBanner (standalone) ──────────────────────
+
+describe('CompactionBanner', () => {
+  function makeCompactionEvent(overrides: Partial<SessionEvent> = {}): SessionEvent {
+    return {
+      id: 2,
+      session_id: 'sess-1',
+      event_type: 'compaction',
+      tool_name: null,
+      timestamp: '2026-01-15T10:05:00Z',
+      context_pct: 18,
+      duration_ms: null,
+      input_preview: null,
+      output_preview: null,
+      thinking_summary: null,
+      thinking_text: null,
+      input_tokens: 500000,
+      output_tokens: 200000,
+      cache_read_tokens: 10,
+      cache_write_tokens: 5,
+      agent_id: null,
+      input_data: null,
+      output_data: null,
+      metadata: null,
+      ...overrides,
+    } as SessionEvent;
+  }
+
+  it('renders without token pair or post-drop percentage', () => {
+    const out = render(html`<${CompactionBanner} event=${makeCompactionEvent()} />`);
+    assert.ok(out.includes('compaction-banner-standalone'), 'should render standalone banner');
+    assert.ok(out.includes('Auto-compaction triggered'), 'should show title');
+    assert.ok(!out.includes('500.0K'), 'should not show before tokens');
+    assert.ok(!out.includes('200.0K'), 'should not show after tokens');
+    assert.ok(!out.includes('18%'), 'should not show post-drop context percentage');
+    assert.ok(out.includes('Context window compacted'), 'should show neutral description without metadata');
+  });
+
+  it('renders pre-drop pressure from metadata', () => {
+    const evt = makeCompactionEvent({
+      metadata: JSON.stringify({ compaction: { tokens_before: 160452, context_pct_before: 80.2 } }),
+    });
+    const out = render(html`<${CompactionBanner} event=${evt} />`);
+    assert.ok(out.includes('Context pressure reached 80% before compaction'), 'should show pre-drop percentage');
+  });
+
+  it('falls back to the neutral line on corrupt metadata', () => {
+    const evt = makeCompactionEvent({ metadata: '{not valid json' });
+    const out = render(html`<${CompactionBanner} event=${evt} />`);
+    assert.ok(out.includes('Context window compacted'), 'should show neutral description');
   });
 });
 
