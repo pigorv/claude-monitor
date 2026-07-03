@@ -960,23 +960,6 @@
   margin-top: 2px;
 }
 
-.compaction-banner-standalone .compaction-banner-tokens {
-  text-align: right;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  flex-shrink: 0;
-}
-
-.compaction-banner-standalone .compaction-before {
-  color: var(--color-status-danger-text);
-  text-decoration: line-through;
-}
-
-.compaction-banner-standalone .compaction-after {
-  color: var(--color-status-completed);
-  font-weight: 600;
-}
-
 /* Compaction banner */
 .compaction-banner {
   display: flex;
@@ -1009,23 +992,6 @@
   font-size: 11px;
   color: var(--color-text-secondary);
   margin-top: 2px;
-}
-
-.compaction-banner-tokens {
-  text-align: right;
-  flex-shrink: 0;
-}
-
-.compaction-before {
-  color: var(--color-status-danger-text);
-  text-decoration: line-through;
-  font-size: 12px;
-}
-
-.compaction-after {
-  color: var(--color-status-completed);
-  font-weight: 600;
-  font-size: 12px;
 }
 
 /* Event body (collapsed) — bordered box matching mockup */

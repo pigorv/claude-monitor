@@ -4,6 +4,7 @@ import type { Event } from "../../../src/shared/types";
 import { renderMarkdown } from "../lib/markdown";
 import { StructuredContent } from "./StructuredContent";
 import { CopyButton } from "./CopyButton";
+import { compactionDescription } from "./CompactionBanner";
 import { computeLineDiff, type DiffLine } from "../lib/diff";
 import { formatTokenMeta, formatTokenCount } from "../lib/format";
 import { hasNonEmptySelection } from "../lib/selection";
@@ -920,7 +921,7 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
           <div class="compaction-banner-info">
             <div class="compaction-banner-title">Auto-compaction triggered</div>
             <div class="compaction-banner-desc">
-              Context pressure exceeded ${event.context_pct != null ? Math.round(event.context_pct) : "75"}% threshold
+              ${compactionDescription(event)}
             </div>
           </div>
         </div>

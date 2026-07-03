@@ -138,13 +138,12 @@ export async function importTranscript(
   const snapshots = buildTokenSnapshots(messages, model);
   const aggregates = computeAggregates(snapshots);
 
-  // Timestamps of the assistant turns the token tracker flagged as compactions.
-  // A single assistant turn is streamed across several JSONL lines that share a
-  // messageId but carry timestamps a few ms/s apart; buildTokenSnapshots keeps
-  // the deduped last line while the extractor's assistant_message event may use
-  // an earlier line. Expand each compacted snapshot to *all* line timestamps of
-  // its messageId so the join in buildEventRecords matches the same turn.
-  const compactionTimestamps = buildCompactionTimestamps(snapshots, messages);
+  // Assistant turns the token tracker flagged as compactions, with each turn
+  // expanded to all of its JSONL line timestamps (a streamed turn shares a
+  // messageId across lines whose timestamps differ by ms/s, and the extractor
+  // may tag its assistant_message event with an earlier line than the deduped
+  // snapshot) plus the pre-drop context captured from the previous snapshot.
+  const compactionTurns = buildCompactionTurns(snapshots, messages);
 
   const durationMs = new Date(messages[messages.length - 1].timestamp).getTime() - new Date(messages[0].timestamp).getTime();
 
@@ -191,7 +190,7 @@ export async function importTranscript(
   const session = buildSessionRecord(sessionId, filePath, messages, model, modelsUsed, invocations, startedWith, aggregates, toolCallCount, subagentCount, summary);
 
   // Build event records with token info from snapshots
-  const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model, compactionTimestamps);
+  const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model, compactionTurns);
 
   // Write to DB in a single transaction
   const db = getDb();
@@ -918,21 +917,49 @@ function findParentTokensAtReturn(
 }
 
 /**
- * Given the token snapshots and the raw transcript messages, return the set of
- * every assistant line timestamp that belongs to a compacted turn. Snapshots
- * flag one point per compacted turn (keyed by the deduped last-line timestamp);
- * this expands that to all timestamps sharing the turn's messageId so the
- * timestamp join against assistant_message events in buildEventRecords matches
- * regardless of which line the extractor tagged the event with.
+ * One compacted turn: the post-drop snapshot, every assistant line timestamp
+ * belonging to that turn, and the pre-drop context captured from the previous
+ * snapshot. Snapshots flag one point per compacted turn (keyed by the deduped
+ * last-line timestamp); `timestamps` expands that to all timestamps sharing the
+ * turn's messageId so the join against assistant_message events in
+ * buildEventRecords matches regardless of which line the extractor tagged the
+ * event with. The pre-drop values are captured here because they cannot be
+ * recovered from the events table later: the compacted turn's own thinking/tool
+ * rows are enriched with the identical post-drop usage, so a backward scan
+ * stops on a same-turn sibling and reports a zero-token loss.
  */
-function buildCompactionTimestamps(
+interface CompactionTurn {
+  timestamps: Set<string>;
+  snapshot: TokenSnapshot;
+  tokens_before: number;
+  context_pct_before: number | null;
+  /** Set once an assistant_message event has been re-typed for this turn. */
+  matched: boolean;
+}
+
+function buildCompactionTurns(
   snapshots: TokenSnapshot[],
   messages: TranscriptMessage[],
-): Set<string> {
-  const compactionSnapshotTimestamps = new Set(
-    snapshots.filter((s) => s.is_compaction).map((s) => s.timestamp),
-  );
-  if (compactionSnapshotTimestamps.size === 0) return new Set();
+): CompactionTurn[] {
+  const turns: CompactionTurn[] = [];
+  for (let i = 0; i < snapshots.length; i++) {
+    const s = snapshots[i];
+    if (!s.is_compaction) continue;
+    // Compaction detection requires prevInputTokens > 0, so a preceding
+    // snapshot always exists; guard anyway for safety.
+    const prev = i > 0 ? snapshots[i - 1] : null;
+    const effectiveAfter = s.input_tokens + s.cache_read_tokens + s.cache_write_tokens;
+    turns.push({
+      timestamps: new Set([s.timestamp]),
+      snapshot: s,
+      tokens_before: prev
+        ? prev.input_tokens + prev.cache_read_tokens + prev.cache_write_tokens
+        : effectiveAfter,
+      context_pct_before: prev ? prev.context_pct : null,
+      matched: false,
+    });
+  }
+  if (turns.length === 0) return turns;
 
   // Map a message timestamp → its messageId, and a messageId → all its timestamps.
   const timestampToMessageId = new Map<string, string>();
@@ -948,18 +975,15 @@ function buildCompactionTimestamps(
     group.add(msg.timestamp);
   }
 
-  const result = new Set<string>();
-  for (const ts of compactionSnapshotTimestamps) {
-    const messageId = timestampToMessageId.get(ts);
+  for (const turn of turns) {
+    const messageId = timestampToMessageId.get(turn.snapshot.timestamp);
     const group = messageId ? messageIdToTimestamps.get(messageId) : undefined;
+    // No messageId to expand by — keep the snapshot timestamp itself.
     if (group) {
-      for (const t of group) result.add(t);
-    } else {
-      // No messageId to expand by — fall back to the snapshot timestamp itself.
-      result.add(ts);
+      for (const t of group) turn.timestamps.add(t);
     }
   }
-  return result;
+  return turns;
 }
 
 function buildEventRecords(
@@ -967,7 +991,7 @@ function buildEventRecords(
   parsedEvents: ParsedEvent[],
   messages: TranscriptMessage[],
   model: string | null,
-  compactionTimestamps?: Set<string>,
+  compactionTurns?: CompactionTurn[],
 ): Omit<Event, 'id'>[] {
   // Build a map of timestamp → token snapshot for context_pct enrichment
   const usageByTimestamp = new Map<string, { input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_write_tokens: number; context_pct: number }>();
@@ -986,26 +1010,39 @@ function buildEventRecords(
     }
   }
 
-  return parsedEvents.map((parsed, index) => {
+  const turnByTimestamp = new Map<string, CompactionTurn>();
+  for (const turn of compactionTurns ?? []) {
+    for (const ts of turn.timestamps) turnByTimestamp.set(ts, turn);
+  }
+
+  const records: Omit<Event, 'id' | 'sequence_num'>[] = parsedEvents.map((parsed) => {
     // Look up token info for this event's timestamp
     const usage = usageByTimestamp.get(parsed.timestamp);
 
     // Re-type post-drop assistant turns flagged by the token tracker as
-    // compactions. Only parent events (compactionTimestamps supplied) are
-    // eligible; subagent turns are never re-typed.
-    const eventType =
-      parsed.event_type === 'assistant_message' && compactionTimestamps?.has(parsed.timestamp)
-        ? 'compaction'
-        : parsed.event_type;
+    // compactions. Only parent rows are eligible — subagent turns (including
+    // window-tagged events carrying an agent_id) are never re-typed — and only
+    // the first assistant_message of a turn, so one compaction never yields
+    // two compaction rows. The pre-drop context goes into metadata because it
+    // is unrecoverable from the events table (see CompactionTurn).
+    const turn =
+      parsed.event_type === 'assistant_message' && parsed.agent_id == null
+        ? turnByTimestamp.get(parsed.timestamp)
+        : undefined;
+    const isCompaction = turn != null && !turn.matched;
+    if (isCompaction) turn.matched = true;
+
+    const metadata = isCompaction
+      ? { ...parsed.metadata, compaction: { tokens_before: turn.tokens_before, context_pct_before: turn.context_pct_before } }
+      : parsed.metadata;
 
     return {
       session_id: sessionId,
       agent_id: parsed.agent_id ?? null,
-      event_type: eventType,
+      event_type: isCompaction ? 'compaction' as const : parsed.event_type,
       event_source: 'transcript_import' as const,
       tool_name: parsed.tool_name ?? null,
       timestamp: parsed.timestamp,
-      sequence_num: index,
       input_tokens: parsed.input_tokens ?? usage?.input_tokens ?? null,
       output_tokens: parsed.output_tokens ?? usage?.output_tokens ?? null,
       cache_read_tokens: parsed.cache_read_tokens ?? usage?.cache_read_tokens ?? null,
@@ -1018,7 +1055,43 @@ function buildEventRecords(
       thinking_summary: parsed.thinking_summary ?? null,
       thinking_text: parsed.thinking_text ?? null,
       duration_ms: (parsed.metadata?.duration_ms as number) ?? null,
-      metadata: parsed.metadata ? JSON.stringify(parsed.metadata) : null,
+      metadata: metadata ? JSON.stringify(metadata) : null,
     };
   });
+
+  // A compacted turn with no text block emits no assistant_message event
+  // (tool-only turns), so the re-type above never fires for it. Synthesize the
+  // compaction row from the snapshot so the chart marker and event-derived
+  // counts still match sessions.compaction_count.
+  for (const turn of compactionTurns ?? []) {
+    if (turn.matched) continue;
+    const s = turn.snapshot;
+    const synthetic: Omit<Event, 'id' | 'sequence_num'> = {
+      session_id: sessionId,
+      agent_id: null,
+      event_type: 'compaction',
+      event_source: 'transcript_import',
+      tool_name: null,
+      timestamp: s.timestamp,
+      input_tokens: s.input_tokens,
+      output_tokens: s.output_tokens,
+      cache_read_tokens: s.cache_read_tokens,
+      cache_write_tokens: s.cache_write_tokens,
+      context_pct: s.context_pct,
+      input_preview: null,
+      input_data: null,
+      output_preview: null,
+      output_data: null,
+      thinking_summary: null,
+      thinking_text: null,
+      duration_ms: null,
+      metadata: JSON.stringify({ compaction: { tokens_before: turn.tokens_before, context_pct_before: turn.context_pct_before, synthetic: true } }),
+    };
+    // ISO 8601 timestamps compare lexicographically — splice into order.
+    const idx = records.findIndex((r) => r.timestamp > s.timestamp);
+    if (idx === -1) records.push(synthetic);
+    else records.splice(idx, 0, synthetic);
+  }
+
+  return records.map((r, index) => ({ ...r, sequence_num: index }));
 }

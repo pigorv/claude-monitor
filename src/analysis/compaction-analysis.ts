@@ -58,24 +58,32 @@ export function analyzeCompactions(sessionId: string): CompactionDetail[] {
     // The compaction event is the post-drop (low-context) message.
     const tokensAfter = effectiveContext(evt);
 
-    // tokens_before = effective context of the nearest preceding event that
-    // has tokens (the pre-drop peak). Fall back to tokensAfter if none precedes
-    // so "Tokens Lost" is never negative.
-    let tokensBefore = tokensAfter;
-    for (let j = i - 1; j >= 0; j--) {
-      if (allEvents[j].input_tokens != null) {
-        tokensBefore = effectiveContext(allEvents[j]);
-        break;
-      }
-    }
-
     let trigger: 'auto' | 'manual' = 'auto';
+    let metaTokensBefore: number | null = null;
     if (evt.metadata) {
       try {
         const meta = JSON.parse(evt.metadata);
         if (meta.trigger === 'manual') trigger = 'manual';
+        const tb = (meta.compaction as { tokens_before?: unknown } | undefined)?.tokens_before;
+        if (typeof tb === 'number' && Number.isFinite(tb)) metaTokensBefore = tb;
       } catch {
         // ignore corrupt metadata
+      }
+    }
+
+    // tokens_before: prefer the pre-drop value the importer persisted in
+    // metadata — the compacted turn's own thinking/tool rows carry the same
+    // post-drop usage, so a backward scan can stop on a same-turn sibling and
+    // report a zero-token loss. The scan is kept as a fallback for rows
+    // imported before metadata was written; if nothing precedes, fall back to
+    // tokensAfter so "Tokens Lost" is never negative.
+    let tokensBefore = metaTokensBefore ?? tokensAfter;
+    if (metaTokensBefore == null) {
+      for (let j = i - 1; j >= 0; j--) {
+        if (allEvents[j].input_tokens != null) {
+          tokensBefore = effectiveContext(allEvents[j]);
+          break;
+        }
       }
     }
 
