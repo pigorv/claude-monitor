@@ -13,14 +13,31 @@ onDbClose(() => {
 export function analyzeCompactions(sessionId: string): CompactionDetail[] {
   const db = getDb();
 
-  // Fetch all events with tokens in one query, ordered by sequence
+  // Fetch all parent events with tokens in one query, ordered by sequence.
+  // agent_id IS NULL restricts the scan to parent (non-subagent) rows so the
+  // before/after lookup never reads a subagent row (issue #101). The agent_id
+  // in ORDER BY is intentionally explicit for robustness even though the filter
+  // makes it degenerate to (sequence_num, timestamp).
   _compactionEventsStmt ??= db.prepare(`
-    SELECT id, event_type, timestamp, input_tokens, metadata
+    SELECT id, event_type, timestamp, input_tokens, cache_read_tokens, cache_write_tokens, metadata
     FROM events
-    WHERE session_id = ? AND (event_type = 'compaction' OR input_tokens IS NOT NULL)
-    ORDER BY sequence_num ASC, timestamp ASC
+    WHERE session_id = ? AND agent_id IS NULL AND (event_type = 'compaction' OR input_tokens IS NOT NULL)
+    ORDER BY agent_id ASC, sequence_num ASC, timestamp ASC
   `);
-  const allEvents = _compactionEventsStmt.all(sessionId) as { id: number; event_type: string; timestamp: string; input_tokens: number | null; metadata: string | null }[];
+  const allEvents = _compactionEventsStmt.all(sessionId) as {
+    id: number;
+    event_type: string;
+    timestamp: string;
+    input_tokens: number | null;
+    cache_read_tokens: number | null;
+    cache_write_tokens: number | null;
+    metadata: string | null;
+  }[];
+
+  // Effective context = fresh input + cached reads + cached writes. Raw
+  // input_tokens alone is only the non-cached slice and understates context.
+  const effectiveContext = (row: { input_tokens: number | null; cache_read_tokens: number | null; cache_write_tokens: number | null }): number =>
+    (row.input_tokens ?? 0) + (row.cache_read_tokens ?? 0) + (row.cache_write_tokens ?? 0);
 
   // Fetch event type/tool summary for the session once (for likely_dropped)
   _eventSummaryStmt ??= db.prepare(`
@@ -38,11 +55,16 @@ export function analyzeCompactions(sessionId: string): CompactionDetail[] {
     const evt = allEvents[i];
     if (evt.event_type !== 'compaction') continue;
 
-    // Find next event with tokens
-    let tokensAfter = 0;
-    for (let j = i + 1; j < allEvents.length; j++) {
+    // The compaction event is the post-drop (low-context) message.
+    const tokensAfter = effectiveContext(evt);
+
+    // tokens_before = effective context of the nearest preceding event that
+    // has tokens (the pre-drop peak). Fall back to tokensAfter if none precedes
+    // so "Tokens Lost" is never negative.
+    let tokensBefore = tokensAfter;
+    for (let j = i - 1; j >= 0; j--) {
       if (allEvents[j].input_tokens != null) {
-        tokensAfter = allEvents[j].input_tokens!;
+        tokensBefore = effectiveContext(allEvents[j]);
         break;
       }
     }
@@ -72,7 +94,7 @@ export function analyzeCompactions(sessionId: string): CompactionDetail[] {
     details.push({
       event_id: evt.id,
       timestamp: evt.timestamp,
-      tokens_before: evt.input_tokens ?? 0,
+      tokens_before: tokensBefore,
       tokens_after: tokensAfter,
       trigger,
       likely_dropped: likelyDropped,

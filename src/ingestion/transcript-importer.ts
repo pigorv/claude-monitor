@@ -7,7 +7,7 @@ import * as logger from '../shared/logger.js';
 import type { Event, Invocation, Session, TranscriptMessage } from '../shared/types.js';
 import { parseTranscript, parseTranscriptWithTitle } from './jsonl-parser.js';
 import { extractAllEvents, mergeToolCallEvents, assignAgentIds, type ParsedEvent } from './thinking-extractor.js';
-import { buildTokenSnapshots, computeAggregates, estimateContextPct, dedupeByMessageId } from './token-tracker.js';
+import { buildTokenSnapshots, computeAggregates, estimateContextPct, dedupeByMessageId, type TokenSnapshot } from './token-tracker.js';
 import { generateSessionSummary } from '../analysis/session-summary.js';
 import { computeAgentEfficiency, inferExecutionModes, analyzeAgentFileReads } from '../analysis/agent-efficiency.js';
 import { getAllAgentTokenTimelines, updateAgentRelationship } from '../db/queries/sessions.js';
@@ -135,7 +135,16 @@ export async function importTranscript(
 
   // Build token snapshots
   const model = deriveModel(messages);
-  const aggregates = computeAggregates(buildTokenSnapshots(messages, model));
+  const snapshots = buildTokenSnapshots(messages, model);
+  const aggregates = computeAggregates(snapshots);
+
+  // Timestamps of the assistant turns the token tracker flagged as compactions.
+  // A single assistant turn is streamed across several JSONL lines that share a
+  // messageId but carry timestamps a few ms/s apart; buildTokenSnapshots keeps
+  // the deduped last line while the extractor's assistant_message event may use
+  // an earlier line. Expand each compacted snapshot to *all* line timestamps of
+  // its messageId so the join in buildEventRecords matches the same turn.
+  const compactionTimestamps = buildCompactionTimestamps(snapshots, messages);
 
   const durationMs = new Date(messages[messages.length - 1].timestamp).getTime() - new Date(messages[0].timestamp).getTime();
 
@@ -182,7 +191,7 @@ export async function importTranscript(
   const session = buildSessionRecord(sessionId, filePath, messages, model, modelsUsed, invocations, startedWith, aggregates, toolCallCount, subagentCount, summary);
 
   // Build event records with token info from snapshots
-  const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model);
+  const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model, compactionTimestamps);
 
   // Write to DB in a single transaction
   const db = getDb();
@@ -908,11 +917,57 @@ function findParentTokensAtReturn(
   return lastTokens;
 }
 
+/**
+ * Given the token snapshots and the raw transcript messages, return the set of
+ * every assistant line timestamp that belongs to a compacted turn. Snapshots
+ * flag one point per compacted turn (keyed by the deduped last-line timestamp);
+ * this expands that to all timestamps sharing the turn's messageId so the
+ * timestamp join against assistant_message events in buildEventRecords matches
+ * regardless of which line the extractor tagged the event with.
+ */
+function buildCompactionTimestamps(
+  snapshots: TokenSnapshot[],
+  messages: TranscriptMessage[],
+): Set<string> {
+  const compactionSnapshotTimestamps = new Set(
+    snapshots.filter((s) => s.is_compaction).map((s) => s.timestamp),
+  );
+  if (compactionSnapshotTimestamps.size === 0) return new Set();
+
+  // Map a message timestamp → its messageId, and a messageId → all its timestamps.
+  const timestampToMessageId = new Map<string, string>();
+  const messageIdToTimestamps = new Map<string, Set<string>>();
+  for (const msg of messages) {
+    if (msg.type !== 'assistant' || !msg.messageId) continue;
+    timestampToMessageId.set(msg.timestamp, msg.messageId);
+    let group = messageIdToTimestamps.get(msg.messageId);
+    if (!group) {
+      group = new Set();
+      messageIdToTimestamps.set(msg.messageId, group);
+    }
+    group.add(msg.timestamp);
+  }
+
+  const result = new Set<string>();
+  for (const ts of compactionSnapshotTimestamps) {
+    const messageId = timestampToMessageId.get(ts);
+    const group = messageId ? messageIdToTimestamps.get(messageId) : undefined;
+    if (group) {
+      for (const t of group) result.add(t);
+    } else {
+      // No messageId to expand by — fall back to the snapshot timestamp itself.
+      result.add(ts);
+    }
+  }
+  return result;
+}
+
 function buildEventRecords(
   sessionId: string,
   parsedEvents: ParsedEvent[],
   messages: TranscriptMessage[],
   model: string | null,
+  compactionTimestamps?: Set<string>,
 ): Omit<Event, 'id'>[] {
   // Build a map of timestamp → token snapshot for context_pct enrichment
   const usageByTimestamp = new Map<string, { input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_write_tokens: number; context_pct: number }>();
@@ -935,10 +990,18 @@ function buildEventRecords(
     // Look up token info for this event's timestamp
     const usage = usageByTimestamp.get(parsed.timestamp);
 
+    // Re-type post-drop assistant turns flagged by the token tracker as
+    // compactions. Only parent events (compactionTimestamps supplied) are
+    // eligible; subagent turns are never re-typed.
+    const eventType =
+      parsed.event_type === 'assistant_message' && compactionTimestamps?.has(parsed.timestamp)
+        ? 'compaction'
+        : parsed.event_type;
+
     return {
       session_id: sessionId,
       agent_id: parsed.agent_id ?? null,
-      event_type: parsed.event_type,
+      event_type: eventType,
       event_source: 'transcript_import' as const,
       tool_name: parsed.tool_name ?? null,
       timestamp: parsed.timestamp,
