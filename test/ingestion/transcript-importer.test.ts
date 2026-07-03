@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import { importTranscript, importTranscripts, filterCoveredSubagents, type ImportResult } from '../../src/ingestion/transcript-importer.js';
 import { getDb, closeDb } from '../../src/db/connection.js';
 import { getSession, sessionExists } from '../../src/db/queries/sessions.js';
-import { listEventsBySession, getTokenTimeline } from '../../src/db/queries/events.js';
+import { listEventsBySession, getTokenTimeline, getMiniTimeline } from '../../src/db/queries/events.js';
+import { analyzeCompactions } from '../../src/analysis/compaction-analysis.js';
 
 const TEST_DIR = join(tmpdir(), `claude-monitor-test-${Date.now()}`);
 const DB_PATH = join(TEST_DIR, 'test.sqlite');
@@ -1781,5 +1782,145 @@ describe('importTranscript subagent efficiency', () => {
     assert.ok((row.compression_ratio as number) > 0, 'compression_ratio must be > 0');
     // agent_compaction_count is populated (0 here, but must NOT be NULL).
     assert.notEqual(row.agent_compaction_count, null);
+  });
+});
+
+// ── Compaction event emission (T1.1) ───────────────────────────────
+
+describe('importTranscript — compaction events', () => {
+  const FIXTURE = join(process.cwd(), 'test/fixtures/compaction/compaction-session.jsonl');
+  const SESSION_ID = '064b1fea-7fc0-4545-a0f7-30926b99f02d';
+
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  it('emits compaction events matching sessions.compaction_count, with token parity and no agent_id', async () => {
+    await importTranscript(FIXTURE, { force: true });
+
+    const session = getSession(SESSION_ID);
+    assert.ok(session, 'session must exist');
+
+    const db = getDb();
+
+    // AC #1: ≥1 compaction row, count === sessions.compaction_count.
+    const compactionRows = db.prepare(
+      "SELECT * FROM events WHERE session_id = ? AND event_type = 'compaction'",
+    ).all(SESSION_ID) as Array<{
+      timestamp: string;
+      sequence_num: number;
+      input_tokens: number | null;
+      output_tokens: number | null;
+      cache_read_tokens: number | null;
+      cache_write_tokens: number | null;
+      agent_id: string | null;
+    }>;
+    assert.ok(compactionRows.length >= 1, 'expected at least one compaction event');
+    assert.equal(compactionRows.length, session.compaction_count, 'compaction rows must equal sessions.compaction_count');
+
+    // AC #3: no compaction row carries an agent_id (parent-only).
+    for (const row of compactionRows) {
+      assert.equal(row.agent_id, null, 'compaction rows must have NULL agent_id');
+    }
+
+    // AC #2: the re-typed row keeps the compacted turn's exact per-column
+    // usage — the fixture's compacted turn is msg_01Swb3A6rhNnmdinQZQnWCNg
+    // (input 5999 / cache_read 16373 / cache_write 13144 / output 894).
+    assert.equal(compactionRows.length, 1);
+    const compactionRow = compactionRows[0];
+    assert.equal(compactionRow.input_tokens, 5999);
+    assert.equal(compactionRow.cache_read_tokens, 16373);
+    assert.equal(compactionRow.cache_write_tokens, 13144);
+    assert.equal(compactionRow.output_tokens, 894);
+
+    // The importer persists the pre-drop context in metadata — the previous
+    // turn (msg_01ALCNf7a1aiBUY9XLADciZN) peaked at effective 160452.
+    const rowWithMeta = db.prepare(
+      "SELECT metadata FROM events WHERE session_id = ? AND event_type = 'compaction'",
+    ).get(SESSION_ID) as { metadata: string | null };
+    assert.ok(rowWithMeta.metadata, 'compaction row must carry metadata');
+    const meta = JSON.parse(rowWithMeta.metadata!);
+    assert.equal(meta.compaction.tokens_before, 160452);
+    assert.equal(typeof meta.compaction.context_pct_before, 'number');
+
+    // End-to-end regression for the same-turn-sibling hazard: the compacted
+    // turn's own thinking row carries identical post-drop usage, so a naive
+    // backward scan would report before == after (0 tokens lost). The
+    // metadata-persisted pre-drop peak must win.
+    const details = analyzeCompactions(SESSION_ID);
+    assert.equal(details.length, 1);
+    assert.equal(details[0].tokens_before, 160452);
+    assert.equal(details[0].tokens_after, 35516);
+    assert.ok(details[0].tokens_before > details[0].tokens_after, 'tokens lost must be positive');
+    // At least one assistant_message survives (only compacted turns re-typed).
+    const asstCount = db.prepare(
+      "SELECT count(*) AS n FROM events WHERE session_id = ? AND event_type = 'assistant_message' AND agent_id IS NULL",
+    ).get(SESSION_ID) as { n: number };
+    assert.ok(asstCount.n > 0, 'non-compacted turns must remain assistant_message');
+
+    // AC #4: timeline queries surface the compaction point. getMiniTimeline
+    // coerces to a real boolean; getTokenTimeline carries SQLite's 0/1, so
+    // assert truthiness rather than strict identity there.
+    const timeline = getTokenTimeline(SESSION_ID);
+    assert.ok(timeline.some((p) => Boolean(p.is_compaction)), 'getTokenTimeline must flag a compaction point');
+
+    const mini = getMiniTimeline(SESSION_ID);
+    assert.ok(mini.some((p) => p.is_compaction === true), 'getMiniTimeline must preserve a compaction point');
+  });
+
+  it('synthesizes a compaction event when the compacted turn has no text block', async () => {
+    // A tool-only turn emits tool_call_start but NO assistant_message, so the
+    // re-type join has nothing to match — the importer must synthesize the
+    // compaction row so markers and event-derived counts still line up with
+    // sessions.compaction_count.
+    const toolOnlySessionId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const line = (obj: Record<string, unknown>) => JSON.stringify(obj);
+    const usage = (input: number, output: number) => ({
+      input_tokens: input, output_tokens: output,
+      cache_read_input_tokens: 0, cache_creation_input_tokens: 0,
+    });
+    const jsonl = [
+      line({ type: 'user', uuid: 'u-1', parentUuid: null, timestamp: '2026-01-01T10:00:00.000Z', sessionId: toolOnlySessionId, message: { role: 'user', content: 'first prompt' } }),
+      line({ type: 'assistant', uuid: 'a-1', parentUuid: 'u-1', timestamp: '2026-01-01T10:00:10.000Z', sessionId: toolOnlySessionId, message: { id: 'msg_text', role: 'assistant', model: 'claude-sonnet-4-5', content: [{ type: 'text', text: 'building context' }], usage: usage(100000, 50) } }),
+      line({ type: 'user', uuid: 'u-2', parentUuid: 'a-1', timestamp: '2026-01-01T10:01:00.000Z', sessionId: toolOnlySessionId, message: { role: 'user', content: 'continue' } }),
+      // Compacted turn (100000 → 30000, a 70% drop) that is tool_use-only.
+      line({ type: 'assistant', uuid: 'a-2', parentUuid: 'u-2', timestamp: '2026-01-01T10:02:00.000Z', sessionId: toolOnlySessionId, message: { id: 'msg_tool', role: 'assistant', model: 'claude-sonnet-4-5', content: [{ type: 'tool_use', id: 'tu-1', name: 'Read', input: { file_path: '/tmp/x' } }], usage: usage(30000, 20) } }),
+    ].join('\n');
+    const fixturePath = join(TEST_DIR, 'tool-only-compaction.jsonl');
+    writeFileSync(fixturePath, jsonl);
+
+    await importTranscript(fixturePath, { force: true });
+
+    const session = getSession(toolOnlySessionId);
+    assert.ok(session, 'session must exist');
+    assert.equal(session.compaction_count, 1);
+
+    const db = getDb();
+    const rows = db.prepare(
+      "SELECT timestamp, agent_id, input_tokens, metadata, sequence_num FROM events WHERE session_id = ? AND event_type = 'compaction'",
+    ).all(toolOnlySessionId) as Array<{ timestamp: string; agent_id: string | null; input_tokens: number | null; metadata: string | null; sequence_num: number }>;
+    assert.equal(rows.length, 1, 'tool-only compacted turn must still produce a compaction event');
+    assert.equal(rows[0].agent_id, null);
+    assert.equal(rows[0].timestamp, '2026-01-01T10:02:00.000Z');
+    assert.equal(rows[0].input_tokens, 30000);
+    const meta = JSON.parse(rows[0].metadata!);
+    assert.equal(meta.compaction.tokens_before, 100000);
+    assert.equal(meta.compaction.synthetic, true);
+
+    // The synthetic row is spliced in timestamp order, not appended: the
+    // turn's own tool_call_start at the same timestamp must not precede it
+    // by a full session (i.e. sequence numbers stay strictly increasing and
+    // unique across the session).
+    const seqs = db.prepare(
+      'SELECT sequence_num FROM events WHERE session_id = ? ORDER BY sequence_num',
+    ).all(toolOnlySessionId) as Array<{ sequence_num: number }>;
+    const values = seqs.map((s) => s.sequence_num);
+    assert.equal(new Set(values).size, values.length, 'sequence numbers must be unique');
   });
 });

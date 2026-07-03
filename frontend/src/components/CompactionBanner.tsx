@@ -5,30 +5,38 @@ interface CompactionBannerProps {
   event: Event;
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
+/**
+ * Human-readable description for a compaction event. The event row's own
+ * context_pct/token columns are post-drop values (the re-typed turn is the
+ * low-context message after compaction), so the pre-drop pressure comes from
+ * the metadata the importer persisted at import time. Rows imported before
+ * that metadata existed fall back to a neutral line.
+ */
+export function compactionDescription(event: Event): string {
+  if (event.metadata) {
+    try {
+      const meta = JSON.parse(event.metadata);
+      const pct = meta?.compaction?.context_pct_before;
+      if (typeof pct === "number" && Number.isFinite(pct)) {
+        return `Context pressure reached ${Math.round(pct)}% before compaction`;
+      }
+    } catch {
+      // corrupt metadata — fall through to the neutral line
+    }
+  }
+  return "Context window compacted to free up space";
 }
 
 export function CompactionBanner({ event }: CompactionBannerProps) {
   return html`
     <div class="compaction-banner-standalone">
-      <span class="compaction-banner-icon">\u26A0</span>
+      <span class="compaction-banner-icon">⚠</span>
       <div class="compaction-banner-info">
         <div class="compaction-banner-title">Auto-compaction triggered</div>
         <div class="compaction-banner-desc">
-          Context pressure exceeded ${event.context_pct != null ? Math.round(event.context_pct) : "75"}% threshold
+          ${compactionDescription(event)}
         </div>
       </div>
-      ${event.input_tokens != null && html`
-        <div class="compaction-banner-tokens">
-          <div class="compaction-before">${formatTokens(event.input_tokens)} tokens</div>
-          ${event.output_tokens != null && html`
-            <div class="compaction-after">${formatTokens(event.output_tokens)} tokens</div>
-          `}
-        </div>
-      `}
     </div>
   `;
 }

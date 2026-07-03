@@ -4,6 +4,7 @@ import type { Event } from "../../../src/shared/types";
 import { renderMarkdown } from "../lib/markdown";
 import { StructuredContent } from "./StructuredContent";
 import { CopyButton } from "./CopyButton";
+import { compactionDescription } from "./CompactionBanner";
 import { computeLineDiff, type DiffLine } from "../lib/diff";
 import { formatTokenMeta, formatTokenCount } from "../lib/format";
 import { hasNonEmptySelection } from "../lib/selection";
@@ -33,12 +34,6 @@ function formatDuration(ms: number | null): string {
   if (ms == null) return "";
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
 }
 
 function truncate(s: string, max: number): string {
@@ -926,17 +921,9 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
           <div class="compaction-banner-info">
             <div class="compaction-banner-title">Auto-compaction triggered</div>
             <div class="compaction-banner-desc">
-              Context pressure exceeded ${event.context_pct != null ? Math.round(event.context_pct) : "75"}% threshold
+              ${compactionDescription(event)}
             </div>
           </div>
-          ${event.input_tokens != null && html`
-            <div class="compaction-banner-tokens">
-              <div class="compaction-before">${formatTokens(event.input_tokens)} tokens</div>
-              ${event.output_tokens != null && html`
-                <div class="compaction-after">${formatTokens(event.output_tokens)} tokens</div>
-              `}
-            </div>
-          `}
         </div>
       `}
 
