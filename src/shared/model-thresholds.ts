@@ -34,7 +34,8 @@ export const MODEL_THRESHOLDS: Record<string, ContextThresholds> = Object.fromEn
  * the 1M-model (opus/fable) compaction profile, not the 200K Sonnet's. Keyed
  * separately from MODEL_THRESHOLDS so the family-detection loops that iterate
  * its keys stay unpolluted; `resolveThreshold`/`resolveThresholds` branch to it
- * explicitly on the `[1m]` marker.
+ * when the model is a Sonnet whose resolved context window is ≥ 1M (covering
+ * both the `[1m]` marker and default-1M Sonnets like `claude-sonnet-5`).
  */
 export const SONNET_1M_THRESHOLDS: ContextThresholds = {
   model: 'sonnet',

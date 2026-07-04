@@ -13,8 +13,9 @@ export function resolveThresholds(model: string | null | undefined): ChartThresh
   let base = MODEL_THRESHOLDS.sonnet;
   if (model) {
     const lower = model.toLowerCase();
-    // The 1M-context Sonnet variant ([1m]) follows the 1M compaction profile.
-    if (/\[1m\]/.test(lower) && lower.includes('sonnet')) {
+    // Sonnets with a 1M context window (the [1m] marker or a default-1M model
+    // like sonnet-5) follow the 1M compaction profile.
+    if (lower.includes('sonnet') && (contextWindowFor(model) ?? 0) >= 1_000_000) {
       base = SONNET_1M_THRESHOLDS;
     } else {
       for (const key of Object.keys(MODEL_THRESHOLDS)) {
