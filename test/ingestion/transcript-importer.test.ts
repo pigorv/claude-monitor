@@ -201,7 +201,8 @@ describe('importTranscript', () => {
 
     assert.ok(rowsAtT.length > 0, 'expected at least one event row at the shared timestamp');
     for (const row of rowsAtT) {
-      assert.notEqual(row.context_pct, 0, 'no row at T should be enriched with context_pct = 0');
+      assert.equal(row.context_pct, null,
+        'rows at T must stay unenriched (null), not stamped from the zero-usage message');
     }
   });
 

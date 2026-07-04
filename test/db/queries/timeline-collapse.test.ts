@@ -406,10 +406,12 @@ describe('getMiniTimelinesForSessions downsampling preserves compaction', () => 
     insertSession(makeSession({ id: 'comp-batch' }));
 
     // 40 distinct real turns (each a unique usage tuple so nothing collapses),
-    // far exceeding maxPoints=20, with a compaction turn positioned near the end
-    // (well past where uniform sampling would land a kept index).
+    // far exceeding maxPoints=20. The compaction sits at index 37: without
+    // compaction seeding, uniform sampling keeps floor(i * 40/20) = {0, 2, …,
+    // 38}, which excludes 37 — so the preservation assertion fails if the
+    // seeding logic is removed.
     for (let i = 0; i < 40; i++) {
-      const isComp = i === 38;
+      const isComp = i === 37;
       insertEvent(makeEvent({
         session_id: 'comp-batch', sequence_num: i + 1,
         event_type: isComp ? 'compaction' : 'assistant_message',
