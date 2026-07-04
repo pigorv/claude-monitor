@@ -7,6 +7,7 @@ import {
   computeAggregates,
   dedupeByMessageId,
 } from '../../src/ingestion/token-tracker.js';
+import { SONNET_1M_THRESHOLDS } from '../../src/shared/constants.js';
 import type { TranscriptMessage } from '../../src/shared/types.js';
 
 // ── Helper to create assistant messages with usage ─────────────────
@@ -95,6 +96,22 @@ describe('resolveThreshold', () => {
   it('keeps the 200K compaction profile for the plain sonnet', () => {
     const t = resolveThreshold('claude-sonnet-4-6');
     assert.equal(t.autoCompactPct, 83.5);
+  });
+
+  it('uses the 1M compaction profile for the default-1M claude-sonnet-5 (Behavior #4)', () => {
+    const t = resolveThreshold('claude-sonnet-5');
+    assert.deepEqual(t, SONNET_1M_THRESHOLDS);
+    assert.equal(t.model, 'sonnet');
+    assert.equal(t.autoCompactPct, 96.7);
+    assert.equal(t.warningPct, 60.0);
+    assert.equal(t.dangerPct, 70.0);
+    assert.equal(t.maxTokens, 1_000_000);
+  });
+
+  it('keeps the 200K family profile for the plain sonnet-4-6 (Behavior #7)', () => {
+    const t = resolveThreshold('claude-sonnet-4-6');
+    assert.equal(t.model, 'sonnet');
+    assert.equal(t.maxTokens, 200_000);
   });
 });
 
