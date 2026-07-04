@@ -225,35 +225,28 @@ export function getTokenTimeline(sessionId: string): TokenDataPoint[] {
   return collapseTimelineByUsage(rows);
 }
 
-export function getMiniTimeline(sessionId: string, maxPoints: number = 20): MiniTimelinePoint[] {
-  const db = getDb();
-  // Same collapse-by-usage treatment as getTokenTimeline: select raw ordered
-  // rows (including the four usage columns the helper needs for its signature),
-  // collapse consecutive identical-usage runs, then downsample.
-  _miniTimelineStmt ??= db.prepare(`
-    SELECT
-      COALESCE(input_tokens, 0) as input_tokens,
-      COALESCE(output_tokens, 0) as output_tokens,
-      COALESCE(cache_read_tokens, 0) as cache_read_tokens,
-      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
-      COALESCE(context_pct, 0) as context_pct,
-      CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
-    FROM events
-    WHERE session_id = ? AND context_pct IS NOT NULL AND agent_id IS NULL
-      AND event_type IN ('assistant_message', 'compaction', 'tool_call_start')
-      AND (COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0) + COALESCE(output_tokens, 0)) > 0
-    ORDER BY sequence_num ASC, timestamp ASC
-  `);
-  const rawRows = _miniTimelineStmt.all(sessionId) as {
-    input_tokens: number;
-    output_tokens: number;
-    cache_read_tokens: number;
-    cache_write_tokens: number;
-    context_pct: number;
-    is_compaction: number;
-  }[];
-  const rows = collapseTimelineByUsage(rawRows);
+// Shared WHERE predicate for the mini-timeline queries (everything after the
+// per-query `session_id` clause). Both the single-session query and the batch
+// query interpolate this so they filter identically: main-conversation rows
+// only (agent_id IS NULL), a valid context_pct, real API turns (not tool
+// results / user messages), and a non-zero usage signature that drops the
+// synthetic zero-usage assistant message which otherwise renders as a phantom
+// plunge to 0% at the end of a session. Single source of truth (Behavior #5).
+const MINI_TIMELINE_FILTER =
+  "context_pct IS NOT NULL AND agent_id IS NULL " +
+  "AND event_type IN ('assistant_message', 'compaction', 'tool_call_start') " +
+  "AND (COALESCE(input_tokens, 0) + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0) + COALESCE(output_tokens, 0)) > 0";
 
+/**
+ * Downsample an already-collapsed mini-timeline to at most `maxPoints`,
+ * preserving every compaction row (an `is_compaction` point is never dropped by
+ * the sampler). Single source of truth shared by getMiniTimeline and
+ * getMiniTimelinesForSessions (Behavior #5).
+ */
+function downsampleMiniTimeline(
+  rows: { context_pct: number; is_compaction: number }[],
+  maxPoints: number,
+): MiniTimelinePoint[] {
   if (rows.length <= maxPoints) {
     return rows.map((r) => ({ context_pct: r.context_pct, is_compaction: r.is_compaction === 1 }));
   }
@@ -281,6 +274,35 @@ export function getMiniTimeline(sessionId: string, maxPoints: number = 20): Mini
   }));
 }
 
+export function getMiniTimeline(sessionId: string, maxPoints: number = 20): MiniTimelinePoint[] {
+  const db = getDb();
+  // Same collapse-by-usage treatment as getTokenTimeline: select raw ordered
+  // rows (including the four usage columns the helper needs for its signature),
+  // collapse consecutive identical-usage runs, then downsample.
+  _miniTimelineStmt ??= db.prepare(`
+    SELECT
+      COALESCE(input_tokens, 0) as input_tokens,
+      COALESCE(output_tokens, 0) as output_tokens,
+      COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
+      COALESCE(context_pct, 0) as context_pct,
+      CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
+    FROM events
+    WHERE session_id = ? AND ${MINI_TIMELINE_FILTER}
+    ORDER BY sequence_num ASC, timestamp ASC
+  `);
+  const rawRows = _miniTimelineStmt.all(sessionId) as {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_write_tokens: number;
+    context_pct: number;
+    is_compaction: number;
+  }[];
+  const rows = collapseTimelineByUsage(rawRows);
+  return downsampleMiniTimeline(rows, maxPoints);
+}
+
 export function deleteEventsBySession(sessionId: string): number {
   const db = getDb();
   _deleteEventsBySessionStmt ??= db.prepare('DELETE FROM events WHERE session_id = ?');
@@ -297,52 +319,63 @@ export function getMiniTimelinesForSessions(sessionIds: string[], maxPoints: num
 
   const db = getDb();
   const placeholders = sessionIds.map(() => '?').join(',');
+  // Mirror the single-session query exactly (same MINI_TIMELINE_FILTER, same
+  // four usage columns, same per-session collapse + downsample) so the batch
+  // series the session-list sparkline renders matches the detail page.
   const rows = db.prepare(`
     SELECT
       session_id,
+      COALESCE(input_tokens, 0) as input_tokens,
+      COALESCE(output_tokens, 0) as output_tokens,
+      COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+      COALESCE(cache_write_tokens, 0) as cache_write_tokens,
       COALESCE(context_pct, 0) as context_pct,
       CASE WHEN event_type = 'compaction' THEN 1 ELSE 0 END as is_compaction
     FROM events
-    WHERE session_id IN (${placeholders}) AND context_pct IS NOT NULL AND agent_id IS NULL
+    WHERE session_id IN (${placeholders}) AND ${MINI_TIMELINE_FILTER}
     ORDER BY session_id, sequence_num ASC, timestamp ASC
-  `).all(...sessionIds) as { session_id: string; context_pct: number; is_compaction: number }[];
+  `).all(...sessionIds) as {
+    session_id: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_write_tokens: number;
+    context_pct: number;
+    is_compaction: number;
+  }[];
 
   // Group by session
-  const grouped = new Map<string, { context_pct: number; is_compaction: number }[]>();
+  type MiniRow = {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_write_tokens: number;
+    context_pct: number;
+    is_compaction: number;
+  };
+  const grouped = new Map<string, MiniRow[]>();
   for (const row of rows) {
     let list = grouped.get(row.session_id);
     if (!list) {
       list = [];
       grouped.set(row.session_id, list);
     }
-    list.push({ context_pct: row.context_pct, is_compaction: row.is_compaction });
+    list.push({
+      input_tokens: row.input_tokens,
+      output_tokens: row.output_tokens,
+      cache_read_tokens: row.cache_read_tokens,
+      cache_write_tokens: row.cache_write_tokens,
+      context_pct: row.context_pct,
+      is_compaction: row.is_compaction,
+    });
   }
 
-  // Downsample each session's timeline
+  // Collapse streamed duplicate rows per session, then downsample — identical
+  // treatment to getMiniTimeline (single source of truth).
   const result = new Map<string, MiniTimelinePoint[]>();
   for (const [sid, sessionRows] of grouped) {
-    if (sessionRows.length <= maxPoints) {
-      result.set(sid, sessionRows.map((r) => ({ context_pct: r.context_pct, is_compaction: r.is_compaction === 1 })));
-      continue;
-    }
-
-    const compactionIndices = new Set<number>();
-    for (let i = 0; i < sessionRows.length; i++) {
-      if (sessionRows[i].is_compaction === 1) compactionIndices.add(i);
-    }
-    const sampledIndices = new Set<number>(compactionIndices);
-    const remaining = maxPoints - sampledIndices.size;
-    if (remaining > 0) {
-      const step = sessionRows.length / remaining;
-      for (let i = 0; i < remaining; i++) {
-        sampledIndices.add(Math.min(Math.floor(i * step), sessionRows.length - 1));
-      }
-    }
-    const sorted = Array.from(sampledIndices).sort((a, b) => a - b);
-    result.set(sid, sorted.map((i) => ({
-      context_pct: sessionRows[i].context_pct,
-      is_compaction: sessionRows[i].is_compaction === 1,
-    })));
+    const collapsed = collapseTimelineByUsage(sessionRows);
+    result.set(sid, downsampleMiniTimeline(collapsed, maxPoints));
   }
 
   // Ensure all requested sessions have an entry (even if empty)
