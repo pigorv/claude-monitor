@@ -7,6 +7,7 @@ import { getDb, closeDb, insertSession, insertEvent } from '../../../src/db/inde
 import {
   getTokenTimeline,
   getMiniTimeline,
+  getMiniTimelinesForSessions,
   getTokenTimelineAnnotations,
   collapseTimelineByUsage,
 } from '../../../src/db/queries/events.js';
@@ -321,6 +322,120 @@ describe('agent timeline collapse', () => {
       'agent-c: two turns differing only in cache_write must not merge');
     const map = getAllAgentTokenTimelines('sess-1');
     assert.equal(map.get('agent-c')?.length, 2, 'agent-c stays 2 points via getAll too');
+  });
+});
+
+// ── Batch mini-timeline parity (T1.1 Behaviors #1–#4, #7) ──────────
+
+describe('getMiniTimelinesForSessions parity with getMiniTimeline', () => {
+  let dir: string;
+
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'mini-batch-parity-'));
+    getDb(join(dir, 'test.sqlite'));
+    insertSession(makeSession({ id: 'batch-sess' }));
+
+    // Turn 1: one streamed API turn written as 3 identical-usage JSONL lines
+    // (thinking / text / tool_use), timestamps ~2 ms apart.
+    insertEvent(makeEvent({
+      session_id: 'batch-sess', sequence_num: 1, event_type: 'assistant_message',
+      timestamp: '2025-01-01T00:05:00.000Z', context_pct: 10,
+      input_tokens: 1000, output_tokens: 500, cache_read_tokens: 200, cache_write_tokens: 100,
+    }));
+    insertEvent(makeEvent({
+      session_id: 'batch-sess', sequence_num: 2, event_type: 'assistant_message',
+      timestamp: '2025-01-01T00:05:00.002Z', context_pct: 10,
+      input_tokens: 1000, output_tokens: 500, cache_read_tokens: 200, cache_write_tokens: 100,
+    }));
+    insertEvent(makeEvent({
+      session_id: 'batch-sess', sequence_num: 3, event_type: 'tool_call_start', tool_name: 'Read',
+      timestamp: '2025-01-01T00:05:00.004Z', context_pct: 10,
+      input_tokens: 1000, output_tokens: 500, cache_read_tokens: 200, cache_write_tokens: 100,
+    }));
+
+    // Turn 2: a distinct real turn (different usage).
+    insertEvent(makeEvent({
+      session_id: 'batch-sess', sequence_num: 4, event_type: 'assistant_message',
+      timestamp: '2025-01-01T00:06:00.000Z', context_pct: 22,
+      input_tokens: 5000, output_tokens: 800, cache_read_tokens: 4000, cache_write_tokens: 300,
+    }));
+
+    // Trailing synthetic zero-usage assistant row (all four usage columns 0). It
+    // still carries a context_pct, so the zero-usage guard — not a NULL check —
+    // is what must drop it. Inserted raw; no ingestion is re-run (Behavior #7).
+    insertEvent(makeEvent({
+      session_id: 'batch-sess', sequence_num: 5, event_type: 'assistant_message',
+      timestamp: '2025-01-01T00:07:00.000Z', context_pct: 0,
+      input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0,
+    }));
+  });
+
+  afterAll(() => {
+    closeDb();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('batch series deep-equals the single-session series (Behavior #1)', () => {
+    const batch = getMiniTimelinesForSessions(['batch-sess']).get('batch-sess');
+    const single = getMiniTimeline('batch-sess');
+    assert.deepEqual(batch, single);
+  });
+
+  it('batch series has no trailing 0-context point (Behavior #2/#7)', () => {
+    const batch = getMiniTimelinesForSessions(['batch-sess']).get('batch-sess');
+    assert.ok(batch && batch.length > 0);
+    assert.notEqual(batch[batch.length - 1].context_pct, 0,
+      'the synthetic zero-usage tail row must be filtered at read time');
+  });
+
+  it('streamed duplicate rows collapse to one point in the batch path (Behavior #3)', () => {
+    const batch = getMiniTimelinesForSessions(['batch-sess']).get('batch-sess');
+    const single = getMiniTimeline('batch-sess');
+    // 3 streamed rows + 1 distinct turn + dropped zero row → 2 points.
+    assert.equal(batch?.length, 2);
+    assert.equal(batch?.length, single.length);
+  });
+});
+
+describe('getMiniTimelinesForSessions downsampling preserves compaction', () => {
+  let dir: string;
+
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'mini-batch-compaction-'));
+    getDb(join(dir, 'test.sqlite'));
+    insertSession(makeSession({ id: 'comp-batch' }));
+
+    // 40 distinct real turns (each a unique usage tuple so nothing collapses),
+    // far exceeding maxPoints=20, with a compaction turn positioned near the end
+    // (well past where uniform sampling would land a kept index).
+    for (let i = 0; i < 40; i++) {
+      const isComp = i === 38;
+      insertEvent(makeEvent({
+        session_id: 'comp-batch', sequence_num: i + 1,
+        event_type: isComp ? 'compaction' : 'assistant_message',
+        timestamp: `2025-01-01T00:${String(i).padStart(2, '0')}:00.000Z`,
+        context_pct: 10 + i,
+        input_tokens: 1000 + i * 100, output_tokens: 500, cache_read_tokens: 0, cache_write_tokens: 0,
+      }));
+    }
+  });
+
+  afterAll(() => {
+    closeDb();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('a compaction row past maxPoints survives downsampling in the batch series (Behavior #4)', () => {
+    const batch = getMiniTimelinesForSessions(['comp-batch'], 20).get('comp-batch');
+    assert.ok(batch && batch.length <= 20);
+    assert.ok(batch.some((p) => p.is_compaction),
+      'the compaction point must be preserved by the downsampler');
+  });
+
+  it('matches the single-session series for the same session (Behavior #1)', () => {
+    const batch = getMiniTimelinesForSessions(['comp-batch'], 20).get('comp-batch');
+    const single = getMiniTimeline('comp-batch', 20);
+    assert.deepEqual(batch, single);
   });
 });
 
