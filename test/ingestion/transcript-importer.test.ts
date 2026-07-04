@@ -146,6 +146,65 @@ describe('importTranscript', () => {
     assert.ok(first.context_pct !== null);
   });
 
+  it('does not enrich a row with context_pct = 0 from a synthetic zero-usage message', async () => {
+    // Claude Code writes a synthetic all-zero assistant message at session end
+    // whose timestamp collides with a real user message. buildEventRecords()
+    // must skip it so it never stamps context_pct = 0 onto the shared-timestamp
+    // row (mirroring the guard in buildTokenSnapshots).
+    const SHARED_TS = '2026-01-01T00:01:10.000Z';
+    const jsonl = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: 'zero-usage-sess', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Do the work.' },
+        timestamp: '2026-01-01T00:01:00.000Z', uuid: 'zu-user-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'zu-user-1', cwd: '/tmp/project', sessionId: 'zero-usage-sess', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [{ type: 'text', text: 'Done.' }],
+          usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 500, cache_creation_input_tokens: 100 },
+        },
+        timestamp: '2026-01-01T00:01:05.000Z', uuid: 'zu-asst-1',
+      }),
+      // Real user message at the shared timestamp T.
+      JSON.stringify({
+        parentUuid: 'zu-asst-1', cwd: '/tmp/project', sessionId: 'zero-usage-sess', version: '2.1.0',
+        type: 'user',
+        message: { role: 'user', content: 'Anything else?' },
+        timestamp: SHARED_TS, uuid: 'zu-user-2',
+      }),
+      // Synthetic zero-usage assistant message at the SAME timestamp T.
+      JSON.stringify({
+        parentUuid: 'zu-user-2', cwd: '/tmp/project', sessionId: 'zero-usage-sess', version: '2.1.0',
+        type: 'assistant',
+        message: {
+          model: '', role: 'assistant',
+          content: [],
+          usage: { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: SHARED_TS, uuid: 'zu-asst-2',
+      }),
+    ].join('\n');
+
+    const filePath = join(TEST_DIR, 'zero-usage-sess.jsonl');
+    writeFileSync(filePath, jsonl);
+
+    await importTranscript(filePath);
+
+    const db = getDb();
+    const rowsAtT = db.prepare(
+      'SELECT context_pct FROM events WHERE session_id = ? AND timestamp = ?',
+    ).all('zero-usage-sess', SHARED_TS) as { context_pct: number | null }[];
+
+    assert.ok(rowsAtT.length > 0, 'expected at least one event row at the shared timestamp');
+    for (const row of rowsAtT) {
+      assert.notEqual(row.context_pct, 0, 'no row at T should be enriched with context_pct = 0');
+    }
+  });
+
   it('assigns sequential sequence numbers', async () => {
     const filePath = join(TEST_DIR, 'session.jsonl');
     writeFileSync(filePath, SAMPLE_JSONL);

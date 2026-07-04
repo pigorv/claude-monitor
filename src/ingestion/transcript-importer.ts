@@ -1000,6 +1000,11 @@ function buildEventRecords(
       const cacheRead = msg.usage.cache_read_input_tokens ?? 0;
       const cacheWrite = msg.usage.cache_creation_input_tokens ?? 0;
       const effectiveContext = msg.usage.input_tokens + cacheRead + cacheWrite;
+      // Skip zero-usage messages (e.g. the synthetic all-zero assistant message
+      // Claude Code writes at session end). Mirrors the guard in
+      // buildTokenSnapshots(). Otherwise its timestamp — shared with a real
+      // user message — would stamp context_pct = 0 onto that row.
+      if (effectiveContext === 0 && msg.usage.output_tokens === 0) continue;
       usageByTimestamp.set(msg.timestamp, {
         input_tokens: msg.usage.input_tokens,
         output_tokens: msg.usage.output_tokens,
