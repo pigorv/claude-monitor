@@ -8,6 +8,7 @@ import {
   isOneMSonnet,
   modelLabelFull,
 } from '../../frontend/src/lib/model-meta.js';
+import { resolveThresholds } from '../../frontend/src/lib/chart-config.js';
 
 describe('modelLabel', () => {
   it('labels a fable model "Fable"', () => {
@@ -120,6 +121,10 @@ describe('isOneMSonnet', () => {
     assert.equal(isOneMSonnet('claude-opus-4-8[1m]'), false);
   });
 
+  it('is true for the default-1M claude-sonnet-5 (Behavior #8)', () => {
+    assert.equal(isOneMSonnet('claude-sonnet-5'), true);
+  });
+
   it('is false for null', () => {
     assert.equal(isOneMSonnet(null), false);
   });
@@ -146,7 +151,24 @@ describe('modelLabelFull', () => {
     assert.equal(modelLabelFull(null, 'Unknown'), 'Unknown');
   });
 
+  it('composes "Sonnet 5" for claude-sonnet-5 (Behavior #8)', () => {
+    assert.equal(modelLabelFull('claude-sonnet-5'), 'Sonnet 5');
+  });
+
   it('defaults null to the "—" empty-state label', () => {
     assert.equal(modelLabelFull(null), '—');
+  });
+});
+
+// ── resolveThresholds (frontend chart profile) ─────────────────────
+
+describe('resolveThresholds', () => {
+  it('uses the 1M compaction profile for the default-1M claude-sonnet-5 (Behavior #5)', () => {
+    const t = resolveThresholds('claude-sonnet-5');
+    assert.equal(t.model, 'sonnet');
+    assert.equal(t.autoCompactPct, 96.7);
+    assert.equal(t.warningPct, 60.0);
+    assert.equal(t.dangerPct, 70.0);
+    assert.equal(t.maxTokens, 1_000_000);
   });
 });

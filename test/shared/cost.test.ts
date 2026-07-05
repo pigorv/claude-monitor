@@ -144,6 +144,22 @@ describe('resolveModel', () => {
     assert.equal(r.context_window, 1000000);
   });
 
+  it('resolves claude-sonnet-5 to its own 1M entry (Behavior #1)', () => {
+    const r = resolveModel('claude-sonnet-5');
+    assert.ok(r);
+    assert.equal(r.id, 'claude-sonnet-5');
+    assert.equal(r.context_window, 1_000_000);
+    assert.equal(r.pricing.input, 3);
+    assert.equal(r.pricing.output, 15);
+  });
+
+  it('matches a dated Sonnet 5 suffix to the sonnet-5 entry, not the family fallback (Behavior #3)', () => {
+    const r = resolveModel('claude-sonnet-5-20260115');
+    assert.ok(r);
+    assert.equal(r.id, 'claude-sonnet-5');
+    assert.equal(r.context_window, 1_000_000);
+  });
+
   it('unknown version of known family falls back to family rep (Behavior #8)', () => {
     const r = resolveModel('claude-opus-4-99');
     assert.ok(r);
@@ -309,6 +325,11 @@ describe('contextWindowFor / pricingFor', () => {
   it('returns window and pricing for known model', () => {
     assert.equal(contextWindowFor('claude-sonnet-4-6'), 200000);
     assert.equal(pricingFor('claude-haiku-4-5')?.input, 1);
+  });
+
+  it('returns the 1M window and Sonnet 5 pricing for claude-sonnet-5 (Behavior #2)', () => {
+    assert.equal(contextWindowFor('claude-sonnet-5'), 1000000);
+    assert.equal(pricingFor('claude-sonnet-5')?.input, 3);
   });
 
   it('returns null for unknown model', () => {
