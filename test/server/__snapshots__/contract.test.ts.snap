@@ -1,0 +1,175 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`API contract: clear (destructive) > POST /api/clear?confirm=true (200) 1`] = `
+{
+  "cleared": "boolean",
+  "message": "string",
+}
+`;
+
+exports[`API contract: empty DB > GET /api/sessions (empty) 1`] = `
+{
+  "limit": "number",
+  "offset": "number",
+  "sessions": [],
+  "total": "number",
+}
+`;
+
+exports[`API contract: empty DB > GET /api/stats (empty) 1`] = `
+{
+  "avg_duration_ms": "number",
+  "db_size_bytes": "number",
+  "event_count": "number",
+  "newest_session": "null",
+  "oldest_session": "null",
+  "session_count": "number",
+  "sessions_today": "number",
+  "sessions_with_compactions": "number",
+  "total_cache_read_tokens": "number",
+  "total_cache_write_tokens": "number",
+  "total_compactions": "number",
+  "total_cost_estimate_usd": "number",
+  "total_input_tokens": "number",
+  "total_output_tokens": "number",
+  "total_subagents": "number",
+  "total_tool_calls": "number",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/health 1`] = `
+{
+  "db_engine": "string",
+  "db_path": "string",
+  "db_size_bytes": "number",
+  "event_count": "number",
+  "newest_session": "string",
+  "node_version": "string",
+  "oldest_session": "string",
+  "platform": "string",
+  "server_port": "number",
+  "session_count": "number",
+  "status": "string",
+  "version": "string",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/projects 1`] = `
+{
+  "projects": [
+    {
+      "project_name": "string",
+      "project_path": "string",
+      "session_count": "number",
+    },
+  ],
+}
+`;
+
+exports[`API contract: populated DB > GET /api/reimport/status (idle) 1`] = `
+{
+  "done": "boolean",
+  "error": "null",
+  "errors": "number",
+  "finishedAt": "null",
+  "imported": "number",
+  "phase": "string",
+  "processed": "number",
+  "running": "boolean",
+  "startedAt": "null",
+  "total": "number",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions (populated) 1`] = `
+{
+  "limit": "number",
+  "offset": "number",
+  "sessions": [
+    {
+      "compaction_count": "number",
+      "cost_estimate_usd": "number",
+      "duration_ms": "number",
+      "id": "string",
+      "invocations": [
+        {
+          "name": "string",
+          "type": "string",
+        },
+      ],
+      "mini_timeline": [
+        {
+          "context_pct": "number",
+          "is_compaction": "boolean",
+        },
+      ],
+      "model": "string",
+      "models_used": [
+        "string",
+      ],
+      "peak_context_pct": "number",
+      "peak_tokens": "number",
+      "project_name": "string",
+      "project_path": "string",
+      "started_at": "string",
+      "started_with": {
+        "name": "string",
+        "type": "string",
+      },
+      "status": "string",
+      "subagent_count": "number",
+      "summary": "string",
+      "tool_call_count": "number",
+      "total_cache_read_tokens": "number",
+      "total_cache_write_tokens": "number",
+      "total_input_tokens": "number",
+      "total_output_tokens": "number",
+      "turn_count": "number",
+    },
+  ],
+  "total": "number",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/stats (populated) 1`] = `
+{
+  "avg_duration_ms": "number",
+  "db_size_bytes": "number",
+  "event_count": "number",
+  "newest_session": "string",
+  "oldest_session": "string",
+  "session_count": "number",
+  "sessions_today": "number",
+  "sessions_with_compactions": "number",
+  "total_cache_read_tokens": "number",
+  "total_cache_write_tokens": "number",
+  "total_compactions": "number",
+  "total_cost_estimate_usd": "number",
+  "total_input_tokens": "number",
+  "total_output_tokens": "number",
+  "total_subagents": "number",
+  "total_tool_calls": "number",
+}
+`;
+
+exports[`API contract: populated DB > POST /api/clear without confirm (400) 1`] = `
+{
+  "error": "string",
+}
+`;
+
+exports[`API contract: populated DB > POST /api/reimport (202) 1`] = `
+{
+  "done": "boolean",
+  "error": "null",
+  "errors": "number",
+  "finishedAt": "null",
+  "imported": "number",
+  "phase": "string",
+  "processed": "number",
+  "running": "boolean",
+  "started": "boolean",
+  "startedAt": "string",
+  "total": "number",
+}
+`;
