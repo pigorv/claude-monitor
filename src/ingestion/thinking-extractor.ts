@@ -408,11 +408,13 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
         }
       }
 
-      // Derive the agent's end from its known duration when available; fall
-      // back to the last in-window child (or the start) only when unknown.
+      // Derive the agent's end from its known duration when available. Without
+      // a duration we can't recover a real end (the child scan above only runs
+      // when durationMs > 0, so endIdx has not advanced past i here), so we
+      // collapse to the start.
       const endTimestamp = durationMs > 0
         ? new Date(new Date(evt.timestamp).getTime() + durationMs).toISOString()
-        : (endIdx > i ? events[endIdx].timestamp : evt.timestamp);
+        : evt.timestamp;
 
       // Set agent_id on child events
       for (let j = i + 1; j <= endIdx; j++) {
