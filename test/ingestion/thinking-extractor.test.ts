@@ -424,4 +424,115 @@ describe('assignAgentIds', () => {
     assert.ok(ok);
     assert.equal(ok.hasFailed, false);
   });
+
+  it('derives endTimestamp from duration_ms with no in-window child events', () => {
+    const start = '2026-01-01T00:00:00.000Z';
+    const durationMs = 5000;
+    const events: ReturnType<typeof extractAllEvents> = [
+      {
+        event_type: 'tool_call_start',
+        timestamp: start,
+        tool_name: 'Task',
+        tool_use_id: 'agent-a',
+        input_data: JSON.stringify({ description: 'Runs', subagent_type: 'Explore' }),
+        output_data: 'done',
+        metadata: { agentId: 'aid', duration_ms: durationMs },
+      },
+    ];
+
+    const agents = assignAgentIds(events);
+    assert.equal(agents.length, 1);
+    const expected = new Date(new Date(start).getTime() + durationMs).toISOString();
+    assert.equal(agents[0].endTimestamp, expected);
+    assert.notEqual(agents[0].endTimestamp, agents[0].startTimestamp);
+  });
+
+  it('derives endTimestamp from duration_ms even without output_data', () => {
+    const start = '2026-01-01T00:00:00.000Z';
+    const durationMs = 3000;
+    const events: ReturnType<typeof extractAllEvents> = [
+      {
+        event_type: 'tool_call_start',
+        timestamp: start,
+        tool_name: 'Agent',
+        tool_use_id: 'agent-b',
+        input_data: JSON.stringify({ description: 'Runs', subagent_type: 'Explore' }),
+        metadata: { agentId: 'bid', duration_ms: durationMs },
+      },
+    ];
+
+    const agents = assignAgentIds(events);
+    assert.equal(agents.length, 1);
+    const expected = new Date(new Date(start).getTime() + durationMs).toISOString();
+    assert.equal(agents[0].endTimestamp, expected);
+  });
+
+  it('falls back to last in-window child timestamp when duration_ms is absent', () => {
+    const start = '2026-01-01T00:00:00.000Z';
+    const events: ReturnType<typeof extractAllEvents> = [
+      {
+        event_type: 'tool_call_start',
+        timestamp: start,
+        tool_name: 'Task',
+        tool_use_id: 'agent-c',
+        input_data: JSON.stringify({ description: 'Runs', subagent_type: 'Explore' }),
+        metadata: { agentId: 'cid' },
+      },
+    ];
+
+    const agents = assignAgentIds(events);
+    assert.equal(agents.length, 1);
+    // No child events and no duration → collapses to the start timestamp.
+    assert.equal(agents[0].endTimestamp, start);
+  });
+
+  it('falls back to start when duration_ms is <= 0', () => {
+    const start = '2026-01-01T00:00:00.000Z';
+    const events: ReturnType<typeof extractAllEvents> = [
+      {
+        event_type: 'tool_call_start',
+        timestamp: start,
+        tool_name: 'Task',
+        tool_use_id: 'agent-d',
+        input_data: JSON.stringify({ description: 'Runs', subagent_type: 'Explore' }),
+        output_data: 'done',
+        metadata: { agentId: 'did', duration_ms: 0 },
+      },
+    ];
+
+    const agents = assignAgentIds(events);
+    assert.equal(agents.length, 1);
+    assert.equal(agents[0].endTimestamp, start);
+  });
+
+  it('computes a resumed agent endTimestamp from the later spawn duration_ms', () => {
+    const firstStart = '2026-01-01T00:00:00.000Z';
+    const secondStart = '2026-01-01T00:00:10.000Z';
+    const secondDuration = 4000;
+    const events: ReturnType<typeof extractAllEvents> = [
+      {
+        event_type: 'tool_call_start',
+        timestamp: firstStart,
+        tool_name: 'Task',
+        tool_use_id: 'agent-r1',
+        input_data: JSON.stringify({ description: 'First', subagent_type: 'Explore' }),
+        output_data: 'partial',
+        metadata: { agentId: 'resumed', duration_ms: 1000 },
+      },
+      {
+        event_type: 'tool_call_start',
+        timestamp: secondStart,
+        tool_name: 'Task',
+        tool_use_id: 'agent-r2',
+        input_data: JSON.stringify({ description: 'Second', subagent_type: 'Explore' }),
+        output_data: 'final',
+        metadata: { agentId: 'resumed', duration_ms: secondDuration },
+      },
+    ];
+
+    const agents = assignAgentIds(events);
+    assert.equal(agents.length, 1);
+    const expected = new Date(new Date(secondStart).getTime() + secondDuration).toISOString();
+    assert.equal(agents[0].endTimestamp, expected);
+  });
 });
