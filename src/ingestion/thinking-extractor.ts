@@ -390,21 +390,29 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
       // Find the range of events that belong to this agent
       let endIdx = i;
 
+      // Read the agent's real runtime; a subagent's own events live in a
+      // separate transcript file, so the parent-side child scan below cannot
+      // recover the true end time — we derive endTimestamp from this instead.
+      const durationMs = (evt.metadata?.duration_ms as number) || 0;
+
       // If this merged event has output_data, find child events by timestamp
-      if (evt.output_data) {
-        const durationMs = (evt.metadata?.duration_ms as number) || 0;
-        if (durationMs > 0) {
-          const endTime = new Date(evt.timestamp).getTime() + durationMs;
-          for (let j = i + 1; j < events.length; j++) {
-            const childTime = new Date(events[j].timestamp).getTime();
-            if (childTime <= endTime) {
-              endIdx = j;
-            } else {
-              break;
-            }
+      if (evt.output_data && durationMs > 0) {
+        const endTime = new Date(evt.timestamp).getTime() + durationMs;
+        for (let j = i + 1; j < events.length; j++) {
+          const childTime = new Date(events[j].timestamp).getTime();
+          if (childTime <= endTime) {
+            endIdx = j;
+          } else {
+            break;
           }
         }
       }
+
+      // Derive the agent's end from its known duration when available; fall
+      // back to the last in-window child (or the start) only when unknown.
+      const endTimestamp = durationMs > 0
+        ? new Date(new Date(evt.timestamp).getTime() + durationMs).toISOString()
+        : (endIdx > i ? events[endIdx].timestamp : evt.timestamp);
 
       // Set agent_id on child events
       for (let j = i + 1; j <= endIdx; j++) {
@@ -420,7 +428,7 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
       if (existingIdx !== undefined) {
         const existing = agents[existingIdx];
         existing.endIdx = endIdx;
-        existing.endTimestamp = endIdx > i ? events[endIdx].timestamp : evt.timestamp;
+        existing.endTimestamp = endTimestamp;
         if (evt.output_data) existing.result = evt.output_data;
         existing.hasFailed = existing.hasFailed || hasFailed;
         continue;
@@ -435,7 +443,7 @@ export function assignAgentIds(events: ParsedEvent[]): Array<{
         startIdx: i,
         endIdx,
         startTimestamp: evt.timestamp,
-        endTimestamp: endIdx > i ? events[endIdx].timestamp : evt.timestamp,
+        endTimestamp,
         result: evt.output_data ?? undefined,
         hasFailed,
       });
