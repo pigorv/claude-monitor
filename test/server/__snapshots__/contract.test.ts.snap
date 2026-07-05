@@ -1,0 +1,552 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`API contract: clear (destructive) > POST /api/clear?confirm=true (200) 1`] = `
+{
+  "cleared": "boolean",
+  "message": "string",
+}
+`;
+
+exports[`API contract: empty DB > GET /api/sessions (empty) 1`] = `
+{
+  "limit": "number",
+  "offset": "number",
+  "sessions": [],
+  "total": "number",
+}
+`;
+
+exports[`API contract: empty DB > GET /api/stats (empty) 1`] = `
+{
+  "avg_duration_ms": "number",
+  "db_size_bytes": "number",
+  "event_count": "number",
+  "newest_session": "null",
+  "oldest_session": "null",
+  "session_count": "number",
+  "sessions_today": "number",
+  "sessions_with_compactions": "number",
+  "total_cache_read_tokens": "number",
+  "total_cache_write_tokens": "number",
+  "total_compactions": "number",
+  "total_cost_estimate_usd": "number",
+  "total_input_tokens": "number",
+  "total_output_tokens": "number",
+  "total_subagents": "number",
+  "total_tool_calls": "number",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/export (headers) 1`] = `
+{
+  "content_disposition": "attachment; filename="claude-monitor-<DATE>.sqlite"",
+  "content_length_numeric": true,
+  "content_type": "application/x-sqlite3",
+  "status": 200,
+}
+`;
+
+exports[`API contract: populated DB > GET /api/health 1`] = `
+{
+  "db_engine": "string",
+  "db_path": "string",
+  "db_size_bytes": "number",
+  "event_count": "number",
+  "newest_session": "string",
+  "node_version": "string",
+  "oldest_session": "string",
+  "platform": "string",
+  "server_port": "number",
+  "session_count": "number",
+  "status": "string",
+  "version": "string",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/projects 1`] = `
+{
+  "projects": [
+    {
+      "project_name": "string",
+      "project_path": "string",
+      "session_count": "number",
+    },
+  ],
+}
+`;
+
+exports[`API contract: populated DB > GET /api/reimport/status (idle) 1`] = `
+{
+  "done": "boolean",
+  "error": "null",
+  "errors": "number",
+  "finishedAt": "null",
+  "imported": "number",
+  "phase": "string",
+  "processed": "number",
+  "running": "boolean",
+  "startedAt": "null",
+  "total": "number",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions (populated) 1`] = `
+{
+  "limit": "number",
+  "offset": "number",
+  "sessions": [
+    {
+      "compaction_count": "number",
+      "cost_estimate_usd": "number",
+      "duration_ms": "number",
+      "id": "string",
+      "invocations": [
+        {
+          "name": "string",
+          "type": "string",
+        },
+      ],
+      "mini_timeline": [
+        {
+          "context_pct": "number",
+          "is_compaction": "boolean",
+        },
+      ],
+      "model": "string",
+      "models_used": [
+        "string",
+      ],
+      "peak_context_pct": "number",
+      "peak_tokens": "number",
+      "project_name": "string",
+      "project_path": "string",
+      "started_at": "string",
+      "started_with": {
+        "name": "string",
+        "type": "string",
+      },
+      "status": "string",
+      "subagent_count": "number",
+      "summary": "string",
+      "tool_call_count": "number",
+      "total_cache_read_tokens": "number",
+      "total_cache_write_tokens": "number",
+      "total_input_tokens": "number",
+      "total_output_tokens": "number",
+      "turn_count": "number",
+    },
+  ],
+  "total": "number",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions/:id (404) 1`] = `
+{
+  "error": "string",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions/:id (sess-bare, minimal) 1`] = `
+{
+  "agents": [],
+  "compaction_details": [],
+  "event_count": "number",
+  "file_activity": {
+    "files": [],
+    "files_with_subagents": [],
+    "reread_after_compaction_count": "number",
+    "reread_after_compaction_count_with_subagents": "number",
+    "total_reread_tokens": "number",
+    "total_reread_tokens_with_subagents": "number",
+  },
+  "session": {
+    "agent_avg_compression": "null",
+    "agent_compacted_count": "number",
+    "agent_pressure_events": "number",
+    "agent_total_tokens": "number",
+    "compaction_count": "number",
+    "cost_estimate_usd": "null",
+    "duration_ms": "null",
+    "end_reason": "null",
+    "ended_at": "null",
+    "id": "string",
+    "invocations": "null",
+    "last_imported_mtime": "null",
+    "metadata": "null",
+    "model": "string",
+    "models_used": "null",
+    "peak_concurrency": "number",
+    "peak_context_pct": "number",
+    "project_name": "string",
+    "project_path": "string",
+    "source": "string",
+    "started_at": "string",
+    "started_with": "null",
+    "status": "string",
+    "subagent_count": "number",
+    "summary": "null",
+    "tool_call_count": "number",
+    "total_cache_read_tokens": "number",
+    "total_cache_write_1h_tokens": "number",
+    "total_cache_write_5m_tokens": "number",
+    "total_cache_write_tokens": "number",
+    "total_input_tokens": "number",
+    "total_input_tokens_billed": "number",
+    "total_output_tokens": "number",
+    "transcript_path": "null",
+  },
+  "stats": {
+    "avg_tool_duration_ms": "number",
+    "files_read": [],
+    "files_written": [],
+    "tool_frequency": {},
+    "unique_tools": [],
+  },
+  "token_budget": {
+    "agents": {
+      "cost": "number",
+      "pct": "number",
+      "runs": "number",
+      "tokens": "number",
+    },
+    "billed_tokens": "number",
+    "by_type": [
+      {
+        "cost": "number",
+        "tokens": "number",
+        "type": "string",
+      },
+    ],
+    "context_peak": {
+      "max_tokens": "number",
+      "pct": "number",
+      "peak_tokens": "number",
+    },
+    "cost_total": "number",
+    "parent": {
+      "cost": "number",
+      "pct": "number",
+      "tokens": "number",
+    },
+  },
+  "token_timeline": [],
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions/:id (sess-rich, maximal) 1`] = `
+{
+  "agent_efficiency": {
+    "agents_with_compaction": "number",
+    "aggregate_tokens": "number",
+    "avg_agent_duration_ms": "number",
+    "avg_compression_ratio": "number",
+    "parent_pressure_events": "number",
+    "peak_concurrency": "number",
+    "total_agents": "number",
+  },
+  "agents": [
+    {
+      "agent_compaction_count": "number",
+      "cache_read_total": "number",
+      "cache_write_1h_total": "number",
+      "cache_write_5m_total": "number",
+      "child_agent_id": "string",
+      "child_transcript_path": "null",
+      "complete_timestamp": "null",
+      "compression_ratio": "number",
+      "duration_ms": "number",
+      "ended_at": "string",
+      "execution_mode": "null",
+      "files_read_count": "number",
+      "files_total_tokens": "number",
+      "id": "number",
+      "input_tokens_total": "number",
+      "internal_tool_calls": [],
+      "model": "string",
+      "output_tokens_total": "number",
+      "parent_headroom_at_return": "null",
+      "parent_impact_pct": "null",
+      "parent_session_id": "string",
+      "peak_context_tokens": "number",
+      "prompt_data": "null",
+      "prompt_preview": "null",
+      "prompt_tokens": "null",
+      "result_classification": "null",
+      "result_data": "null",
+      "result_preview": "null",
+      "result_tokens": "null",
+      "spawn_timestamp": "null",
+      "started_at": "string",
+      "status": "string",
+      "token_timeline": [],
+      "tool_call_count": "number",
+    },
+  ],
+  "compaction_details": [
+    {
+      "event_id": "number",
+      "likely_dropped": [
+        "string",
+      ],
+      "timestamp": "string",
+      "tokens_after": "number",
+      "tokens_before": "number",
+      "trigger": "string",
+    },
+  ],
+  "event_annotations": [
+    {
+      "label": "string",
+      "marker_type": "string",
+      "timestamp": "string",
+      "tool_name": "string",
+    },
+  ],
+  "event_count": "number",
+  "file_activity": {
+    "files": [
+      {
+        "file_path": "string",
+        "first_read": "string",
+        "has_partial": "boolean",
+        "is_reread_after_compaction": "boolean",
+        "is_skill_file": "boolean",
+        "read_count": "number",
+        "total_tokens": "number",
+      },
+    ],
+    "files_with_subagents": [
+      {
+        "file_path": "string",
+        "first_read": "string",
+        "has_partial": "boolean",
+        "is_reread_after_compaction": "boolean",
+        "is_skill_file": "boolean",
+        "read_count": "number",
+        "total_tokens": "number",
+      },
+    ],
+    "reread_after_compaction_count": "number",
+    "reread_after_compaction_count_with_subagents": "number",
+    "total_reread_tokens": "number",
+    "total_reread_tokens_with_subagents": "number",
+  },
+  "linked_sessions": [
+    {
+      "duration_ms": "number",
+      "model": "string",
+      "project_name": "string",
+      "relationship": "string",
+      "session_id": "string",
+      "started_at": "string",
+      "summary": "string",
+    },
+  ],
+  "peak_parent_tokens": "number",
+  "session": {
+    "agent_avg_compression": "null",
+    "agent_compacted_count": "number",
+    "agent_pressure_events": "number",
+    "agent_total_tokens": "number",
+    "compaction_count": "number",
+    "cost_estimate_usd": "number",
+    "duration_ms": "number",
+    "end_reason": "string",
+    "ended_at": "string",
+    "id": "string",
+    "invocations": "string",
+    "last_imported_mtime": "null",
+    "metadata": "null",
+    "model": "string",
+    "models_used": "string",
+    "peak_concurrency": "number",
+    "peak_context_pct": "number",
+    "project_name": "string",
+    "project_path": "string",
+    "source": "string",
+    "started_at": "string",
+    "started_with": "string",
+    "status": "string",
+    "subagent_count": "number",
+    "summary": "string",
+    "tool_call_count": "number",
+    "total_cache_read_tokens": "number",
+    "total_cache_write_1h_tokens": "number",
+    "total_cache_write_5m_tokens": "number",
+    "total_cache_write_tokens": "number",
+    "total_input_tokens": "number",
+    "total_input_tokens_billed": "number",
+    "total_output_tokens": "number",
+    "transcript_path": "string",
+  },
+  "stats": {
+    "avg_tool_duration_ms": "number",
+    "files_read": [
+      "string",
+    ],
+    "files_written": [
+      "string",
+    ],
+    "tool_frequency": {
+      "Read": "number",
+      "Write": "number",
+    },
+    "unique_tools": [
+      "string",
+    ],
+  },
+  "token_budget": {
+    "agents": {
+      "cost": "number",
+      "pct": "number",
+      "runs": "number",
+      "tokens": "number",
+    },
+    "billed_tokens": "number",
+    "by_type": [
+      {
+        "cost": "number",
+        "tokens": "number",
+        "type": "string",
+      },
+    ],
+    "context_peak": {
+      "max_tokens": "number",
+      "pct": "number",
+      "peak_tokens": "number",
+    },
+    "cost_total": "number",
+    "parent": {
+      "cost": "number",
+      "pct": "number",
+      "tokens": "number",
+    },
+  },
+  "token_timeline": [
+    {
+      "cache_read_tokens": "number",
+      "cache_write_tokens": "number",
+      "context_pct": "number",
+      "event_type": "string",
+      "input_tokens": "number",
+      "is_compaction": "number",
+      "output_tokens": "number",
+      "timestamp": "string",
+    },
+  ],
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions/:id/event-counts (404) 1`] = `
+{
+  "error": "string",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions/:id/event-counts (sess-rich) 1`] = `
+{
+  "counts": {
+    "all": "number",
+    "assistant_message": "number",
+    "tool_call_start": "number",
+    "user_message": "number",
+  },
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions/:id/events (404) 1`] = `
+{
+  "error": "string",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions/:id/events (sess-rich) 1`] = `
+{
+  "events": [
+    {
+      "_total": "number",
+      "agent_id": "null",
+      "cache_read_tokens": "number",
+      "cache_write_tokens": "null",
+      "context_pct": "number",
+      "duration_ms": "number",
+      "event_source": "string",
+      "event_type": "string",
+      "id": "number",
+      "input_data": "string",
+      "input_preview": "null",
+      "input_tokens": "number",
+      "metadata": "null",
+      "output_data": "null",
+      "output_preview": "null",
+      "output_tokens": "number",
+      "sequence_num": "number",
+      "session_id": "string",
+      "thinking_summary": "null",
+      "timestamp": "string",
+      "tool_name": "string",
+    },
+  ],
+  "limit": "number",
+  "offset": "number",
+  "total": "number",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions/:id/export (404) 1`] = `
+{
+  "error": "string",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions/:id/export (sess-export, headers) 1`] = `
+{
+  "content_disposition": "attachment; filename="claude-monitor-session-sess-export.zip"",
+  "content_length_numeric": true,
+  "content_type": "application/zip",
+  "status": 200,
+}
+`;
+
+exports[`API contract: populated DB > GET /api/stats (populated) 1`] = `
+{
+  "avg_duration_ms": "number",
+  "db_size_bytes": "number",
+  "event_count": "number",
+  "newest_session": "string",
+  "oldest_session": "string",
+  "session_count": "number",
+  "sessions_today": "number",
+  "sessions_with_compactions": "number",
+  "total_cache_read_tokens": "number",
+  "total_cache_write_tokens": "number",
+  "total_compactions": "number",
+  "total_cost_estimate_usd": "number",
+  "total_input_tokens": "number",
+  "total_output_tokens": "number",
+  "total_subagents": "number",
+  "total_tool_calls": "number",
+}
+`;
+
+exports[`API contract: populated DB > POST /api/clear without confirm (400) 1`] = `
+{
+  "error": "string",
+}
+`;
+
+exports[`API contract: populated DB > POST /api/reimport (202) 1`] = `
+{
+  "done": "boolean",
+  "error": "null",
+  "errors": "number",
+  "finishedAt": "null",
+  "imported": "number",
+  "phase": "string",
+  "processed": "number",
+  "running": "boolean",
+  "started": "boolean",
+  "startedAt": "string",
+  "total": "number",
+}
+`;
