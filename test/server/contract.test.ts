@@ -200,6 +200,20 @@ describe('API contract: populated DB', () => {
   let tmpDir: string;
   let app: ReturnType<typeof createApp>;
 
+  // Poll the reimport status until the background run reports done. Any test
+  // that starts a run MUST await this before returning: otherwise a run still
+  // in flight during afterAll's closeDb() reopens getDb() at the *default*
+  // (production) db path and scans the real ~/.claude/projects corpus.
+  async function waitForReimportDone(timeoutMs = 30000): Promise<void> {
+    const start = Date.now();
+    for (;;) {
+      const body = await (await app.request('/api/reimport/status')).json();
+      if (body.done) return;
+      if (Date.now() - start > timeoutMs) throw new Error('reimport did not finish in time');
+      await new Promise((r) => setTimeout(r, 15));
+    }
+  }
+
   beforeAll(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'contract-populated-'));
     seed(join(tmpDir, 'test.sqlite'), tmpDir);
@@ -294,12 +308,16 @@ describe('API contract: populated DB', () => {
   });
 
   it('POST /api/reimport (202)', async () => {
-    // The background job reads DEFAULT_CONFIG.claudeProjectsPath (absent in CI →
-    // no-op) and only touches this temp DB, so it is inert. The 409 "already
-    // running" branch returns the identical body shape ({started, ...status}).
+    // The 409 "already running" branch returns the identical body shape
+    // ({started, ...status}). The background job scans
+    // DEFAULT_CONFIG.claudeProjectsPath and compacts the DB, so it must be
+    // awaited to completion before this test returns — an unawaited run in
+    // flight during afterAll's closeDb() would reopen getDb() at the default
+    // (production) db path and import the real ~/.claude/projects corpus.
     const res = await app.request('/api/reimport', { method: 'POST' });
     expect(res.status).toBe(202);
     expect(shapeOf(await res.json())).toMatchSnapshot();
+    await waitForReimportDone();
   });
 
   it('POST /api/clear without confirm (400)', async () => {
