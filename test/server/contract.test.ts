@@ -307,6 +307,51 @@ describe('API contract: populated DB', () => {
     expect(res.status).toBe(400);
     expect(shapeOf(await res.json())).toMatchSnapshot();
   });
+
+  // ── Binary export routes (T1.3) ───────────────────────────────────────
+  //
+  // These two routes return bytes, not JSON, so their contract is the response
+  // HEADERS, not a body shape. We snapshot a normalized header descriptor and
+  // MASK the volatile date/filename so the snapshot stays date-independent; the
+  // raw byte body is never snapshotted. `content_length_numeric` is a boolean so
+  // the (volatile) byte count never leaks into the snapshot.
+  //
+  // NOTE: `POST /api/sessions/:id/open-terminal` is intentionally NOT given a
+  // contract test here. It is platform-specific and spawns an OS process, so it
+  // has no stable API→SPA response shape to fingerprint; it is already covered by
+  // `test/server/terminal.test.ts` and `test/server/terminal-win32.test.ts`.
+
+  it('GET /api/export (headers)', async () => {
+    const res = await app.request('/api/export');
+    expect(res.status).toBe(200);
+    expect({
+      status: res.status,
+      content_type: res.headers.get('content-type'),
+      content_disposition: res.headers.get('content-disposition')!.replace(/\d{4}-\d{2}-\d{2}/, '<DATE>'),
+      content_length_numeric:
+        Number.isInteger(Number(res.headers.get('content-length'))) &&
+        Number(res.headers.get('content-length')) > 0,
+    }).toMatchSnapshot();
+  });
+
+  it('GET /api/sessions/:id/export (sess-export, headers)', async () => {
+    const res = await app.request('/api/sessions/sess-export/export');
+    expect(res.status).toBe(200);
+    expect({
+      status: res.status,
+      content_type: res.headers.get('content-type'),
+      content_disposition: res.headers.get('content-disposition')!.replace(/\d{4}-\d{2}-\d{2}/, '<DATE>'),
+      content_length_numeric:
+        Number.isInteger(Number(res.headers.get('content-length'))) &&
+        Number(res.headers.get('content-length')) > 0,
+    }).toMatchSnapshot();
+  });
+
+  it('GET /api/sessions/:id/export (404)', async () => {
+    const res = await app.request('/api/sessions/does-not-exist/export');
+    expect(res.status).toBe(404);
+    expect(shapeOf(await res.json())).toMatchSnapshot();
+  });
 });
 
 // ── Empty DB: /api/stats and /api/sessions ───────────────────────────────

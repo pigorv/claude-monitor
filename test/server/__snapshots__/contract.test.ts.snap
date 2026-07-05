@@ -37,6 +37,15 @@ exports[`API contract: empty DB > GET /api/stats (empty) 1`] = `
 }
 `;
 
+exports[`API contract: populated DB > GET /api/export (headers) 1`] = `
+{
+  "content_disposition": "attachment; filename="claude-monitor-<DATE>.sqlite"",
+  "content_length_numeric": true,
+  "content_type": "application/x-sqlite3",
+  "status": 200,
+}
+`;
+
 exports[`API contract: populated DB > GET /api/health 1`] = `
 {
   "db_engine": "string",
@@ -481,6 +490,21 @@ exports[`API contract: populated DB > GET /api/sessions/:id/events (sess-rich) 1
   "limit": "number",
   "offset": "number",
   "total": "number",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions/:id/export (404) 1`] = `
+{
+  "error": "string",
+}
+`;
+
+exports[`API contract: populated DB > GET /api/sessions/:id/export (sess-export, headers) 1`] = `
+{
+  "content_disposition": "attachment; filename="claude-monitor-session-sess-export.zip"",
+  "content_length_numeric": true,
+  "content_type": "application/zip",
+  "status": 200,
 }
 `;
 
