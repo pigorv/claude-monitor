@@ -185,10 +185,13 @@ function seed(dbPath: string, tmpDir: string): void {
   insertAgent.run('sess-rich', 'agent-2', PRICED_MODEL, 1500, 800, 500, 250, 0, 'completed', 3, 45000, '2026-03-03T10:12:00Z', '2026-03-03T10:13:00Z', 2.5, 6000, 0);
 
   // One session_links row → linked_sessions present on sess-rich detail.
+  // Target sess-export (not sess-bare) so sess-bare stays link-free: getLinkedSessions
+  // matches both source and target sides, so pointing the link at sess-bare would
+  // surface linked_sessions on it too and break the minimal-shape contrast.
   db.prepare(`
     INSERT INTO session_links (source_session_id, target_session_id, link_type)
     VALUES (?, ?, ?)
-  `).run('sess-rich', 'sess-bare', 'plan_implementation');
+  `).run('sess-rich', 'sess-export', 'plan_implementation');
 }
 
 // ── Populated DB: simple JSON routes ─────────────────────────────────────
@@ -229,6 +232,56 @@ describe('API contract: populated DB', () => {
   it('GET /api/sessions (populated)', async () => {
     const res = await app.request('/api/sessions');
     expect(res.status).toBe(200);
+    expect(shapeOf(await res.json())).toMatchSnapshot();
+  });
+
+  // ── Session-scoped JSON routes (T1.2) ─────────────────────────────────
+  //
+  // sess-rich exhibits the MAXIMAL detail shape: agents populated,
+  // agent_efficiency present (≥2 non-failed agents), linked_sessions present
+  // (one session_links row), and numeric token_budget costs (priced model).
+  // sess-bare exhibits the MINIMAL shape with those optional blocks ABSENT.
+  // The contrast between the two snapshots is the contract coverage.
+
+  it('GET /api/sessions/:id (sess-rich, maximal)', async () => {
+    const res = await app.request('/api/sessions/sess-rich');
+    expect(res.status).toBe(200);
+    expect(shapeOf(await res.json())).toMatchSnapshot();
+  });
+
+  it('GET /api/sessions/:id (sess-bare, minimal)', async () => {
+    const res = await app.request('/api/sessions/sess-bare');
+    expect(res.status).toBe(200);
+    expect(shapeOf(await res.json())).toMatchSnapshot();
+  });
+
+  it('GET /api/sessions/:id (404)', async () => {
+    const res = await app.request('/api/sessions/does-not-exist');
+    expect(res.status).toBe(404);
+    expect(shapeOf(await res.json())).toMatchSnapshot();
+  });
+
+  it('GET /api/sessions/:id/events (sess-rich)', async () => {
+    const res = await app.request('/api/sessions/sess-rich/events');
+    expect(res.status).toBe(200);
+    expect(shapeOf(await res.json())).toMatchSnapshot();
+  });
+
+  it('GET /api/sessions/:id/events (404)', async () => {
+    const res = await app.request('/api/sessions/does-not-exist/events');
+    expect(res.status).toBe(404);
+    expect(shapeOf(await res.json())).toMatchSnapshot();
+  });
+
+  it('GET /api/sessions/:id/event-counts (sess-rich)', async () => {
+    const res = await app.request('/api/sessions/sess-rich/event-counts');
+    expect(res.status).toBe(200);
+    expect(shapeOf(await res.json())).toMatchSnapshot();
+  });
+
+  it('GET /api/sessions/:id/event-counts (404)', async () => {
+    const res = await app.request('/api/sessions/does-not-exist/event-counts');
+    expect(res.status).toBe(404);
     expect(shapeOf(await res.json())).toMatchSnapshot();
   });
 
