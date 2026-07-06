@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { mkdirSync, writeFileSync, copyFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, copyFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Buffer } from 'node:buffer';
@@ -255,6 +255,105 @@ describe('buildSessionBundle', () => {
     assert.deepEqual(bundleOrder, directOrder, 'event order matches direct import');
   });
 
+  it('explicit { sanitize: true } produces the same layout as the default call', async () => {
+    const { parentPath } = layOutTranscript(join(TEST_DIR, 'projA'));
+    seedSessionRow('sess-001', parentPath);
+
+    const { zip: defaultZip, audit: defaultAudit } = await buildSessionBundle('sess-001');
+    const { zip: explicitZip, audit: explicitAudit } = await buildSessionBundle('sess-001', {
+      sanitize: true,
+    });
+
+    const defaultNames = parseZip(defaultZip).map((e) => e.name).sort();
+    const explicitNames = parseZip(explicitZip).map((e) => e.name).sort();
+    assert.deepEqual(explicitNames, defaultNames);
+    assert.deepEqual(explicitNames, [
+      'sanitization-report.json',
+      'sess-001.jsonl',
+      'sess-001/subagents/agent-aaa.jsonl',
+    ]);
+    // Both modes populate a counts-only audit with the same shape.
+    assert.ok(defaultAudit);
+    assert.ok(explicitAudit);
+    assert.deepEqual(Object.keys(explicitAudit).sort(), Object.keys(defaultAudit).sort());
+  });
+
+  it('{ sanitize: false } copies each transcript byte-for-byte from disk', async () => {
+    const { parentPath } = layOutTranscript(join(TEST_DIR, 'projA'));
+    seedSessionRow('sess-001', parentPath);
+
+    const { zip } = await buildSessionBundle('sess-001', { sanitize: false });
+    const entries = parseZip(zip);
+
+    const parentEntry = entries.find((e) => e.name === 'sess-001.jsonl')!;
+    assert.ok(
+      parentEntry.data.equals(readFileSync(parentPath)),
+      'parent transcript is byte-for-byte identical to the on-disk fixture',
+    );
+
+    const subPath = join(TEST_DIR, 'projA', 'sess-001', 'subagents', 'agent-aaa.jsonl');
+    const subEntry = entries.find((e) => e.name === 'sess-001/subagents/agent-aaa.jsonl')!;
+    assert.ok(
+      subEntry.data.equals(readFileSync(subPath)),
+      'subagent transcript is byte-for-byte identical to the on-disk file',
+    );
+  });
+
+  it('{ sanitize: false } adds export-manifest.json, drops the report, and has no audit', async () => {
+    const { parentPath } = layOutTranscript(join(TEST_DIR, 'projA'));
+    seedSessionRow('sess-001', parentPath);
+
+    const { zip, filename, audit } = await buildSessionBundle('sess-001', { sanitize: false });
+    assert.equal(filename, 'claude-monitor-session-sess-001.zip');
+    assert.equal(audit, undefined);
+
+    const names = parseZip(zip).map((e) => e.name).sort();
+    assert.deepEqual(names, [
+      'export-manifest.json',
+      'sess-001.jsonl',
+      'sess-001/subagents/agent-aaa.jsonl',
+    ]);
+    assert.ok(!names.includes('sanitization-report.json'));
+
+    const manifest = parseZip(zip).find((e) => e.name === 'export-manifest.json')!;
+    assert.deepEqual(JSON.parse(manifest.data.toString('utf8')), { sanitized: false });
+  });
+
+  it('raw round-trips: unzip → import reconstructs session + events + agents', async () => {
+    const { parentPath } = layOutTranscript(join(TEST_DIR, 'projA'));
+    seedSessionRow('sess-001', parentPath);
+
+    const { zip } = await buildSessionBundle('sess-001', { sanitize: false });
+    const entries = parseZip(zip);
+
+    const unzipRoot = join(TEST_DIR, 'unzipped-raw');
+    const importPaths: string[] = [];
+    for (const e of entries) {
+      if (e.name === 'export-manifest.json') continue;
+      const dest = join(unzipRoot, e.name);
+      mkdirSync(join(dest, '..'), { recursive: true });
+      writeFileSync(dest, e.data);
+      if (!e.name.includes('/subagents/')) importPaths.push(dest);
+    }
+
+    closeDb();
+    rmSync(DB_PATH, { force: true });
+    getDb(DB_PATH);
+    await importTranscripts(importPaths, { force: true });
+
+    const session = getSession('sess-001');
+    assert.ok(session, 'session row reconstructed from unzipped raw bundle');
+
+    const { events } = listEventsBySession('sess-001', { includeThinking: true });
+    assert.ok(events.length > 0, 'events reconstructed');
+    assert.ok(events.some((e) => e.agent_id), 'subagent events discovered');
+
+    const rel = getDb()
+      .prepare('SELECT COUNT(*) AS n FROM agent_relationships WHERE parent_session_id = ?')
+      .get('sess-001') as { n: number };
+    assert.ok(rel.n > 0, 'agent relationship row created');
+  });
+
   it('never serializes the injected seed into any bundle entry (hex + raw)', async () => {
     const { parentPath } = layOutTranscript(join(TEST_DIR, 'projA'));
     seedSessionRow('sess-001', parentPath);
@@ -263,7 +362,7 @@ describe('buildSessionBundle', () => {
     const seed = Buffer.from('0123456789abcdef0123456789abcdef', 'hex');
     const seedHex = seed.toString('hex');
 
-    const { zip } = await buildSessionBundle('sess-001', seed);
+    const { zip } = await buildSessionBundle('sess-001', { seed });
     for (const e of parseZip(zip)) {
       assert.equal(e.data.toString('utf8').includes(seedHex), false, `${e.name} contains seed hex`);
       assert.equal(e.data.includes(seed), false, `${e.name} contains raw seed bytes`);

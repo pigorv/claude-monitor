@@ -68,14 +68,16 @@ export async function exportCommand(args: string[]): Promise<void> {
 
     const { audit } = bundle;
     console.log(`Exported session ${sessionId} → ${outPath}`);
-    console.log('Sanitization summary:');
-    console.log(`  Lines emitted:        ${audit.emitted}`);
-    console.log(`  Lines dropped:        ${audit.dropped}`);
-    console.log(`  Snapshots dropped:    ${audit.droppedSnapshots}`);
-    console.log(`  Fields dropped:       ${audit.droppedFields}`);
-    console.log(`  Paths pseudonymized:  ${audit.pathsPseudonymized}`);
-    console.log(`  Text values scrambled:${audit.scrambled}`);
-    console.log(`  Malformed lines:      ${audit.malformed}`);
+    if (audit) {
+      console.log('Sanitization summary:');
+      console.log(`  Lines emitted:        ${audit.emitted}`);
+      console.log(`  Lines dropped:        ${audit.dropped}`);
+      console.log(`  Snapshots dropped:    ${audit.droppedSnapshots}`);
+      console.log(`  Fields dropped:       ${audit.droppedFields}`);
+      console.log(`  Paths pseudonymized:  ${audit.pathsPseudonymized}`);
+      console.log(`  Text values scrambled:${audit.scrambled}`);
+      console.log(`  Malformed lines:      ${audit.malformed}`);
+    }
   } catch (err) {
     // buildSessionBundle throws actionable errors for missing session /
     // null transcript path / gone file. Print the message, not a stack trace.
