@@ -1,0 +1,136 @@
+<title>Issue #90 — Variant B: single sanitized-only export button</title>
+<style>
+  :root {
+    --purple-50:#EEEDFE; --purple-100:#CECBF6; --purple-200:#AFA9EC; --purple-400:#7F77DD; --purple-600:#534AB7; --purple-800:#3C3489; --purple-900:#26215C;
+    --gray-50:#F1EFE8; --gray-100:#D3D1C7; --gray-200:#B4B2A9; --gray-400:#888780; --gray-600:#5F5E5A; --gray-800:#444441; --gray-900:#2C2C2A;
+    --amber-50:#FAEEDA; --amber-800:#633806;
+    --red-50:#FCEBEB; --red-200:#F09595; --red-400:#E24B4A; --red-100:#F7C1C1;
+
+    --color-text-primary:#fffffe; --color-text-secondary:var(--gray-200); --color-text-tertiary:var(--gray-400); --color-text-inverse:var(--gray-900);
+    --color-background-primary:var(--gray-900); --color-background-secondary:var(--gray-800); --color-background-tertiary:#3A3A37; --color-background-hover:#34332F;
+    --color-border-primary:#3A3A37; --color-border-secondary:#4A4945;
+    --color-accent:var(--purple-200);
+    --color-status-warning-bg:var(--amber-800); --color-status-warning-text:var(--amber-50);
+    --color-status-danger-text:var(--red-100);
+
+    --shadow-sm:0 1px 2px rgba(0,0,0,0.25);
+    --radius-sm:4px; --radius-md:8px; --radius-lg:12px;
+    --font-mono:"IBM Plex Mono", monospace; --font-sans:"Instrument Sans", sans-serif;
+  }
+  :root[data-theme="light"] {
+    --color-text-primary:#1c1917; --color-text-secondary:#6b6560; --color-text-tertiary:#7d7872; --color-text-inverse:#fffffe;
+    --color-background-primary:#fffffe; --color-background-secondary:#f7f5f2; --color-background-tertiary:#f3f0ec; --color-background-hover:#f2eeea;
+    --color-border-primary:#e8e4df; --color-border-secondary:#d6d1ca;
+    --color-accent:var(--purple-600);
+    --color-status-warning-bg:var(--amber-50); --color-status-warning-text:var(--amber-800);
+    --color-status-danger-text:#A32D2D;
+    --shadow-sm:0 1px 2px rgba(28,25,23,0.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--color-background-secondary);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    padding: 32px 16px 80px;
+  }
+  .mockup-banner {
+    max-width: 1000px; margin: 0 auto 24px; padding: 10px 16px;
+    background: var(--color-status-warning-bg); color: var(--color-status-warning-text);
+    border-radius: var(--radius-md); font-size: 12px; font-weight: 600;
+  }
+  .theme-toggle-hint { max-width: 1000px; margin: 0 auto 12px; font-size: 11px; color: var(--color-text-tertiary); }
+  .page { max-width: 1000px; margin: 0 auto; padding: 24px; }
+  .card-block { background: var(--color-background-primary); border: 1px solid var(--color-border-primary); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 24px; margin-bottom: 20px; }
+  .breadcrumb { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; }
+  .session-title { font-size: 22px; font-weight: 700; letter-spacing: -0.04em; margin-bottom: 4px; }
+  .session-subtitle { font-size: 12px; color: var(--color-text-secondary); display:flex; align-items:center; gap:8px; margin-bottom: 20px; }
+  .sep { opacity: 0.5; }
+
+  .resume-row { display:flex; align-items:center; gap: 10px; flex-wrap: wrap; }
+  .resume-cmd { display:flex; align-items:center; gap:10px; background: var(--color-background-tertiary); border:1px solid var(--color-border-primary); border-radius: var(--radius-md); padding: 8px 12px; font-family: var(--font-mono); font-size: 12px; }
+  .resume-cmd-dollar { color: var(--color-text-tertiary); }
+
+  .copy-btn {
+    display:inline-flex; align-items:center; gap:6px;
+    font-family: var(--font-sans); font-size: 12px; font-weight: 600;
+    padding: 7px 14px; border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-primary);
+    cursor: pointer; box-shadow: var(--shadow-sm);
+  }
+  .copy-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+  .copy-btn:disabled { opacity: .55; cursor: not-allowed; }
+  .copy-btn.err { border-color: var(--red-400); color: var(--color-status-danger-text); }
+
+  .variant-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-tertiary); font-weight: 700; margin-bottom: 10px; }
+  .state-row { display:flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; margin-top: 8px; }
+  .state-col { display:flex; flex-direction:column; gap: 8px; }
+  .state-name { font-size: 11px; color: var(--color-text-tertiary); font-weight: 600; }
+  .tooltip-note { font-size: 11px; color: var(--color-text-tertiary); max-width: 260px; }
+  .error-inline { font-size: 11px; color: var(--color-status-danger-text); max-width: 260px; }
+
+  .followup-box {
+    margin-top: 28px; padding: 14px 16px; border: 1px dashed var(--color-border-secondary);
+    border-radius: var(--radius-md); font-size: 12px; color: var(--color-text-tertiary);
+  }
+
+  @media (max-width: 480px) {
+    .resume-row { flex-direction: column; align-items: stretch; }
+  }
+</style>
+
+<div class="mockup-banner">🎨 Design exploration — Issue #90, Variant B (not shipped code)</div>
+<div class="theme-toggle-hint">Dark theme shown as primary — matches the original issue text as written, before #171 (raw export mode) existed.</div>
+
+<div class="page">
+  <div class="card-block">
+    <div class="breadcrumb">Sessions ›</div>
+    <div class="session-title">Refactor token-tracker compaction detection</div>
+    <div class="session-subtitle">
+      <span>Sonnet <span style="opacity:.6">4.5</span></span>
+      <span class="sep">·</span>
+      <span>18m 42s</span>
+      <span class="sep">·</span>
+      <span>63 tool calls</span>
+      <span class="sep">·</span>
+      <span>ended 2h ago</span>
+    </div>
+
+    <div class="variant-label">Idle</div>
+    <div class="resume-row">
+      <div class="resume-cmd">
+        <span class="resume-cmd-dollar">$</span>
+        <span>claude --resume 8f2c91ab-44de-4a1c-9b7e-2d6c115e0af3</span>
+      </div>
+      <button class="copy-btn">Copy</button>
+      <button class="copy-btn">Open in Terminal</button>
+      <button class="copy-btn">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5V8.5M6 8.5L3.5 6M6 8.5L8.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 9.5V10.2C2 10.6 2.3 10.9 2.7 10.9H9.3C9.7 10.9 10 10.6 10 10.2V9.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        Export
+      </button>
+    </div>
+
+    <div class="variant-label" style="margin-top:32px;">Other states</div>
+    <div class="state-row">
+      <div class="state-col">
+        <span class="state-name">Streaming</span>
+        <button class="copy-btn" disabled>Exporting…</button>
+        <span class="tooltip-note">Disabled while the sanitized zip streams; tooltip shows progress.</span>
+      </div>
+      <div class="state-col">
+        <span class="state-name">Error — source gone</span>
+        <button class="copy-btn err">Export</button>
+        <span class="error-inline">Source transcript no longer on disk — can't export this session.</span>
+      </div>
+    </div>
+
+    <div class="followup-box">
+      No mode picker here — this is a single, unconfigured "sanitized" export, exactly as #90 originally proposed.
+      A separate follow-up issue would surface raw export (#171) in the UI once its "something in between" semantics are specified.
+    </div>
+  </div>
+</div>
