@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync, copyFileSync, rmSync, readFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Buffer } from 'node:buffer';
-import { inflateRawSync } from 'node:zlib';
+import { parseZip } from '../helpers/zip.js';
 import { buildSessionBundle, SessionExportError } from '../../src/export/session-bundle.js';
 import { importTranscripts } from '../../src/ingestion/transcript-importer.js';
 import { getDb, closeDb } from '../../src/db/connection.js';
@@ -14,32 +14,6 @@ import { listEventsBySession } from '../../src/db/queries/events.js';
 import type { Session } from '../../src/shared/types.js';
 
 const FIXTURES = fileURLToPath(new URL('../fixtures/', import.meta.url));
-
-// ── Minimal zip reader (mirrors the one in zip.test.ts) ─────────────
-
-function parseZip(zip: Buffer): { name: string; data: Buffer }[] {
-  const eocdOffset = zip.length - 22;
-  assert.equal(zip.readUInt32LE(eocdOffset), 0x06054b50, 'EOCD signature');
-  const centralOffset = zip.readUInt32LE(eocdOffset + 16);
-
-  const entries: { name: string; data: Buffer }[] = [];
-  let pos = 0;
-  while (pos < centralOffset) {
-    assert.equal(zip.readUInt32LE(pos), 0x04034b50, 'local header signature');
-    const method = zip.readUInt16LE(pos + 8);
-    const compressedSize = zip.readUInt32LE(pos + 18);
-    const nameLen = zip.readUInt16LE(pos + 26);
-    const extraLen = zip.readUInt16LE(pos + 28);
-    const nameStart = pos + 30;
-    const name = zip.toString('utf8', nameStart, nameStart + nameLen);
-    const payloadStart = nameStart + nameLen + extraLen;
-    const payload = zip.subarray(payloadStart, payloadStart + compressedSize);
-    const data = method === 8 ? inflateRawSync(payload) : Buffer.from(payload);
-    entries.push({ name, data });
-    pos = payloadStart + compressedSize;
-  }
-  return entries;
-}
 
 // A subagent transcript for sess-001 (its sessionId is the PARENT id — the
 // way Claude Code records subagent transcripts).
@@ -304,7 +278,7 @@ describe('buildSessionBundle', () => {
     seedSessionRow('sess-001', parentPath);
 
     const { zip, filename, audit } = await buildSessionBundle('sess-001', { sanitize: false });
-    assert.equal(filename, 'claude-monitor-session-sess-001.zip');
+    assert.equal(filename, 'claude-monitor-session-sess-001-raw.zip');
     assert.equal(audit, undefined);
 
     const names = parseZip(zip).map((e) => e.name).sort();

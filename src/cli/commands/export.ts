@@ -5,9 +5,10 @@ import { buildSessionBundle } from '../../export/session-bundle.js';
 
 const USAGE = `Usage: claude-monitor export <session-id> [--out <path>]
 
-  Export a single session as a sanitized, shareable, re-importable zip bundle.
-  All file paths and content are pseudonymized or scrambled while the structure
-  (timeline, token curve, compaction, agent tree) is preserved.
+  Export a single session as a re-importable zip bundle. By default the bundle
+  is sanitized and shareable — all file paths and content are pseudonymized or
+  scrambled while the structure (timeline, token curve, compaction, agent tree)
+  is preserved. Use --raw for a verbatim, UNSANITIZED bundle (do not share it).
 
 Options:
   --out <path>   Write the zip to <path>. If <path> is an existing directory,

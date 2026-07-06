@@ -3,9 +3,11 @@ import { buildSessionBundle, SessionExportError } from '../../export/session-bun
 
 const sessionExport = new Hono();
 
-// GET /api/sessions/:id/export → sanitized, importable zip bundle for one
-// session. Goes through the ONE shared sanitizer layer (buildSessionBundle),
-// the same code path the CLI uses. Only the known actionable errors from
+// GET /api/sessions/:id/export → importable zip bundle for one session.
+// Sanitized by default (the ONE shared sanitizer layer in buildSessionBundle,
+// the same code path the CLI uses); `?sanitize=false` opts into a raw bundle
+// with real filesystem paths and message content.
+// Only the known actionable errors from
 // buildSessionBundle (unknown session / null transcript_path / missing file)
 // become a 404 carrying the error's actionable message. Anything unexpected is
 // re-thrown so the app's global onError reports a real 500 instead of a

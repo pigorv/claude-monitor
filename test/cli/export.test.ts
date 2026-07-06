@@ -4,28 +4,10 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { existsSync, readFileSync, rmSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { zipEntryNames } from '../helpers/zip.js';
 
 const CLI = join(import.meta.dirname, '..', '..', 'dist', 'index.js');
 const FIXTURE = join(import.meta.dirname, '..', 'fixtures', 'happy', 'sample-session.jsonl');
-
-// Minimal zip reader — returns entry names (mirrors test/export/session-bundle.test.ts).
-function zipEntryNames(zip: Buffer): string[] {
-  const eocdOffset = zip.length - 22;
-  assert.equal(zip.readUInt32LE(eocdOffset), 0x06054b50, 'EOCD signature');
-  const centralOffset = zip.readUInt32LE(eocdOffset + 16);
-  const names: string[] = [];
-  let pos = 0;
-  while (pos < centralOffset) {
-    assert.equal(zip.readUInt32LE(pos), 0x04034b50, 'local header signature');
-    const compressedSize = zip.readUInt32LE(pos + 18);
-    const nameLen = zip.readUInt16LE(pos + 26);
-    const extraLen = zip.readUInt16LE(pos + 28);
-    const nameStart = pos + 30;
-    names.push(zip.toString('utf8', nameStart, nameStart + nameLen));
-    pos = nameStart + nameLen + extraLen + compressedSize;
-  }
-  return names;
-}
 
 let testHome: string;
 let testDir: string;

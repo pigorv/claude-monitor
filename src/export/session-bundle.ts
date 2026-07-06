@@ -119,7 +119,10 @@ export async function buildSessionBundle(
 
   const base = basename(transcriptPath, '.jsonl'); // == sessionId by convention.
   const entries: ZipEntry[] = [];
-  const filename = `claude-monitor-session-${sessionId}.zip`;
+  // Raw bundles carry a `-raw` marker in the filename so an unsanitized
+  // artifact can't be mistaken for a safe, shareable one on disk (the
+  // in-bundle manifest and the CLI warning are the other two safeguards).
+  const filename = `claude-monitor-session-${sessionId}${sanitize ? '' : '-raw'}.zip`;
 
   // ZIP entry names must use forward slashes regardless of host OS
   // (APPNOTE 4.4.17) — `path.join` would emit `\` on Windows and break

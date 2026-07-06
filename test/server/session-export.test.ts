@@ -6,27 +6,7 @@ import { tmpdir } from 'node:os';
 import { Buffer } from 'node:buffer';
 import { getDb, closeDb } from '../../src/db/index.js';
 import { createApp } from '../../src/server/app.js';
-
-// Minimal zip entry-name reader (mirrors test/export/session-bundle.test.ts).
-// We only need the entry names, so no decompression is required.
-function zipEntryNames(zip: Buffer): string[] {
-  const eocdOffset = zip.length - 22;
-  assert.equal(zip.readUInt32LE(eocdOffset), 0x06054b50, 'EOCD signature');
-  const centralOffset = zip.readUInt32LE(eocdOffset + 16);
-
-  const names: string[] = [];
-  let pos = 0;
-  while (pos < centralOffset) {
-    assert.equal(zip.readUInt32LE(pos), 0x04034b50, 'local header signature');
-    const compressedSize = zip.readUInt32LE(pos + 18);
-    const nameLen = zip.readUInt16LE(pos + 26);
-    const extraLen = zip.readUInt16LE(pos + 28);
-    const nameStart = pos + 30;
-    names.push(zip.toString('utf8', nameStart, nameStart + nameLen));
-    pos = nameStart + nameLen + extraLen + compressedSize;
-  }
-  return names;
-}
+import { zipEntryNames } from '../helpers/zip.js';
 
 describe('Session export route (GET /api/sessions/:id/export)', () => {
   let tmpDir: string;
@@ -121,6 +101,11 @@ describe('Session export route (GET /api/sessions/:id/export)', () => {
   it('?sanitize=false returns a raw bundle with export-manifest.json', async () => {
     const res = await app.request('/api/sessions/sess-export/export?sanitize=false');
     assert.equal(res.status, 200);
+
+    // Raw bundles self-identify by filename so a download can't be mistaken
+    // for a safe, sanitized one.
+    const disposition = res.headers.get('content-disposition');
+    assert.ok(disposition?.includes('claude-monitor-session-sess-export-raw.zip'));
 
     const names = zipEntryNames(Buffer.from(await res.arrayBuffer()));
     assert.ok(names.includes('export-manifest.json'), 'raw bundle has manifest');
