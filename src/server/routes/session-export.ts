@@ -13,9 +13,13 @@ const sessionExport = new Hono();
 sessionExport.get('/api/sessions/:id/export', async (c) => {
   const id = c.req.param('id');
 
+  // Sanitized by default. Only the exact query value `sanitize=false` opts out
+  // into a raw bundle; any other value (or no param) keeps the safe default.
+  const sanitize = c.req.query('sanitize') !== 'false';
+
   let bundle;
   try {
-    bundle = await buildSessionBundle(id);
+    bundle = await buildSessionBundle(id, { sanitize });
   } catch (err) {
     if (err instanceof SessionExportError) {
       return c.json({ error: err.message }, 404);
