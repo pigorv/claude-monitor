@@ -75,14 +75,14 @@ function resolveMaxTokens(model: string | null): number {
  * @param promptData - The full prompt text sent to the agent (from Task tool input)
  * @param resultData - The full result text returned by the agent
  * @param agentTokenTimeline - Token timeline from the agent's events
- * @param parentInputTokensAtReturn - Parent's cumulative input tokens when agent result enters
+ * @param parentEffectiveContextAtReturn - Parent's effective context (input + cache_read + cache_write) when agent result enters
  * @param model - Model name for max token resolution
  */
 export function computeAgentEfficiency(
   promptData: string | null,
   resultData: string | null,
   agentTokenTimeline: TokenDataPoint[],
-  parentInputTokensAtReturn: number | null,
+  parentEffectiveContextAtReturn: number | null,
   model: string | null,
 ): AgentEfficiencyResult {
   // Estimate token counts from text length (rough: ~4 chars per token)
@@ -119,8 +119,8 @@ export function computeAgentEfficiency(
   let parentHeadroom: number | null = null;
   let parentImpactPct: number | null = null;
 
-  if (parentInputTokensAtReturn != null) {
-    parentHeadroom = maxTokens - parentInputTokensAtReturn;
+  if (parentEffectiveContextAtReturn != null) {
+    parentHeadroom = maxTokens - parentEffectiveContextAtReturn;
     if (parentHeadroom > 0 && resultTokens != null) {
       parentImpactPct = Math.round((resultTokens / parentHeadroom) * 1000) / 10;
     }
