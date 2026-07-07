@@ -1,52 +1,8 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
-import { inflateRawSync } from 'node:zlib';
 import { crc32, zipBuffer, type ZipEntry } from '../../src/export/zip.js';
-
-const SIG_EOCD = 0x06054b50;
-
-/**
- * Parse a zip produced by `zipBuffer` by walking the local file headers
- * sequentially, recovering each entry's bytes. Returns the entries plus
- * the EOCD-reported total entry count.
- */
-function parseZip(zip: Buffer): {
-  entries: { name: string; data: Buffer; method: number; crc: number }[];
-  eocdCount: number;
-} {
-  // Locate EOCD (no comment, so it is the trailing 22 bytes).
-  const eocdOffset = zip.length - 22;
-  assert.equal(zip.readUInt32LE(eocdOffset), SIG_EOCD, 'EOCD signature');
-  const eocdCount = zip.readUInt16LE(eocdOffset + 10);
-  const centralOffset = zip.readUInt32LE(eocdOffset + 16);
-
-  const entries: {
-    name: string;
-    data: Buffer;
-    method: number;
-    crc: number;
-  }[] = [];
-
-  let pos = 0;
-  while (pos < centralOffset) {
-    assert.equal(zip.readUInt32LE(pos), 0x04034b50, 'local header signature');
-    const method = zip.readUInt16LE(pos + 8);
-    const crc = zip.readUInt32LE(pos + 14);
-    const compressedSize = zip.readUInt32LE(pos + 18);
-    const nameLen = zip.readUInt16LE(pos + 26);
-    const extraLen = zip.readUInt16LE(pos + 28);
-    const nameStart = pos + 30;
-    const name = zip.toString('utf8', nameStart, nameStart + nameLen);
-    const payloadStart = nameStart + nameLen + extraLen;
-    const payload = zip.subarray(payloadStart, payloadStart + compressedSize);
-    const data = method === 8 ? inflateRawSync(payload) : Buffer.from(payload);
-    entries.push({ name, data, method, crc });
-    pos = payloadStart + compressedSize;
-  }
-
-  return { entries, eocdCount };
-}
+import { parseZip, readZipEntryCount } from '../helpers/zip.js';
 
 describe('crc32', () => {
   it('matches known zlib/zip CRC-32 vectors', () => {
@@ -72,9 +28,9 @@ describe('zipBuffer', () => {
     ];
 
     const zip = zipBuffer(entries);
-    const { entries: parsed, eocdCount } = parseZip(zip);
+    const parsed = parseZip(zip);
 
-    assert.equal(eocdCount, entries.length, 'EOCD entry count');
+    assert.equal(readZipEntryCount(zip), entries.length, 'EOCD entry count');
     assert.equal(parsed.length, entries.length);
 
     for (let i = 0; i < entries.length; i++) {
@@ -98,8 +54,7 @@ describe('zipBuffer', () => {
 
   it('produces an empty but valid archive for zero entries', () => {
     const zip = zipBuffer([]);
-    const { entries, eocdCount } = parseZip(zip);
-    assert.equal(eocdCount, 0);
-    assert.equal(entries.length, 0);
+    assert.equal(readZipEntryCount(zip), 0);
+    assert.equal(parseZip(zip).length, 0);
   });
 });

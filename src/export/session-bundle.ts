@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { createReadStream, existsSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { Buffer } from 'node:buffer';
 import { getSession } from '../db/queries/sessions.js';
@@ -9,23 +9,34 @@ import { zipBuffer, type ZipEntry } from './zip.js';
 
 // ── Session bundle assembly ─────────────────────────────────────────
 //
-// buildSessionBundle resolves a session's transcript on disk, sanitizes
-// the parent and every discovered subagent through ONE shared sanitizer
-// (so pseudonyms are coherent across the whole bundle), and packs them
-// into a zip in Claude Code's on-disk layout so `claude-monitor import`
-// re-ingests the receiver's copy unchanged:
+// buildSessionBundle resolves a session's transcript on disk and packs
+// the parent plus every discovered subagent into a zip in Claude Code's
+// on-disk layout so `claude-monitor import` re-ingests the receiver's
+// copy unchanged. Two modes:
 //
-//   <sessionId>.jsonl
-//   <sessionId>/subagents/<agent>.jsonl
-//   sanitization-report.json   (counts-only audit; never the seed)
+//   sanitize: true (default) — the parent and every subagent are run
+//   through ONE shared sanitizer (so pseudonyms are coherent across the
+//   whole bundle):
 //
-// The seed is never serialized: the audit is counts-only and the seed
-// lives inside the Pseudonymizer, which never exposes it.
+//     <sessionId>.jsonl
+//     <sessionId>/subagents/<agent>.jsonl
+//     sanitization-report.json   (counts-only audit; never the seed)
+//
+//   The seed is never serialized: the audit is counts-only and the seed
+//   lives inside the Pseudonymizer, which never exposes it.
+//
+//   sanitize: false — the parent and every subagent are copied
+//   byte-for-byte verbatim (no sanitizer, no audit), with a manifest
+//   marking the bundle as raw:
+//
+//     <sessionId>.jsonl
+//     <sessionId>/subagents/<agent>.jsonl
+//     export-manifest.json       ({ "sanitized": false })
 
 export interface SessionBundle {
   zip: Buffer;
   filename: string;
-  audit: AuditSummary;
+  audit?: AuditSummary;
 }
 
 /**
@@ -61,17 +72,32 @@ async function sanitizeFile(sanitizer: Sanitizer, filePath: string): Promise<str
   return out.join('\n');
 }
 
+/** Read one transcript file verbatim, returning its bytes unchanged. */
+function readFileVerbatim(filePath: string): Buffer {
+  return readFileSync(filePath);
+}
+
 /**
- * Build a sanitized, importable zip bundle for a single session.
+ * Build an importable zip bundle for a single session.
  *
  * @param sessionId  The session to export.
- * @param seed       TEST-ONLY injection seam. Production callers pass
+ * @param options.sanitize  When true (the default) the parent and every
+ *                   subagent are pseudonymized through one shared sanitizer
+ *                   and a counts-only `sanitization-report.json` is added.
+ *                   When false the transcripts are copied byte-for-byte and
+ *                   an `export-manifest.json` marks the bundle as raw; no
+ *                   sanitizer runs, so the returned `audit` is undefined.
+ * @param options.seed  TEST-ONLY injection seam. Production callers pass
  *                   nothing so each export uses a fresh random seed
  *                   (`crypto.randomBytes(16)` inside the Pseudonymizer).
  *                   A fixed seed is permitted only so tests can assert the
  *                   seed bytes never appear in any bundle entry.
  */
-export async function buildSessionBundle(sessionId: string, seed?: Buffer): Promise<SessionBundle> {
+export async function buildSessionBundle(
+  sessionId: string,
+  options?: { sanitize?: boolean; seed?: Buffer },
+): Promise<SessionBundle> {
+  const { sanitize = true, seed } = options ?? {};
   const session = getSession(sessionId);
   if (!session) {
     throw new SessionExportError(
@@ -91,11 +117,36 @@ export async function buildSessionBundle(sessionId: string, seed?: Buffer): Prom
     );
   }
 
-  // ONE sanitizer across parent + all subagents → coherent pseudonyms.
-  const sanitizer = createSanitizer(seed);
-
   const base = basename(transcriptPath, '.jsonl'); // == sessionId by convention.
   const entries: ZipEntry[] = [];
+  // Raw bundles carry a `-raw` marker in the filename so an unsanitized
+  // artifact can't be mistaken for a safe, shareable one on disk (the
+  // in-bundle manifest and the CLI warning are the other two safeguards).
+  const filename = `claude-monitor-session-${sessionId}${sanitize ? '' : '-raw'}.zip`;
+
+  // ZIP entry names must use forward slashes regardless of host OS
+  // (APPNOTE 4.4.17) — `path.join` would emit `\` on Windows and break
+  // subagent discovery when the bundle is re-imported on macOS/Linux.
+  if (!sanitize) {
+    // Raw mode: byte-for-byte verbatim copy of every transcript.
+    entries.push({ name: `${base}.jsonl`, data: readFileVerbatim(transcriptPath) });
+
+    // Reuse the importer's discovery helper — no duplicated /subagents/ logic.
+    for (const subFile of discoverSubagentFiles(transcriptPath)) {
+      const name = `${base}/subagents/${basename(subFile)}`;
+      entries.push({ name, data: readFileVerbatim(subFile) });
+    }
+
+    entries.push({
+      name: 'export-manifest.json',
+      data: Buffer.from(JSON.stringify({ sanitized: false }, null, 2), 'utf8'),
+    });
+
+    return { zip: zipBuffer(entries), filename, audit: undefined };
+  }
+
+  // ONE sanitizer across parent + all subagents → coherent pseudonyms.
+  const sanitizer = createSanitizer(seed);
 
   const parentJsonl = await sanitizeFile(sanitizer, transcriptPath);
   entries.push({ name: `${base}.jsonl`, data: Buffer.from(parentJsonl, 'utf8') });
@@ -103,9 +154,6 @@ export async function buildSessionBundle(sessionId: string, seed?: Buffer): Prom
   // Reuse the importer's discovery helper — no duplicated /subagents/ logic.
   for (const subFile of discoverSubagentFiles(transcriptPath)) {
     const subJsonl = await sanitizeFile(sanitizer, subFile);
-    // ZIP entry names must use forward slashes regardless of host OS
-    // (APPNOTE 4.4.17) — `path.join` would emit `\` on Windows and break
-    // subagent discovery when the bundle is re-imported on macOS/Linux.
     const name = `${base}/subagents/${basename(subFile)}`;
     entries.push({ name, data: Buffer.from(subJsonl, 'utf8') });
   }
@@ -119,7 +167,7 @@ export async function buildSessionBundle(sessionId: string, seed?: Buffer): Prom
 
   return {
     zip: zipBuffer(entries),
-    filename: `claude-monitor-session-${sessionId}.zip`,
+    filename,
     audit: sanitizer.audit,
   };
 }

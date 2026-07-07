@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { Buffer } from 'node:buffer';
 import { getDb, closeDb } from '../../src/db/index.js';
 import { createApp } from '../../src/server/app.js';
+import { zipEntryNames } from '../helpers/zip.js';
 
 describe('Session export route (GET /api/sessions/:id/export)', () => {
   let tmpDir: string;
@@ -82,6 +84,44 @@ describe('Session export route (GET /api/sessions/:id/export)', () => {
     const length = res.headers.get('content-length');
     assert.ok(length);
     assert.equal(parseInt(length, 10), bytes.length);
+  });
+
+  it('sanitizes by default: bundle carries sanitization-report.json', async () => {
+    const res = await app.request('/api/sessions/sess-export/export');
+    assert.equal(res.status, 200);
+
+    const names = zipEntryNames(Buffer.from(await res.arrayBuffer()));
+    assert.ok(
+      names.includes('sanitization-report.json'),
+      'default (no query) bundle is sanitized',
+    );
+    assert.ok(!names.includes('export-manifest.json'));
+  });
+
+  it('?sanitize=false returns a raw bundle with export-manifest.json', async () => {
+    const res = await app.request('/api/sessions/sess-export/export?sanitize=false');
+    assert.equal(res.status, 200);
+
+    // Raw bundles self-identify by filename so a download can't be mistaken
+    // for a safe, sanitized one.
+    const disposition = res.headers.get('content-disposition');
+    assert.ok(disposition?.includes('claude-monitor-session-sess-export-raw.zip'));
+
+    const names = zipEntryNames(Buffer.from(await res.arrayBuffer()));
+    assert.ok(names.includes('export-manifest.json'), 'raw bundle has manifest');
+    assert.ok(
+      !names.includes('sanitization-report.json'),
+      'raw bundle has no sanitization report',
+    );
+  });
+
+  it('any value other than false keeps the sanitized default', async () => {
+    const res = await app.request('/api/sessions/sess-export/export?sanitize=true');
+    assert.equal(res.status, 200);
+
+    const names = zipEntryNames(Buffer.from(await res.arrayBuffer()));
+    assert.ok(names.includes('sanitization-report.json'));
+    assert.ok(!names.includes('export-manifest.json'));
   });
 
   it('returns 404 with an actionable message for an unknown session', async () => {
