@@ -894,23 +894,26 @@ function buildSessionRecord(
   };
 }
 
-function findParentTokensAtReturn(
+export function findParentTokensAtReturn(
   events: Omit<Event, 'id'>[],
   agentEndTimestamp: string,
 ): number | null {
-  // Find the first event after the agent ended that has input_tokens
+  // Find the first event after the agent ended that has input_tokens.
+  // Return effective context (input + cache read + cache write) — under prompt
+  // caching the bare input_tokens slice is only 1–3 tokens, so it drastically
+  // understates the context the agent result actually entered.
   const endTime = new Date(agentEndTimestamp).getTime();
   for (const evt of events) {
     const evtTime = new Date(evt.timestamp).getTime();
     if (evtTime >= endTime && evt.input_tokens != null) {
-      return evt.input_tokens;
+      return evt.input_tokens + (evt.cache_read_tokens ?? 0) + (evt.cache_write_tokens ?? 0);
     }
   }
   // Fall back to the last event with tokens before the agent ended
   let lastTokens: number | null = null;
   for (const evt of events) {
     if (evt.input_tokens != null) {
-      lastTokens = evt.input_tokens;
+      lastTokens = evt.input_tokens + (evt.cache_read_tokens ?? 0) + (evt.cache_write_tokens ?? 0);
     }
   }
   return lastTokens;
