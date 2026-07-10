@@ -181,7 +181,10 @@ export async function downloadSessionExport(
     a.click();
     a.remove();
   } finally {
-    URL.revokeObjectURL(url);
+    // Defer the revoke past this task so the browser latches the blob into the
+    // download stream first — revoking synchronously can truncate or cancel the
+    // download of a large export bundle (notably in WebKit).
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 }
 
