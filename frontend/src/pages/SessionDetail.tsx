@@ -6,6 +6,7 @@ import { TokenChart } from "../components/TokenChart";
 import { AgentTree } from "../components/AgentTree";
 import { BackToTop } from "../components/BackToTop";
 import { CopyButton } from "../components/CopyButton";
+import { ExportButton } from "../components/ExportButton";
 import { TokenBudgetSummary } from "../components/TokenBudgetSummary";
 import { TokenBudgetPanel } from "../components/TokenBudgetPanel";
 import { updateParams } from "../lib/url-state";
@@ -224,6 +225,7 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
           <code class="resume-cmd-text">claude --resume ${s.id}</code>
           <${CopyButton} text=${"claude --resume " + s.id} label="Copy" />
           <${OpenInTerminalButton} sessionId=${s.id} projectPath=${s.project_path} />
+          <${ExportButton} sessionId=${s.id} />
         </div>
       </div>
 
