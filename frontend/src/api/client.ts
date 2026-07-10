@@ -132,6 +132,62 @@ export async function openTerminal(
   return res.json();
 }
 
+/**
+ * Extract the download filename from a `Content-Disposition` header value.
+ * Pure and DOM-free so it can be unit-tested. Handles quoted
+ * (`attachment; filename="x.zip"`) and unquoted (`attachment; filename=x.zip`)
+ * forms; returns `fallback` for null/blank headers or ones without a usable
+ * filename.
+ */
+export function filenameFromDisposition(header: string | null, fallback: string): string {
+  if (!header) return fallback;
+  const match = /filename\s*=\s*("([^"]*)"|([^;]*))/i.exec(header);
+  if (!match) return fallback;
+  const value = (match[2] ?? match[3] ?? "").trim();
+  return value || fallback;
+}
+
+/**
+ * Download a session's export bundle. Fetches
+ * `/api/sessions/:id/export` (adding `?sanitize=false` only for the raw mode),
+ * then triggers a blob download using the server-provided filename from the
+ * `Content-Disposition` header — never a full-page navigation. On a non-ok
+ * response it surfaces the server's actionable `error` message.
+ */
+export async function downloadSessionExport(
+  sessionId: string,
+  { raw }: { raw: boolean },
+): Promise<void> {
+  const res = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/export${raw ? "?sanitize=false" : ""}`,
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const error = (body as { error?: string }).error;
+    throw new Error(error || `API ${res.status}`);
+  }
+
+  const filename = filenameFromDisposition(
+    res.headers.get("content-disposition"),
+    `claude-monitor-session-${sessionId}${raw ? "-raw" : ""}.zip`,
+  );
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    // Defer the revoke past this task so the browser latches the blob into the
+    // download stream first — revoking synchronously can truncate or cancel the
+    // download of a large export bundle (notably in WebKit).
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+}
+
 let _platform: Promise<string> | null = null;
 
 export function getPlatform(): Promise<string> {

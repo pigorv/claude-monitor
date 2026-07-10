@@ -10,6 +10,7 @@ import { groupTimelineItems } from '../../frontend/src/components/Timeline.js';
 import { Dropdown } from '../../frontend/src/components/Dropdown.js';
 import { FilterBar } from '../../frontend/src/components/FilterBar.js';
 import { TokenBudgetSummary } from '../../frontend/src/components/TokenBudgetSummary.js';
+import { ExportButton } from '../../frontend/src/components/ExportButton.js';
 import { transformTimeline } from '../../frontend/src/lib/chart-config.js';
 import type { Event as SessionEvent, AgentRelationship, TokenDataPoint, ProjectInfo, EventAnnotation, TokenBudget } from '../../src/shared/types.js';
 
@@ -1086,5 +1087,33 @@ describe('FilterBar', () => {
   it('shows ellipsis placeholder in count while loading', () => {
     const out = render(html`<${FilterBar} ...${baseFilterBarProps} loading=${true} total=${0} />`);
     assert.ok(out.includes('…'), 'should show ellipsis while loading');
+  });
+});
+
+// ─── ExportButton ───────────────────────────────────────
+
+describe('ExportButton', () => {
+  it('renders the primary button with the "Export (raw)" label', () => {
+    const out = render(html`<${ExportButton} sessionId=${'sess-1'} />`);
+    assert.ok(out.includes('export-btn-primary'), 'should render the primary button');
+    assert.ok(out.includes('Export (raw)'), 'primary label names the default (raw) mode');
+    assert.ok(out.includes('copy-btn'), 'should sit at the .copy-btn pill scale');
+  });
+
+  it('renders the caret button', () => {
+    const out = render(html`<${ExportButton} sessionId=${'sess-1'} />`);
+    assert.ok(out.includes('export-btn-caret'), 'should render the caret toggle');
+  });
+
+  it('does not render the menu when closed by default', () => {
+    const out = render(html`<${ExportButton} sessionId=${'sess-1'} />`);
+    assert.ok(!out.includes('export-btn-menu'), 'menu should not render when closed');
+  });
+
+  it('renders both mode options when defaultMenuOpen=true', () => {
+    const out = render(html`<${ExportButton} sessionId=${'sess-1'} defaultMenuOpen=${true} />`);
+    assert.ok(out.includes('export-btn-menu'), 'menu should render when defaultMenuOpen');
+    assert.ok(out.includes('Raw (unsanitized)'), 'menu should list the raw option');
+    assert.ok(out.includes('Sanitized'), 'menu should list the sanitized option');
   });
 });

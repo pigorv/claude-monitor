@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A one-click Export button on the Session Detail page downloads a shareable session bundle — defaulting to the raw (unsanitized) export behind a quick confirm, with a sanitized option in the button's menu.
 - API contract/snapshot tests now guard the response shape of every server route — including the binary `GET /api/export` and `GET /api/sessions/:id/export` endpoints (fingerprinted by their headers) — so an accidental change to what the API returns to the dashboard is caught in CI.
 - Added Sonnet 5 (`claude-sonnet-5`) model support: sessions are now priced at Sonnet 5 rates, measured against its 1M context window, and get the 1M compaction/warning/danger lines plus a "Sonnet 5" label with the 1M badge.
 - Export a single session as a sanitized, shareable, re-importable bundle — via the `claude-monitor export <session-id>` CLI command or the `GET /api/sessions/:id/export` endpoint — with all paths and content pseudonymized or scrambled while the structure (timeline, token curve, compaction, agent tree) is preserved.
