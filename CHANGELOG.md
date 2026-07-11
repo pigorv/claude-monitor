@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sessions running a 1M-context model variant (a model id tagged `[1m]`) now compute context utilization against 1,000,000 tokens instead of the base model's 200K window.
 - The 1M-context Sonnet variant now uses the 1M auto-compaction/warning/danger thresholds (matching Opus/Fable) instead of the 200K Sonnet's, so the chart's compaction line and budget ticks land in the right place.
 - Subagents whose events live in a separate transcript file no longer collapse to a zero-length interval: an agent's end time is now derived from its reported `duration_ms`, so gantt bars, execution-mode inference, and peak-concurrency reflect the agent's real runtime (existing databases need a force reimport to backfill).
+- Fixed an ordering bug where a session's parent and subagent events shared the same `sequence_num` values, so any query ordering by `sequence_num` alone (including plan↔implementation session linking) could interleave the two streams; subagent events are now numbered above the parent stream. Re-import existing sessions with `--force` to correct already-imported data.
 
 ### Removed
 
