@@ -639,8 +639,20 @@ async function importSubagentFile(
     // Previously only deleted hook events, causing duplicates on re-import.
     db.prepare('DELETE FROM events WHERE session_id = ? AND agent_id = ?')
       .run(parentSessionId, agentId);
+    // buildEventRecords numbered this subagent's events 0..M-1, but every
+    // subagent shares the parent's session_id. Shift them above the session's
+    // current max sequence_num (computed AFTER deleting this agent's own rows,
+    // so a re-import recomputes from the real max instead of colliding with its
+    // stale rows) so sequence_num stays a collision-free per-session total order.
     if (eventRecords.length > 0) {
-      insertEvents(eventRecords);
+      const { offset } = db.prepare(
+        'SELECT COALESCE(MAX(sequence_num), -1) + 1 AS offset FROM events WHERE session_id = ?',
+      ).get(parentSessionId) as { offset: number };
+      const offsetRecords = eventRecords.map((r) => ({
+        ...r,
+        sequence_num: (r.sequence_num ?? 0) + offset,
+      }));
+      insertEvents(offsetRecords);
     }
 
     // Extract prompt from the first user message
