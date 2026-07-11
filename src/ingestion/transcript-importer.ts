@@ -1,4 +1,4 @@
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { getDb } from '../db/connection.js';
 import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
@@ -459,13 +459,22 @@ function isSubagentFile(filePath: string): boolean {
 
 /**
  * Compute the parent transcript path for a subagent file — the inverse of
- * discoverSubagentFiles. Subagent: {projectDir}/{sessionId}/subagents/agent-*.jsonl
+ * discoverSubagentFiles. Subagent files live at any depth under a directory
+ * literally named `subagents`:
+ *   flat:   {projectDir}/{sessionId}/subagents/agent-*.jsonl
+ *   nested: {projectDir}/{sessionId}/subagents/workflows/<runId>/agent-*.jsonl
  * Parent:   {projectDir}/{sessionId}.jsonl
+ * Resolve by walking up to the nearest ancestor dir named `subagents` (not a
+ * fixed number of hops) and appending .jsonl to the segment above it.
  */
 function parentTranscriptPathForSubagent(subFile: string): string {
-  const subagentsDir = dirname(subFile); // .../{sessionId}/subagents
-  const sessionDir = dirname(subagentsDir); // .../{sessionId}
-  return sessionDir + '.jsonl'; // .../{sessionId}.jsonl
+  const parts = subFile.split(sep);
+  const idx = parts.lastIndexOf('subagents');
+  if (idx < 1) {
+    // No `subagents` ancestor found — fall back to the legacy two-hop behavior.
+    return dirname(dirname(subFile)) + '.jsonl';
+  }
+  return parts.slice(0, idx).join(sep) + '.jsonl'; // .../{sessionId}.jsonl
 }
 
 /**
@@ -497,9 +506,12 @@ async function deriveSessionIdFromFile(filePath: string): Promise<string | null>
 
 /**
  * Discover subagent transcript files relative to a parent transcript path.
- * Claude Code stores them at: {sessionDir}/subagents/agent-*.jsonl
+ * Claude Code stores them under {sessionDir}/subagents/ at any depth:
+ *   flat:   {sessionDir}/subagents/agent-*.jsonl
+ *   nested: {sessionDir}/subagents/workflows/<runId>/agent-*.jsonl
  * The parent transcript is at: {projectDir}/{sessionId}.jsonl
  * The subagent dir is at: {projectDir}/{sessionId}/subagents/
+ * Walks the whole subtree so nested Workflow children are picked up too.
  */
 export function discoverSubagentFiles(parentTranscriptPath: string): string[] {
   const parentDir = dirname(parentTranscriptPath);
@@ -508,14 +520,26 @@ export function discoverSubagentFiles(parentTranscriptPath: string): string[] {
 
   if (!existsSync(subagentsDir)) return [];
 
-  try {
-    return readdirSync(subagentsDir)
-      .filter((f) => f.endsWith('.jsonl'))
-      .map((f) => resolve(subagentsDir, f))
-      .sort();
-  } catch {
-    return [];
+  const files: string[] = [];
+  function walk(dir: string): void {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const fullPath = resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.name.endsWith('.jsonl')) {
+        files.push(fullPath);
+      }
+    }
   }
+  walk(subagentsDir);
+
+  return files.sort();
 }
 
 /**

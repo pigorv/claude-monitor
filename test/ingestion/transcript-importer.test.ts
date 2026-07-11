@@ -1,9 +1,9 @@
 import { describe, it, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { mkdirSync, writeFileSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { importTranscript, importTranscripts, filterCoveredSubagents, type ImportResult } from '../../src/ingestion/transcript-importer.js';
+import { importTranscript, importTranscripts, filterCoveredSubagents, discoverSubagentFiles, type ImportResult } from '../../src/ingestion/transcript-importer.js';
 import { getDb, closeDb } from '../../src/db/connection.js';
 import { getSession, sessionExists } from '../../src/db/queries/sessions.js';
 import { listEventsBySession, getTokenTimeline, getMiniTimeline } from '../../src/db/queries/events.js';
@@ -2105,5 +2105,111 @@ describe('importTranscript — compaction events', () => {
     ).all(toolOnlySessionId) as Array<{ sequence_num: number }>;
     const values = seqs.map((s) => s.sequence_num);
     assert.equal(new Set(values).size, values.length, 'sequence numbers must be unique');
+  });
+});
+
+// ── T1.1: recursive subagent discovery + nested parent-path resolution ──
+
+const NESTED_PARENT_JSONL = PARENT_SESS_JSONL.replace(/parent-sess/g, 'nested-parent');
+const NESTED_SUBAGENT_JSONL = SUBAGENT_JSONL.replace(/parent-sess/g, 'nested-parent');
+
+/**
+ * Lay out a parent transcript + a nested Workflow subagent on disk:
+ *   {proj}/nested-parent.jsonl
+ *   {proj}/nested-parent/subagents/workflows/<runId>/agent-nested.jsonl
+ */
+function writeParentWithNestedSubagent(): { parentPath: string; nestedPath: string } {
+  const projDir = join(TEST_DIR, 'nproj');
+  const parentPath = join(projDir, 'nested-parent.jsonl');
+  const nestedDir = join(projDir, 'nested-parent', 'subagents', 'workflows', 'wf-run-01');
+  const nestedPath = join(nestedDir, 'agent-nested.jsonl');
+  mkdirSync(nestedDir, { recursive: true });
+  writeFileSync(parentPath, NESTED_PARENT_JSONL);
+  writeFileSync(nestedPath, NESTED_SUBAGENT_JSONL);
+  return { parentPath, nestedPath };
+}
+
+describe('discoverSubagentFiles recursion + nested parent resolution (T1.1)', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  // ── Behavior #1: nested subagents/workflows/<runId>/agent-*.jsonl are discovered ──
+  it('discovers a nested Workflow subagent under subagents/workflows/<runId>/', () => {
+    const { parentPath, nestedPath } = writeParentWithNestedSubagent();
+    const discovered = discoverSubagentFiles(parentPath);
+    assert.deepEqual(discovered, [resolve(nestedPath)]);
+  });
+
+  // ── Behavior #1: flat + nested files are all returned, absolute + sorted ──
+  it('returns both flat and nested subagent files, absolute and sorted', () => {
+    const { parentPath } = writeParentWithNestedSubagent();
+    const projDir = join(TEST_DIR, 'nproj');
+    // Add a flat sibling next to the nested one under the same subagents/ root.
+    const flatPath = join(projDir, 'nested-parent', 'subagents', 'agent-flat.jsonl');
+    writeFileSync(flatPath, NESTED_SUBAGENT_JSONL);
+
+    const nestedPath = join(projDir, 'nested-parent', 'subagents', 'workflows', 'wf-run-01', 'agent-nested.jsonl');
+    const discovered = discoverSubagentFiles(parentPath);
+
+    const expected = [resolve(flatPath), resolve(nestedPath)].sort();
+    assert.deepEqual(discovered, expected);
+    // Every path is absolute.
+    for (const p of discovered) {
+      assert.equal(p, resolve(p), 'discovered paths must be absolute');
+    }
+  });
+
+  // ── Behavior #7: flat-only discovery is byte-identical to before ──
+  it('flat-only discovery returns exactly the immediate subagents/*.jsonl child', () => {
+    const { parentPath, subagentPath } = writeParentWithSubagent();
+    const discovered = discoverSubagentFiles(parentPath);
+    assert.deepEqual(discovered, [resolve(subagentPath)]);
+  });
+
+  it('returns [] when there is no subagents directory', () => {
+    const filePath = join(TEST_DIR, 'lonely.jsonl');
+    writeFileSync(filePath, SAMPLE_JSONL);
+    assert.deepEqual(discoverSubagentFiles(filePath), []);
+  });
+
+  // ── Behavior #5: filterCoveredSubagents drops a nested subagent whose parent is in the batch ──
+  it('filterCoveredSubagents drops a NESTED subagent whose parent is in the batch', () => {
+    const { parentPath, nestedPath } = writeParentWithNestedSubagent();
+    const filtered = filterCoveredSubagents([parentPath, nestedPath]);
+    assert.deepEqual(filtered, [parentPath]);
+  });
+
+  // ── Behavior #5: a nested subagent whose parent is NOT in the batch is kept ──
+  it('filterCoveredSubagents keeps a NESTED subagent whose parent is NOT in the batch', () => {
+    const { nestedPath } = writeParentWithNestedSubagent();
+    const filtered = filterCoveredSubagents([nestedPath]);
+    assert.deepEqual(filtered, [nestedPath]);
+  });
+
+  // ── Behavior #1 + #4: exercised end-to-end against the on-disk fixture ──
+  it('imports the nested-workflow fixture, covering the nested subagent from the parent', async () => {
+    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'subagent', 'nested-workflow-parent.jsonl');
+
+    // Discovery finds the nested fixture agent file.
+    const discovered = discoverSubagentFiles(fixturePath);
+    assert.equal(discovered.length, 1, 'the fixture has exactly one nested subagent');
+    assert.ok(discovered[0].endsWith('agent-abc123def456789.jsonl'));
+
+    const result = await importTranscript(fixturePath);
+    assert.equal(result.sessionId, 'nested-workflow-parent');
+    assert.equal(result.skipped, false);
+
+    const db = getDb();
+    const subRows = db.prepare(
+      "SELECT count(*) AS n FROM events WHERE session_id = 'nested-workflow-parent' AND agent_id = 'agent-abc123def456789'",
+    ).get() as { n: number };
+    assert.ok(subRows.n > 0, 'the nested subagent stream must be imported under the parent session');
   });
 });
