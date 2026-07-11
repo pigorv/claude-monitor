@@ -326,6 +326,19 @@ export async function importTranscript(
     `).run(agentTotals.agent_input, agentTotals.agent_output, sessionId);
   }
 
+  // Recompute subagent_count from the now-complete agent_relationships set.
+  // Runs unconditionally (not only when new subagent events were inserted) so the
+  // count is corrected even on re-imports that insert no new events. Sourcing from
+  // discovered/inserted relationships (rather than agentInfos) picks up nested
+  // Workflow children, which assignAgentIds never recognizes. For a normal session
+  // this equals the old agentInfos-derived count (one row per non-failed Agent/Task).
+  db.prepare(`
+    UPDATE sessions SET subagent_count = (
+      SELECT COUNT(*) FROM agent_relationships
+      WHERE parent_session_id = ? AND status != 'failed'
+    ) WHERE id = ?
+  `).run(sessionId, sessionId);
+
   // Compute and store the full per-session cost (parent + per-agent), each term
   // priced at its own model. Uses the parent-only `aggregates` (not the session
   // row, which was just mutated by the agent-merge block above) so parent output

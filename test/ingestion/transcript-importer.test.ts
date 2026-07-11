@@ -2212,4 +2212,55 @@ describe('discoverSubagentFiles recursion + nested parent resolution (T1.1)', ()
     ).get() as { n: number };
     assert.ok(subRows.n > 0, 'the nested subagent stream must be imported under the parent session');
   });
+
+  // ── T1.2 / Behavior #2 + #3: nested Workflow child is imported, linked, and counted ──
+  it('force-reimports the nested-workflow fixture: nested child linked with tokens/model and counted', async () => {
+    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'subagent', 'nested-workflow-parent.jsonl');
+
+    await importTranscript(fixturePath);
+    const forced = await importTranscript(fixturePath, { force: true });
+    assert.equal(forced.skipped, false);
+
+    const db = getDb();
+
+    // Behavior #2: the nested agent has an agent_relationships row linked to the
+    // parent with non-null tokens + model (imported, not just a placeholder).
+    const rel = db.prepare(
+      `SELECT parent_session_id, input_tokens_total, model
+       FROM agent_relationships
+       WHERE parent_session_id = 'nested-workflow-parent' AND child_agent_id = 'agent-abc123def456789'`,
+    ).get() as { parent_session_id: string; input_tokens_total: number | null; model: string | null } | undefined;
+
+    assert.ok(rel, 'nested agent must have an agent_relationships row after force reimport');
+    assert.equal(rel.parent_session_id, 'nested-workflow-parent');
+    assert.ok(rel.input_tokens_total !== null, 'nested agent input_tokens_total must be non-null');
+    assert.ok(rel.model !== null, 'nested agent model must be non-null');
+
+    // Behavior #3: subagent_count equals the non-failed agent_relationships count
+    // (which includes the nested Workflow child that assignAgentIds never sees).
+    const nonFailed = (db.prepare(
+      "SELECT count(*) AS n FROM agent_relationships WHERE parent_session_id = 'nested-workflow-parent' AND status != 'failed'",
+    ).get() as { n: number }).n;
+    const session = getSession('nested-workflow-parent')!;
+    assert.equal(session.subagent_count, nonFailed);
+    assert.ok(nonFailed >= 1, 'the nested Workflow child must be counted');
+  });
+
+  // ── T1.2 / Behavior #7: flat-only fixture subagent_count is unchanged ──
+  it('leaves a flat-only fixture subagent_count unchanged (no regression)', async () => {
+    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'subagent', '9f5e3bfd-73b8-4421-9e78-e736180128b4.jsonl');
+
+    await importTranscript(fixturePath);
+
+    const db = getDb();
+    const session = getSession('9f5e3bfd-73b8-4421-9e78-e736180128b4')!;
+
+    // The flat fixture spawns exactly one non-failed Task subagent — the old
+    // agentInfos-derived count. The recompute from agent_relationships must match.
+    const nonFailed = (db.prepare(
+      "SELECT count(*) AS n FROM agent_relationships WHERE parent_session_id = '9f5e3bfd-73b8-4421-9e78-e736180128b4' AND status != 'failed'",
+    ).get() as { n: number }).n;
+    assert.equal(session.subagent_count, 1, 'flat fixture must still count its single subagent');
+    assert.equal(session.subagent_count, nonFailed);
+  });
 });
