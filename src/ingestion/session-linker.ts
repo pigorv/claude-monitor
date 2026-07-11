@@ -32,8 +32,9 @@ export function detectAndLinkSessions(
   endedAt: string | null,
 ): void {
   // Forward: this session is the implementation.
-  // Check ALL user_message events (not just the first) because the plan text
-  // may appear in a later message when the first was interrupted or is a subagent prompt.
+  // Check ALL parent user_message events (not just the first) because the plan
+  // text may appear in a later message when the first was interrupted; subagent
+  // prompt rows (agent_id IS NOT NULL) are excluded.
   const planBody = findPlanBodyInUserMessages(sessionId);
   if (planBody) {
     const planSessionId = findPlanningSession(sessionId, projectPath, startedAt, planBody);
@@ -68,6 +69,7 @@ function findPlanBodyInUserMessages(sessionId: string): string | null {
   const rows = db.prepare(`
     SELECT input_data FROM events
     WHERE session_id = ? AND event_type = 'user_message' AND input_data IS NOT NULL
+      AND agent_id IS NULL
     ORDER BY sequence_num ASC
     LIMIT 10
   `).all(sessionId) as { input_data: string }[];
@@ -157,6 +159,7 @@ function findImplementationSession(
     WHERE session_id = ?
       AND tool_name = 'ExitPlanMode'
       AND input_data IS NOT NULL
+      AND agent_id IS NULL
     ORDER BY sequence_num DESC
     LIMIT 1
   `).get(currentSessionId) as { plan_text: string | null } | undefined;
@@ -178,6 +181,7 @@ function findImplementationSession(
       AND s.id != ?
       AND datetime(s.started_at) >= datetime(?, '-5 minutes')
       AND e.event_type = 'user_message'
+      AND e.agent_id IS NULL
       AND e.input_data LIKE ? ESCAPE '\\'
     ORDER BY datetime(s.started_at) ASC, e.sequence_num ASC
     LIMIT 1

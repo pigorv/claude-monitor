@@ -1057,6 +1057,47 @@ const SUBAGENT_JSONL = [
   }),
 ].join('\n');
 
+// A second subagent transcript under the same parent session. Used to prove the
+// sequence_num offset stacks across MULTIPLE subagent streams sharing one
+// session_id — not just parent↔subagent — since the offset query is session-wide.
+const SUBAGENT_BBB_JSONL = [
+  JSON.stringify({
+    parentUuid: null, cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: 'Write the fix' },
+    timestamp: '2026-01-01T00:01:16.000Z', uuid: 'b-u-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'b-u-1', cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [
+        { type: 'text', text: 'Editing the file.' },
+        { type: 'tool_use', id: 'b-tool-1', name: 'Edit', input: { file_path: '/tmp/project/bug.ts' } },
+      ],
+      usage: { input_tokens: 700, output_tokens: 90, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:17.000Z', uuid: 'b-a-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'b-a-1', cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'b-tool-1', content: 'ok' }] },
+    timestamp: '2026-01-01T00:01:18.000Z', uuid: 'b-u-2',
+  }),
+  JSON.stringify({
+    parentUuid: 'b-u-2', cwd: '/tmp/project', sessionId: 'parent-sess', version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'Fix written.' }],
+      usage: { input_tokens: 750, output_tokens: 30, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:01:19.000Z', uuid: 'b-a-2',
+  }),
+].join('\n');
+
 /** Lay out a parent transcript + its subagent on disk. Returns the two paths. */
 function writeParentWithSubagent(): { parentPath: string; subagentPath: string } {
   const projDir = join(TEST_DIR, 'proj');
@@ -1067,6 +1108,18 @@ function writeParentWithSubagent(): { parentPath: string; subagentPath: string }
   writeFileSync(parentPath, PARENT_SESS_JSONL);
   writeFileSync(subagentPath, SUBAGENT_JSONL);
   return { parentPath, subagentPath };
+}
+
+/** Lay out a parent + two subagent streams (agent-aaa, agent-bbb) on disk. */
+function writeParentWithTwoSubagents(): { parentPath: string } {
+  const projDir = join(TEST_DIR, 'proj');
+  const parentPath = join(projDir, 'parent-sess.jsonl');
+  const subagentsDir = join(projDir, 'parent-sess', 'subagents');
+  mkdirSync(subagentsDir, { recursive: true });
+  writeFileSync(parentPath, PARENT_SESS_JSONL);
+  writeFileSync(join(subagentsDir, 'agent-aaa.jsonl'), SUBAGENT_JSONL);
+  writeFileSync(join(subagentsDir, 'agent-bbb.jsonl'), SUBAGENT_BBB_JSONL);
+  return { parentPath };
 }
 
 describe('importTranscript skip/dedupe matrix', () => {
@@ -1146,6 +1199,76 @@ describe('importTranscript skip/dedupe matrix', () => {
       "SELECT id FROM events WHERE session_id = 'parent-sess' AND agent_id = 'agent-aaa' ORDER BY id",
     ).all();
     assert.deepEqual(after, before, 'unchanged subagent must not be deleted + reinserted');
+  });
+
+  // ── T1.1: subagent sequence_num is offset into a collision-free per-session order ──
+  it('offsets subagent sequence_num above the parent stream (no collisions across re-imports)', async () => {
+    const { parentPath } = writeParentWithSubagent();
+
+    // Importing the parent also imports the subagent under the same session_id.
+    await importTranscript(parentPath);
+
+    const db = getDb();
+    const dupQuery = db.prepare(
+      'SELECT sequence_num, COUNT(*) AS n FROM events WHERE session_id = ? GROUP BY sequence_num HAVING COUNT(*) > 1',
+    );
+
+    // Behavior #1: sequence_num is collision-free across the whole session.
+    assert.deepEqual(dupQuery.all('parent-sess'), [], 'no colliding sequence_num within the session');
+
+    // Behavior #2: every subagent row sits strictly above the parent stream's max.
+    // The subagent's events are tagged with the file-derived id 'agent-aaa';
+    // the parent stream is every other row (some parent rows carry their own
+    // spawn agent_id, so IS NULL alone doesn't isolate the parent stream).
+    const parentMax = db.prepare(
+      "SELECT MAX(sequence_num) AS m FROM events WHERE session_id = ? AND (agent_id IS NULL OR agent_id != 'agent-aaa')",
+    );
+    const subMin = db.prepare(
+      "SELECT MIN(sequence_num) AS m FROM events WHERE session_id = ? AND agent_id = 'agent-aaa'",
+    );
+    const maxParent = (parentMax.get('parent-sess') as { m: number }).m;
+    const minSub = (subMin.get('parent-sess') as { m: number | null }).m;
+    assert.ok(minSub !== null, 'subagent rows should exist after parent import');
+    assert.ok(minSub > maxParent, 'every subagent sequence_num must exceed the parent stream max');
+
+    // Collision-freeness and ordering hold after a --force full re-import.
+    await importTranscript(parentPath, { force: true });
+    assert.deepEqual(dupQuery.all('parent-sess'), [], 'no duplicates after a --force re-import');
+
+    const minSubAfter = (subMin.get('parent-sess') as { m: number | null }).m;
+    const maxParentAfter = (parentMax.get('parent-sess') as { m: number }).m;
+    assert.ok(minSubAfter !== null && minSubAfter > maxParentAfter, 'ordering holds after --force');
+  });
+
+  // ── T1.2: TWO subagent streams under one session stack without colliding ──
+  // The offset query is session-wide (MAX(sequence_num) over the whole session),
+  // so agent-bbb must land above agent-aaa, not restart at the parent max. A
+  // regression scoping the offset per-agent-stream would reintroduce
+  // subagent↔subagent collisions that the single-subagent T1.1 can't catch.
+  it('stacks multiple subagent streams above one another (no cross-subagent collisions)', async () => {
+    const { parentPath } = writeParentWithTwoSubagents();
+    await importTranscript(parentPath);
+
+    const db = getDb();
+
+    // Whole-session sequence_num stays collision-free across parent + both subagents.
+    const dups = db.prepare(
+      'SELECT sequence_num, COUNT(*) AS n FROM events WHERE session_id = ? GROUP BY sequence_num HAVING COUNT(*) > 1',
+    ).all('parent-sess');
+    assert.deepEqual(dups, [], 'no colliding sequence_num across parent + two subagents');
+
+    // Both subagent streams were imported (discoverSubagentFiles sorts, so aaa first).
+    const seqRange = (agentId: string) => db.prepare(
+      'SELECT MIN(sequence_num) AS lo, MAX(sequence_num) AS hi FROM events WHERE session_id = ? AND agent_id = ?',
+    ).get('parent-sess', agentId) as { lo: number | null; hi: number | null };
+    const aaa = seqRange('agent-aaa');
+    const bbb = seqRange('agent-bbb');
+    assert.ok(aaa.lo !== null && bbb.lo !== null, 'both subagent streams should have rows');
+
+    // agent-bbb sits strictly above agent-aaa — the second stream offsets past the
+    // first, not back onto the parent max (which is what a per-agent-scoped offset
+    // regression would do, colliding bbb with aaa).
+    assert.ok(bbb.lo! > aaa.hi!, 'agent-bbb must offset above agent-aaa, not collide with it');
   });
 
   // ── #5: a changed subagent (mtime differs) is re-imported ──
