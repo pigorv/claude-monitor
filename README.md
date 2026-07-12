@@ -8,7 +8,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
 <!-- hero:start -->
-<!-- hero captured-on: v0.5.2 -->
+<!-- hero captured-on: v0.7.0 -->
 <p align="center">
   <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/hero.gif" alt="claude-monitor walkthrough — session list with date-group headers and Sort dropdown, then a session detail page with the Token Budget summary bar above Timeline (Write/Edit full-cards), Context chart, and 5-agent Gantt tabs" style="max-width: 100%;" />
 </p>
@@ -48,13 +48,13 @@ npx @pigorv/claude-monitor start
 <!-- features:start -->
 ## Features
 
-**Session List** — Filterable, sortable table with a recognition-first row layout: task intent as the bold title, project name as a small label, and turns/sub-agents/tools/skills/compaction in a muted subtitle. Every row has a right-rail telemetry ledger showing relative-start → ended clock (full timestamps on hover), model pill (Fable 5 sessions get a styled Fable pill with a 1M badge), duration · estimated cost, and peak-context % color-coded against the model's threshold. Rows group under TODAY / YESTERDAY / THIS WEEK headers when sorted by start time. Single filter bar with Project, Model, and Sort dropdowns (including "Highest/Lowest ctx %" and "Most expensive/Cheapest" options); press `/` to focus search from anywhere — and search matches **message content** (the actual prompts and replies, not just project, path, and summary), ranking hits by where they landed and tagging each with a "matched in prompt / response / sub-agent" chip plus a highlighted snippet. Sessions started with a `/command` or skill show the command/skill pill inline before the session title.
+**Session List** — Filterable, sortable table with a recognition-first row layout: task intent as the bold title, project name as a small label, and turns/sub-agents/tools/skills/compaction in a muted subtitle. Every row has a right-rail telemetry ledger showing relative-start → ended clock (full timestamps on hover), model pill showing the version alongside the family (e.g. "Sonnet 4.6", "Opus 4.8"), with a teal "1M" badge on the 1M-context variants (Fable 5, Sonnet 5, and the 1M Sonnet), duration · estimated cost, and peak-context % color-coded against the model's threshold. Rows group under TODAY / YESTERDAY / THIS WEEK headers when sorted by start time. Single filter bar with Project, Model, and Sort dropdowns (including "Highest/Lowest ctx %" and "Most expensive/Cheapest" options); press `/` to focus search from anywhere — and search matches **message content** (the actual prompts and replies, not just project, path, and summary), ranking hits by where they landed and tagging each with a "matched in prompt / response / sub-agent" chip plus a highlighted snippet. Sessions started with a `/command` or skill show the command/skill pill inline before the session title.
 
 <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-list.png" alt="Session list with recognition-first row layout: bold session titles with project name labels, right-rail telemetry ledger showing timestamps, model pills, duration and estimated cost, color-coded peak-context %, and TODAY / YESTERDAY date-group headers" width="700" />
 
 **Token Budget** — Every session detail page leads with a Token Budget summary bar above the tabs: estimated cost and billed token count on one side, peak context % (color-coded against the model's threshold) on the other. Click the cost to expand a breakdown panel — a parent-vs-sub-agents split (with run count) and a by-token-type breakdown (input, output, cache read, cache write 5m/1h), each showing tokens and cost; empty sections are hidden (no sub-agent split for solo sessions, no zero-usage token types). Cost prices every sub-agent at its own model with cache reads and writes included, and is backfilled across your whole history, so older sessions show a cost without a re-import. The expanded/collapsed state is remembered in the URL.
 
-**Context Pressure** — Interactive token chart (uPlot) with input/output/cache breakdown, model-specific thresholds (Fable 5 sessions are measured against their full 1M-token context window), compaction markers, and drag-to-zoom.
+**Context Pressure** — Interactive token chart (uPlot) with input/output/cache breakdown, model-specific thresholds (Fable 5 and Sonnet 5 sessions are measured against their full 1M-token context window), compaction markers, and drag-to-zoom.
 
 <img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/session-detail-context.png" alt="Session detail page leading with a Token Budget summary bar — cost and billed tokens beside a color-coded context-peak meter — above the Context tab's token utilization chart with warning and danger threshold zones" width="700" />
 
@@ -69,6 +69,8 @@ npx @pigorv/claude-monitor start
 **File Tracking** — See every file loaded into context, how many times it was re-read, and how many tokens each file consumed. Spot wasteful re-reads and files that bloat your context window.
 
 **Resume in Terminal** (macOS & Windows) — One click opens your terminal in the session's project folder with `claude --resume <id>` already running. macOS uses Terminal.app or iTerm2; Windows auto-detects Windows Terminal, then PowerShell, then `cmd.exe`. Pick your preferred app in Settings — the dropdown is platform-aware, and the button is disabled with a tooltip on unsupported platforms.
+
+**Session Export** — Export any session as a self-contained, re-importable bundle. The Session Detail button downloads a **raw, verbatim** bundle (real paths and content, for sharing with people you trust) behind a two-step confirm, with a **sanitized** option in its dropdown; the CLI (`claude-monitor export <id>`) defaults to sanitized, with `--raw` for the verbatim bundle. A sanitized bundle pseudonymizes or scrambles every path and message body while preserving the full structure — timeline, token curve, compaction, and agent tree — so it round-trips back through `import`.
 
 **Shareable URLs** — Filters, search, sort, project selection, the active session-detail tab, the selected agent, and the Token Budget breakdown's expanded state are all reflected in the URL. Reload preserves the view, links are shareable, and back/forward cycle through tabs naturally.
 
@@ -86,11 +88,14 @@ The `start` command watches `~/.claude/projects/` for JSONL transcript files. Ea
 |---------|-------------|
 | `claude-monitor start` | Start dashboard + auto-import (default port: 4173) |
 | `claude-monitor import [path]` | One-time import of transcripts (defaults to `~/.claude/projects/`) |
+| `claude-monitor export <id>` | Export a single session as a sanitized, re-importable zip |
 | `claude-monitor status` | Show database stats and server status |
 
 Options for `start`: `--port, -p <number>`, `--no-open`, `--verbose`
 
 Options for `import`: `--force` (re-import existing sessions)
+
+Options for `export`: `--out <path>` (destination file or directory), `--raw` / `--no-sanitize` (verbatim, unsanitized bundle — do not share)
 <!-- cli:end -->
 
 ## Status line link
