@@ -223,12 +223,12 @@ describe('transcript-watcher', () => {
       await waitFor(
         () =>
           getAgentRelationships('nested-workflow-parent').some(
-            (rel) => rel.child_agent_id === 'agent-abc123def456789',
+            (rel) => rel.child_agent_id === 'workflows/wf-run-01/agent-abc123def456789',
           ),
       );
 
       const nestedRel = getAgentRelationships('nested-workflow-parent').find(
-        (rel) => rel.child_agent_id === 'agent-abc123def456789',
+        (rel) => rel.child_agent_id === 'workflows/wf-run-01/agent-abc123def456789',
       );
       assert.ok(nestedRel, 'nested Workflow subagent should be imported');
       assert.ok(

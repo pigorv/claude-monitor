@@ -1,4 +1,4 @@
-import { basename, dirname, join, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { getDb } from '../db/connection.js';
 import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
@@ -556,6 +556,24 @@ export function discoverSubagentFiles(parentTranscriptPath: string): string[] {
 }
 
 /**
+ * Derive a subagent's agent_id from its on-disk path. Flat children keep their
+ * bare basename (`agent-x`), matching assignAgentIds' `agent-<id>` from the
+ * parent transcript. Nested Workflow children are qualified by their path under
+ * `subagents/` so that two files sharing a basename across run dirs
+ * (`.../wf-run-01/agent-x.jsonl` vs `.../wf-run-02/agent-x.jsonl`) stay distinct
+ * instead of colliding on the (parent_session_id, child_agent_id) key — which
+ * would clobber one agent's events and undercount subagents.
+ */
+export function subagentIdFromPath(parentTranscriptPath: string, subFile: string): string {
+  const parentDir = dirname(parentTranscriptPath);
+  const parentBasename = basename(parentTranscriptPath, '.jsonl');
+  const subagentsDir = resolve(join(parentDir, parentBasename, 'subagents'));
+  const rel = relative(subagentsDir, resolve(subFile)).replace(/\.jsonl$/, '');
+  // Normalize to POSIX separators so the id is stable across host OSes.
+  return rel.split(sep).join('/');
+}
+
+/**
  * Import all subagent transcripts for a parent session.
  * Returns the total number of subagent events inserted.
  */
@@ -570,7 +588,7 @@ async function importSubagentTranscripts(
   let totalEvents = 0;
 
   for (const subFile of subagentFiles) {
-    const agentId = basename(subFile, '.jsonl');
+    const agentId = subagentIdFromPath(parentTranscriptPath, subFile);
     try {
       const result = await importSubagentFile(parentSessionId, agentId, subFile, options);
       totalEvents += result.events;
