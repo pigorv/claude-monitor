@@ -1,9 +1,9 @@
 import { describe, it, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { mkdirSync, writeFileSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { importTranscript, importTranscripts, filterCoveredSubagents, type ImportResult } from '../../src/ingestion/transcript-importer.js';
+import { importTranscript, importTranscripts, filterCoveredSubagents, discoverSubagentFiles, type ImportResult } from '../../src/ingestion/transcript-importer.js';
 import { getDb, closeDb } from '../../src/db/connection.js';
 import { getSession, sessionExists } from '../../src/db/queries/sessions.js';
 import { listEventsBySession, getTokenTimeline, getMiniTimeline } from '../../src/db/queries/events.js';
@@ -2105,5 +2105,225 @@ describe('importTranscript — compaction events', () => {
     ).all(toolOnlySessionId) as Array<{ sequence_num: number }>;
     const values = seqs.map((s) => s.sequence_num);
     assert.equal(new Set(values).size, values.length, 'sequence numbers must be unique');
+  });
+});
+
+// ── T1.1: recursive subagent discovery + nested parent-path resolution ──
+
+const NESTED_PARENT_JSONL = PARENT_SESS_JSONL.replace(/parent-sess/g, 'nested-parent');
+const NESTED_SUBAGENT_JSONL = SUBAGENT_JSONL.replace(/parent-sess/g, 'nested-parent');
+
+/**
+ * Lay out a parent transcript + a nested Workflow subagent on disk:
+ *   {proj}/nested-parent.jsonl
+ *   {proj}/nested-parent/subagents/workflows/<runId>/agent-nested.jsonl
+ */
+function writeParentWithNestedSubagent(): { parentPath: string; nestedPath: string } {
+  const projDir = join(TEST_DIR, 'nproj');
+  const parentPath = join(projDir, 'nested-parent.jsonl');
+  const nestedDir = join(projDir, 'nested-parent', 'subagents', 'workflows', 'wf-run-01');
+  const nestedPath = join(nestedDir, 'agent-nested.jsonl');
+  mkdirSync(nestedDir, { recursive: true });
+  writeFileSync(parentPath, NESTED_PARENT_JSONL);
+  writeFileSync(nestedPath, NESTED_SUBAGENT_JSONL);
+  return { parentPath, nestedPath };
+}
+
+describe('discoverSubagentFiles recursion + nested parent resolution (T1.1)', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  // ── Behavior #1: nested subagents/workflows/<runId>/agent-*.jsonl are discovered ──
+  it('discovers a nested Workflow subagent under subagents/workflows/<runId>/', () => {
+    const { parentPath, nestedPath } = writeParentWithNestedSubagent();
+    const discovered = discoverSubagentFiles(parentPath);
+    assert.deepEqual(discovered, [resolve(nestedPath)]);
+  });
+
+  // ── Behavior #1: flat + nested files are all returned, absolute + sorted ──
+  it('returns both flat and nested subagent files, absolute and sorted', () => {
+    const { parentPath } = writeParentWithNestedSubagent();
+    const projDir = join(TEST_DIR, 'nproj');
+    // Add a flat sibling next to the nested one under the same subagents/ root.
+    const flatPath = join(projDir, 'nested-parent', 'subagents', 'agent-flat.jsonl');
+    writeFileSync(flatPath, NESTED_SUBAGENT_JSONL);
+
+    const nestedPath = join(projDir, 'nested-parent', 'subagents', 'workflows', 'wf-run-01', 'agent-nested.jsonl');
+    const discovered = discoverSubagentFiles(parentPath);
+
+    const expected = [resolve(flatPath), resolve(nestedPath)].sort();
+    assert.deepEqual(discovered, expected);
+    // Every path is absolute.
+    for (const p of discovered) {
+      assert.equal(p, resolve(p), 'discovered paths must be absolute');
+    }
+  });
+
+  // ── Behavior #7: flat-only discovery is byte-identical to before ──
+  it('flat-only discovery returns exactly the immediate subagents/*.jsonl child', () => {
+    const { parentPath, subagentPath } = writeParentWithSubagent();
+    const discovered = discoverSubagentFiles(parentPath);
+    assert.deepEqual(discovered, [resolve(subagentPath)]);
+  });
+
+  it('returns [] when there is no subagents directory', () => {
+    const filePath = join(TEST_DIR, 'lonely.jsonl');
+    writeFileSync(filePath, SAMPLE_JSONL);
+    assert.deepEqual(discoverSubagentFiles(filePath), []);
+  });
+
+  // ── Behavior #5: filterCoveredSubagents drops a nested subagent whose parent is in the batch ──
+  it('filterCoveredSubagents drops a NESTED subagent whose parent is in the batch', () => {
+    const { parentPath, nestedPath } = writeParentWithNestedSubagent();
+    const filtered = filterCoveredSubagents([parentPath, nestedPath]);
+    assert.deepEqual(filtered, [parentPath]);
+  });
+
+  // ── Behavior #5: a nested subagent whose parent is NOT in the batch is kept ──
+  it('filterCoveredSubagents keeps a NESTED subagent whose parent is NOT in the batch', () => {
+    const { nestedPath } = writeParentWithNestedSubagent();
+    const filtered = filterCoveredSubagents([nestedPath]);
+    assert.deepEqual(filtered, [nestedPath]);
+  });
+
+  // ── Behavior #1 + #4: exercised end-to-end against the on-disk fixture ──
+  it('imports the nested-workflow fixture, covering the nested subagent from the parent', async () => {
+    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'subagent', 'nested-workflow-parent.jsonl');
+
+    // Discovery finds the nested fixture agent file.
+    const discovered = discoverSubagentFiles(fixturePath);
+    assert.equal(discovered.length, 1, 'the fixture has exactly one nested subagent');
+    assert.ok(discovered[0].endsWith('agent-abc123def456789.jsonl'));
+
+    const result = await importTranscript(fixturePath);
+    assert.equal(result.sessionId, 'nested-workflow-parent');
+    assert.equal(result.skipped, false);
+
+    const db = getDb();
+    // The nested child's agent_id is qualified by its path under subagents/ so
+    // same-basename files across run dirs can't collide.
+    const subRows = db.prepare(
+      "SELECT count(*) AS n FROM events WHERE session_id = 'nested-workflow-parent' AND agent_id = 'workflows/wf-run-01/agent-abc123def456789'",
+    ).get() as { n: number };
+    assert.ok(subRows.n > 0, 'the nested subagent stream must be imported under the parent session');
+  });
+
+  // ── T1.2 / Behavior #2 + #3: nested Workflow child is imported, linked, and counted ──
+  it('force-reimports the nested-workflow fixture: nested child linked with tokens/model and counted', async () => {
+    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'subagent', 'nested-workflow-parent.jsonl');
+
+    await importTranscript(fixturePath);
+    const forced = await importTranscript(fixturePath, { force: true });
+    assert.equal(forced.skipped, false);
+
+    const db = getDb();
+
+    // Behavior #2: the nested agent has an agent_relationships row linked to the
+    // parent with non-null tokens + model (imported, not just a placeholder).
+    const rel = db.prepare(
+      `SELECT parent_session_id, input_tokens_total, model
+       FROM agent_relationships
+       WHERE parent_session_id = 'nested-workflow-parent' AND child_agent_id = 'workflows/wf-run-01/agent-abc123def456789'`,
+    ).get() as { parent_session_id: string; input_tokens_total: number | null; model: string | null } | undefined;
+
+    assert.ok(rel, 'nested agent must have an agent_relationships row after force reimport');
+    assert.equal(rel.parent_session_id, 'nested-workflow-parent');
+    assert.ok(rel.input_tokens_total !== null, 'nested agent input_tokens_total must be non-null');
+    assert.ok(rel.model !== null, 'nested agent model must be non-null');
+
+    // Behavior #3: subagent_count includes the nested Workflow child that
+    // assignAgentIds never sees. The parent runs a Workflow (not an Agent/Task),
+    // so the ONLY subagent is the nested child — the count must be exactly 1.
+    const relCount = (db.prepare(
+      "SELECT count(*) AS n FROM agent_relationships WHERE parent_session_id = 'nested-workflow-parent'",
+    ).get() as { n: number }).n;
+    assert.equal(relCount, 1, 'a lone Workflow child yields exactly one relationship (no phantom Agent/Task row)');
+    const session = getSession('nested-workflow-parent')!;
+    assert.equal(session.subagent_count, 1, 'the nested Workflow child must be counted, and only once');
+  });
+
+  // ── T1.2 / Behavior #7: flat-only fixture subagent_count is unchanged ──
+  it('leaves a flat-only fixture subagent_count unchanged (no regression)', async () => {
+    const fixturePath = join(import.meta.dirname, '..', 'fixtures', 'subagent', '9f5e3bfd-73b8-4421-9e78-e736180128b4.jsonl');
+
+    await importTranscript(fixturePath);
+
+    const db = getDb();
+    const session = getSession('9f5e3bfd-73b8-4421-9e78-e736180128b4')!;
+
+    // The flat fixture spawns exactly one non-failed Task subagent — the old
+    // agentInfos-derived count, which the recompute from agent_relationships
+    // must reproduce exactly.
+    assert.equal(session.subagent_count, 1, 'flat fixture must still count its single subagent');
+  });
+
+  // ── Regression: two Workflow children sharing a basename across run dirs must
+  //    NOT collide on the (parent_session_id, child_agent_id) key ──
+  it('keeps same-basename subagents from different run dirs distinct (no clobber)', async () => {
+    const projDir = join(TEST_DIR, 'cproj');
+    const sid = 'collide-parent';
+    // Parent runs a Workflow (assignAgentIds ignores it) so the only subagents
+    // are the two nested files below.
+    const parent = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: sid, version: '2.1.0', type: 'user',
+        message: { role: 'user', content: 'Run the workflow.' },
+        timestamp: '2026-01-01T00:00:00.000Z', uuid: 'c-u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'c-u-1', cwd: '/tmp/project', sessionId: sid, version: '2.1.0', type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [
+            { type: 'text', text: 'Launching workflow.' },
+            { type: 'tool_use', id: 'wf-1', name: 'Workflow', input: { description: 'x', script: "agent('go')" } },
+          ],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:00:01.000Z', uuid: 'c-a-1',
+      }),
+      JSON.stringify({
+        parentUuid: 'c-a-1', cwd: '/tmp/project', sessionId: sid, version: '2.1.0', type: 'user',
+        message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'wf-1', content: 'done' }] },
+        timestamp: '2026-01-01T00:00:05.000Z', uuid: 'c-u-2',
+      }),
+    ].join('\n');
+
+    const parentPath = join(projDir, `${sid}.jsonl`);
+    const run01 = join(projDir, sid, 'subagents', 'workflows', 'wf-run-01');
+    const run02 = join(projDir, sid, 'subagents', 'workflows', 'wf-run-02');
+    mkdirSync(run01, { recursive: true });
+    mkdirSync(run02, { recursive: true });
+    writeFileSync(parentPath, parent);
+    // Same basename (agent-dup.jsonl), different run dirs, distinct content.
+    writeFileSync(join(run01, 'agent-dup.jsonl'), NESTED_SUBAGENT_JSONL.replace('Investigate the bug', 'RUN01-marker'));
+    writeFileSync(join(run02, 'agent-dup.jsonl'), NESTED_SUBAGENT_JSONL.replace('Investigate the bug', 'RUN02-marker'));
+
+    await importTranscript(parentPath);
+
+    const db = getDb();
+    const ids = (db.prepare(
+      'SELECT child_agent_id FROM agent_relationships WHERE parent_session_id = ? ORDER BY child_agent_id',
+    ).all(sid) as { child_agent_id: string }[]).map((r) => r.child_agent_id);
+    assert.deepEqual(ids, [
+      'workflows/wf-run-01/agent-dup',
+      'workflows/wf-run-02/agent-dup',
+    ], 'both run dirs must yield distinct, path-qualified agent ids');
+
+    // Neither stream was clobbered: each marker survives under its own agent_id.
+    const markerFor = (agentId: string, marker: string): number => (db.prepare(
+      "SELECT count(*) AS n FROM events WHERE session_id = ? AND agent_id = ? AND input_data LIKE ?",
+    ).get(sid, agentId, `%${marker}%`) as { n: number }).n;
+    assert.ok(markerFor('workflows/wf-run-01/agent-dup', 'RUN01-marker') > 0, 'run-01 events preserved');
+    assert.ok(markerFor('workflows/wf-run-02/agent-dup', 'RUN02-marker') > 0, 'run-02 events preserved');
+
+    assert.equal(getSession(sid)!.subagent_count, 2, 'both distinct subagents must be counted');
   });
 });

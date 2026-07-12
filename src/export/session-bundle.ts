@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { createReadStream, existsSync, readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { Buffer } from 'node:buffer';
@@ -118,6 +118,15 @@ export async function buildSessionBundle(
   }
 
   const base = basename(transcriptPath, '.jsonl'); // == sessionId by convention.
+  // On-disk subagent files live under `{sessionDir}/subagents/...`. Naming a
+  // zip entry by the file's path RELATIVE to this dir preserves nested depth
+  // (e.g. `subagents/workflows/<runId>/agent-x.jsonl`) instead of flattening
+  // it to a single level (which risks cross-run basename collisions).
+  const sessionDir = join(dirname(transcriptPath), base);
+  // ZIP entry names must use forward slashes regardless of host OS (APPNOTE
+  // 4.4.17); on Windows `relative()` yields `\`, so normalize to POSIX `/`.
+  const subEntryName = (subFile: string): string =>
+    `${base}/${relative(sessionDir, subFile).split('\\').join('/')}`;
   const entries: ZipEntry[] = [];
   // Raw bundles carry a `-raw` marker in the filename so an unsanitized
   // artifact can't be mistaken for a safe, shareable one on disk (the
@@ -133,7 +142,7 @@ export async function buildSessionBundle(
 
     // Reuse the importer's discovery helper — no duplicated /subagents/ logic.
     for (const subFile of discoverSubagentFiles(transcriptPath)) {
-      const name = `${base}/subagents/${basename(subFile)}`;
+      const name = subEntryName(subFile);
       entries.push({ name, data: readFileVerbatim(subFile) });
     }
 
@@ -154,7 +163,7 @@ export async function buildSessionBundle(
   // Reuse the importer's discovery helper — no duplicated /subagents/ logic.
   for (const subFile of discoverSubagentFiles(transcriptPath)) {
     const subJsonl = await sanitizeFile(sanitizer, subFile);
-    const name = `${base}/subagents/${basename(subFile)}`;
+    const name = subEntryName(subFile);
     entries.push({ name, data: Buffer.from(subJsonl, 'utf8') });
   }
 

@@ -5,6 +5,7 @@ import {
   rmSync,
   mkdirSync,
   copyFileSync,
+  cpSync,
   writeFileSync,
   readFileSync,
   utimesSync,
@@ -12,7 +13,7 @@ import {
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getDb, closeDb } from '../../src/db/index.js';
-import { getSession } from '../../src/db/queries/sessions.js';
+import { getSession, getAgentRelationships } from '../../src/db/queries/sessions.js';
 import { createTranscriptWatcher } from '../../src/ingestion/transcript-watcher.js';
 
 function sleep(ms: number): Promise<void> {
@@ -187,6 +188,55 @@ describe('transcript-watcher', () => {
       );
     } finally {
       second.stop();
+    }
+  });
+
+  it('collects and imports a deeply nested Workflow subagent transcript', async () => {
+    // Workflow subagents live under `subagents/workflows/<runId>/agent-*.jsonl`
+    // — deeper than the flat `subagents/*.jsonl` layout. The watcher's recursive
+    // collectFiles() must walk into these nested dirs so the parent import
+    // attributes the nested subagent instead of dropping it.
+    const projDir = join(projectsDir, '-tmp-nested-workflow');
+    mkdirSync(projDir, { recursive: true });
+
+    const fixtureDir = join(import.meta.dirname!, '..', 'fixtures', 'subagent');
+    // Parent transcript alongside its {parentBasename}/subagents/... tree.
+    copyFileSync(
+      join(fixtureDir, 'nested-workflow-parent.jsonl'),
+      join(projDir, 'nested-workflow-parent.jsonl'),
+    );
+    cpSync(
+      join(fixtureDir, 'nested-workflow-parent'),
+      join(projDir, 'nested-workflow-parent'),
+      { recursive: true },
+    );
+
+    const watcher = createTranscriptWatcher({
+      projectsPath: projectsDir,
+      pollIntervalMs: 200,
+    });
+    watcher.start();
+
+    try {
+      // The nested subagent is attributed only if collectFiles walked into
+      // `subagents/workflows/<runId>/` and the parent import processed it.
+      await waitFor(
+        () =>
+          getAgentRelationships('nested-workflow-parent').some(
+            (rel) => rel.child_agent_id === 'workflows/wf-run-01/agent-abc123def456789',
+          ),
+      );
+
+      const nestedRel = getAgentRelationships('nested-workflow-parent').find(
+        (rel) => rel.child_agent_id === 'workflows/wf-run-01/agent-abc123def456789',
+      );
+      assert.ok(nestedRel, 'nested Workflow subagent should be imported');
+      assert.ok(
+        nestedRel.child_transcript_path?.includes(join('subagents', 'workflows', 'wf-run-01')),
+        'relationship should point at the deeply nested subagent transcript',
+      );
+    } finally {
+      watcher.stop();
     }
   });
 

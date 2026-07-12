@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Nested Workflow subagent transcripts (stored under `subagents/workflows/<runId>/agent-*.jsonl`) are now discovered and imported alongside flat `subagents/*.jsonl` children, so their events are attributed to the parent session instead of being dropped. Each child is keyed by its path under `subagents/`, so two runs whose agent files share a basename stay distinct instead of overwriting each other.
 - Agent "parent headroom at return" and result-size classification now measure the parent's effective context (input + cache read + cache write) instead of the tiny non-cached input slice, so cached sessions no longer report a near-full 200K headroom; re-run with `--force` to refresh historical numbers.
 - The synthetic zero-usage assistant message Claude Code writes at session end no longer stamps a `context_pct = 0` row onto the real user message it shares a timestamp with; the importer now skips enriching zero-effective-context, zero-output messages at the source.
 - The session-list sparkline no longer shows a phantom drop to 0% at the end of a session or ~3× too many points; the batch mini-timeline now applies the same filtering and streamed-duplicate collapse as the session-detail chart, and existing databases are corrected at read time without a reimport.

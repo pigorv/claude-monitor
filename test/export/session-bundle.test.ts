@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { mkdirSync, writeFileSync, copyFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, copyFileSync, cpSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Buffer } from 'node:buffer';
@@ -54,6 +54,22 @@ function layOutTranscript(projDir: string): { parentPath: string } {
   mkdirSync(subagentsDir, { recursive: true });
   writeFileSync(join(subagentsDir, 'agent-aaa.jsonl'), SUBAGENT_JSONL);
 
+  return { parentPath };
+}
+
+/**
+ * Copy the nested-Workflow fixture (parent .jsonl + its
+ * `subagents/workflows/<runId>/agent-*.jsonl` tree) into projDir, preserving
+ * the on-disk directory depth.
+ */
+function layOutNestedTranscript(projDir: string): { parentPath: string } {
+  mkdirSync(projDir, { recursive: true });
+  const sessionId = 'nested-workflow-parent';
+  const parentPath = join(projDir, `${sessionId}.jsonl`);
+  copyFileSync(join(FIXTURES, 'subagent', `${sessionId}.jsonl`), parentPath);
+  cpSync(join(FIXTURES, 'subagent', sessionId), join(projDir, sessionId), {
+    recursive: true,
+  });
   return { parentPath };
 }
 
@@ -326,6 +342,42 @@ describe('buildSessionBundle', () => {
       .prepare('SELECT COUNT(*) AS n FROM agent_relationships WHERE parent_session_id = ?')
       .get('sess-001') as { n: number };
     assert.ok(rel.n > 0, 'agent relationship row created');
+  });
+
+  it('preserves the nested Workflow subagent path in the sanitized bundle', async () => {
+    const { parentPath } = layOutNestedTranscript(join(TEST_DIR, 'projNested'));
+    seedSessionRow('nested-workflow-parent', parentPath);
+
+    const { zip } = await buildSessionBundle('nested-workflow-parent');
+    const names = parseZip(zip).map((e) => e.name).sort();
+    assert.deepEqual(names, [
+      'nested-workflow-parent.jsonl',
+      'nested-workflow-parent/subagents/workflows/wf-run-01/agent-abc123def456789.jsonl',
+      'sanitization-report.json',
+    ]);
+  });
+
+  it('preserves the nested Workflow subagent path in the raw bundle', async () => {
+    const { parentPath } = layOutNestedTranscript(join(TEST_DIR, 'projNested'));
+    seedSessionRow('nested-workflow-parent', parentPath);
+
+    const { zip } = await buildSessionBundle('nested-workflow-parent', { sanitize: false });
+    const names = parseZip(zip).map((e) => e.name).sort();
+    assert.deepEqual(names, [
+      'export-manifest.json',
+      'nested-workflow-parent.jsonl',
+      'nested-workflow-parent/subagents/workflows/wf-run-01/agent-abc123def456789.jsonl',
+    ]);
+
+    // The nested entry is byte-for-byte identical to the on-disk file.
+    const subPath = join(
+      TEST_DIR, 'projNested', 'nested-workflow-parent',
+      'subagents', 'workflows', 'wf-run-01', 'agent-abc123def456789.jsonl',
+    );
+    const subEntry = parseZip(zip).find(
+      (e) => e.name === 'nested-workflow-parent/subagents/workflows/wf-run-01/agent-abc123def456789.jsonl',
+    )!;
+    assert.ok(subEntry.data.equals(readFileSync(subPath)), 'nested subagent is byte-for-byte identical');
   });
 
   it('never serializes the injected seed into any bundle entry (hex + raw)', async () => {
