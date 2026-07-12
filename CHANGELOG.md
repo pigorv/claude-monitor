@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Release workflow now upgrades npm before publishing so npm Trusted Publishing (OIDC) works; Node 22 shipped an npm too old for OIDC, which broke the `0.7.0` npm publish with `ENEEDAUTH`.
+
 ## [0.7.0] - 2026-07-12
 
 ### Added
