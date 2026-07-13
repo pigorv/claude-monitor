@@ -1,6 +1,11 @@
 import type Database from 'better-sqlite3';
 import { INITIAL_SCHEMA } from './schema.js';
-import { sessionCostUsd } from '../shared/cost.js';
+import {
+  recomputeSessionCostFromColumns,
+  repriceAllSessions,
+  type RepriceAgentRow,
+  type RepriceSessionRow,
+} from '../analysis/reprice.js';
 import * as logger from '../shared/logger.js';
 
 /** Either raw SQL or an imperative function. Function form lets a migration
@@ -378,22 +383,13 @@ function backfillSessionCost(db: Database.Database): void {
 
   const sessions = db
     .prepare(
-      `SELECT id, model, total_input_tokens_billed, total_cache_read_tokens,
+      `SELECT id, model, started_at, total_input_tokens_billed, total_cache_read_tokens,
               total_cache_write_tokens, total_cache_write_5m_tokens,
               total_cache_write_1h_tokens, total_output_tokens
        FROM sessions
        WHERE cost_estimate_usd IS NULL`,
     )
-    .all() as Array<{
-    id: string;
-    model: string | null;
-    total_input_tokens_billed: number | null;
-    total_cache_read_tokens: number | null;
-    total_cache_write_tokens: number | null;
-    total_cache_write_5m_tokens: number | null;
-    total_cache_write_1h_tokens: number | null;
-    total_output_tokens: number | null;
-  }>;
+    .all() as RepriceSessionRow[];
 
   const agentStmt = tableExists(db, 'agent_relationships')
     ? db.prepare(
@@ -406,42 +402,8 @@ function backfillSessionCost(db: Database.Database): void {
   const update = db.prepare('UPDATE sessions SET cost_estimate_usd = ? WHERE id = ?');
 
   for (const s of sessions) {
-    const agentRows = (agentStmt?.all(s.id) ?? []) as Array<{
-      model: string | null;
-      input_tokens_total: number | null;
-      output_tokens_total: number | null;
-      cache_read_total: number | null;
-      cache_write_5m_total: number | null;
-      cache_write_1h_total: number | null;
-    }>;
-
-    // Undo the import-time agent-merge inflation of total_output_tokens.
-    const mergedAgentOutput = agentRows.reduce(
-      (sum, a) => sum + (a.input_tokens_total != null ? a.output_tokens_total ?? 0 : 0),
-      0,
-    );
-    const cacheWrite = s.total_cache_write_tokens ?? 0;
-    const cw5m = s.total_cache_write_5m_tokens ?? 0;
-    const cw1h = s.total_cache_write_1h_tokens ?? 0;
-    const parentParts = {
-      freshInput: s.total_input_tokens_billed ?? 0,
-      cacheRead: s.total_cache_read_tokens ?? 0,
-      cacheWrite5m: cw5m,
-      cacheWrite1h: cw1h,
-      cacheWriteDefault: Math.max(0, cacheWrite - cw5m - cw1h),
-      output: Math.max(0, (s.total_output_tokens ?? 0) - mergedAgentOutput),
-    };
-
-    const agentParts = agentRows.map((a) => ({
-      model: a.model ?? null,
-      freshInput: a.input_tokens_total ?? 0,
-      cacheRead: a.cache_read_total ?? 0,
-      cacheWrite5m: a.cache_write_5m_total ?? 0,
-      cacheWrite1h: a.cache_write_1h_total ?? 0,
-      output: a.output_tokens_total ?? 0,
-    }));
-
-    const cost = sessionCostUsd(s.model, parentParts, agentParts);
+    const agentRows = (agentStmt?.all(s.id) ?? []) as RepriceAgentRow[];
+    const cost = recomputeSessionCostFromColumns(s, agentRows);
     if (cost !== null) update.run(cost, s.id);
   }
 }
@@ -464,6 +426,13 @@ const MIGRATIONS: Migration[] = [
   { id: 15, name: '015-agent-rel-child-mtime', run: migration015AgentRelChildMtime },
   { id: 16, name: '016-cache-write-split', run: migration016CacheWriteSplit },
   { id: 17, name: '017-cost-and-agent-model', run: migration017CostAndAgentModel },
+  {
+    id: 18,
+    name: '018-reprice-with-discounts',
+    run: (db) => {
+      repriceAllSessions(db);
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): void {
