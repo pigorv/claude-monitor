@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Cost layer now supports date-bounded, per-model price discounts: a session priced within a rule's window pays a fraction of list price (context-window and threshold behavior are unchanged).
+
 ### Fixed
 
 - Release workflow now upgrades npm before publishing so npm Trusted Publishing (OIDC) works; Node 22 shipped an npm too old for OIDC, which broke the `0.7.0` npm publish with `ENEEDAUTH`.

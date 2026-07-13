@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest';
+import { describe, it, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   costBreakdown,
@@ -6,7 +6,12 @@ import {
   contextWindowFor,
   pricingFor,
   sessionCostUsd,
+  setDiscountRules,
+  getDiscountRules,
+  discountMultiplier,
+  MODEL_IDS,
   type CostParts,
+  type DiscountRule,
 } from '../../src/shared/cost.js';
 
 function approx(actual: number, expected: number, msg?: string) {
@@ -335,5 +340,217 @@ describe('contextWindowFor / pricingFor', () => {
   it('returns null for unknown model', () => {
     assert.equal(contextWindowFor('totally-unknown-model'), null);
     assert.equal(pricingFor('totally-unknown-model'), null);
+  });
+});
+
+describe('discount rules', () => {
+  // Discount rules are module-global state; reset after every case so a rule
+  // set in one test never leaks into another (or into the list-price tests).
+  afterEach(() => setDiscountRules([]));
+
+  const DATE = '2026-07-13T09:30:00.000Z'; // a session started_at
+
+  it('scales costBreakdown / pricingFor / sessionCostUsd by m within the window (Behavior #4)', () => {
+    setDiscountRules([
+      { model: 'claude-opus-4-8', percentOff: 40, start: '2026-07-01', end: '2026-07-31' },
+    ]);
+    const m = 0.6;
+
+    // pricingFor: every field is list × m
+    const list = RATES['claude-opus-4-8'];
+    const priced = pricingFor('claude-opus-4-8', DATE);
+    assert.ok(priced);
+    approx(priced.input, list.input * m, 'input');
+    approx(priced.output, list.output * m, 'output');
+    approx(priced.cache_read, list.cache_read * m, 'cache_read');
+    approx(priced.cache_write_5m, list.cache_write_5m * m, 'cache_write_5m');
+    approx(priced.cache_write_1h, list.cache_write_1h * m, 'cache_write_1h');
+    approx(priced.cache_write_default, list.cache_write_default * m, 'cache_write_default');
+
+    // costBreakdown: total scales by m relative to the undiscounted total.
+    // (list ref uses no date → the bounded rule doesn't match → list price.)
+    const listBd = costBreakdown('claude-opus-4-8', PARTS);
+    const discBd = costBreakdown('claude-opus-4-8', PARTS, DATE);
+    assert.ok(listBd && discBd);
+    approx(discBd.perType.freshInput, listBd.perType.freshInput * m, 'freshInput scaled');
+    // per-type values are rounded to 6 decimals, so the scaled total is equal
+    // up to a rounding epsilon rather than bit-exact.
+    assert.ok(
+      Math.abs(discBd.total - listBd.total * m) < 1e-5,
+      `total scaled: expected ~${listBd.total * m}, got ${discBd.total}`,
+    );
+
+    // sessionCostUsd: parent + agents share the one pricing date
+    const parent = {
+      freshInput: 200_000,
+      cacheRead: 1_500_000,
+      cacheWrite5m: 80_000,
+      cacheWrite1h: 40_000,
+      cacheWriteDefault: 25_000,
+      output: 90_000,
+    };
+    const listCost = sessionCostUsd('claude-opus-4-8', parent, []);
+    const discCost = sessionCostUsd('claude-opus-4-8', parent, [], DATE);
+    assert.ok(listCost !== null && discCost !== null);
+    assert.ok(
+      Math.abs(discCost - listCost * m) < 1e-5,
+      `session cost scaled: expected ~${listCost * m}, got ${discCost}`,
+    );
+  });
+
+  it('applies one pricing date to parent and every sub-agent (Behavior #4)', () => {
+    setDiscountRules([
+      { model: 'claude-opus-4-8', percentOff: 50 },
+      { model: 'claude-haiku-4-5', percentOff: 50 },
+    ]);
+    // undefined date matches the always-on rules above
+    const parent = {
+      freshInput: 100_000,
+      cacheRead: 0,
+      cacheWrite5m: 0,
+      cacheWrite1h: 0,
+      cacheWriteDefault: 0,
+      output: 0,
+    };
+    const agent = {
+      model: 'claude-haiku-4-5' as string | null,
+      freshInput: 100_000,
+      cacheRead: 0,
+      cacheWrite5m: 0,
+      cacheWrite1h: 0,
+      output: 0,
+    };
+    const disc = sessionCostUsd('claude-opus-4-8', parent, [agent]);
+    setDiscountRules([]);
+    const list = sessionCostUsd('claude-opus-4-8', parent, [agent]);
+    assert.ok(disc !== null && list !== null);
+    approx(disc, list * 0.5, 'both parent and agent halved');
+  });
+
+  it('before / after the window, and unmatched models, pay list price (Behavior #3)', () => {
+    setDiscountRules([
+      { model: 'claude-opus-4-8', percentOff: 40, start: '2026-07-01', end: '2026-07-31' },
+    ]);
+    const list = RATES['claude-opus-4-8'];
+
+    // Before window
+    assert.equal(discountMultiplier('claude-opus-4-8', '2026-06-30T23:59:59Z'), 1);
+    approx(pricingFor('claude-opus-4-8', '2026-06-30')!.input, list.input, 'before');
+
+    // After window
+    assert.equal(discountMultiplier('claude-opus-4-8', '2026-08-01T00:00:00Z'), 1);
+    approx(pricingFor('claude-opus-4-8', '2026-08-01')!.input, list.input, 'after');
+
+    // A different model — no rule matches
+    assert.equal(discountMultiplier('claude-haiku-4-5', DATE), 1);
+    approx(pricingFor('claude-haiku-4-5', DATE)!.input, RATES['claude-haiku-4-5'].input, 'other model');
+
+    // Inclusive boundaries hit
+    assert.equal(discountMultiplier('claude-opus-4-8', '2026-07-01T00:00:00Z'), 0.6);
+    assert.equal(discountMultiplier('claude-opus-4-8', '2026-07-31T23:59:59Z'), 0.6);
+  });
+
+  it('honors open-ended start and open-ended end (Behavior #3)', () => {
+    setDiscountRules([{ model: 'claude-opus-4-8', percentOff: 20, end: '2026-07-31' }]);
+    // no start → any date on or before end matches
+    assert.equal(discountMultiplier('claude-opus-4-8', '2000-01-01T00:00:00Z'), 0.8);
+    assert.equal(discountMultiplier('claude-opus-4-8', '2026-08-01T00:00:00Z'), 1);
+
+    setDiscountRules([{ model: 'claude-opus-4-8', percentOff: 20, start: '2026-07-01' }]);
+    // no end → any date on or after start matches
+    assert.equal(discountMultiplier('claude-opus-4-8', '2026-06-30T00:00:00Z'), 1);
+    assert.equal(discountMultiplier('claude-opus-4-8', '2999-01-01T00:00:00Z'), 0.8);
+  });
+
+  it('undefined date matches only always-on rules (Behavior #3)', () => {
+    setDiscountRules([{ model: 'claude-opus-4-8', percentOff: 40, start: '2026-07-01' }]);
+    // bounded rule + undefined date → no match → list price
+    assert.equal(discountMultiplier('claude-opus-4-8'), 1);
+
+    setDiscountRules([{ model: 'claude-opus-4-8', percentOff: 40 }]);
+    // always-on rule + undefined date → matches
+    assert.equal(discountMultiplier('claude-opus-4-8'), 0.6);
+  });
+
+  it('first matching rule in file order wins on overlap (Behavior #3)', () => {
+    setDiscountRules([
+      { model: 'claude-opus-4-8', percentOff: 10, start: '2026-07-01', end: '2026-07-31' },
+      { model: 'claude-opus-4-8', percentOff: 90, start: '2026-07-10', end: '2026-07-20' },
+    ]);
+    // DATE (2026-07-13) is in both windows; the first (10% off → ×0.9) wins
+    assert.equal(discountMultiplier('claude-opus-4-8', DATE), 0.9);
+  });
+
+  it('setDiscountRules drops NaN and out-of-range percentOff (Behavior #9)', () => {
+    setDiscountRules([
+      { model: 'a', percentOff: Number.NaN },
+      { model: 'b', percentOff: -1 },
+      { model: 'c', percentOff: 101 },
+      { model: 'd', percentOff: Infinity },
+      { model: 'claude-opus-4-8', percentOff: 0 }, // valid: 0% is allowed
+      { model: 'claude-haiku-4-5', percentOff: 100 }, // valid: 100% is allowed
+    ]);
+    const kept = getDiscountRules();
+    assert.deepEqual(kept.map((r) => r.model), ['claude-opus-4-8', 'claude-haiku-4-5']);
+    // 0% off → ×1 (list price), 100% off → ×0 (free)
+    assert.equal(discountMultiplier('claude-opus-4-8'), 1);
+    assert.equal(discountMultiplier('claude-haiku-4-5'), 0);
+  });
+
+  it('getDiscountRules returns a copy, not the live array', () => {
+    setDiscountRules([{ model: 'claude-opus-4-8', percentOff: 50 }]);
+    const copy = getDiscountRules();
+    copy.push({ model: 'claude-haiku-4-5', percentOff: 50 });
+    assert.equal(getDiscountRules().length, 1, 'mutating the copy must not affect state');
+  });
+
+  it('empty rules → list price everywhere, byte-for-byte identical (Behavior #9)', () => {
+    setDiscountRules([]);
+    // Cost is exactly the list-price cost with or without the date argument
+    const noDate = costBreakdown('claude-opus-4-8', PARTS);
+    const withDate = costBreakdown('claude-opus-4-8', PARTS, DATE);
+    assert.ok(noDate && withDate);
+    assert.deepEqual(withDate, noDate, 'empty rules ⇒ date is inert');
+    assert.deepEqual(pricingFor('claude-opus-4-8', DATE), pricingFor('claude-opus-4-8'));
+  });
+
+  it('discounts are pricing-only: window & threshold outputs unchanged with rules set (Behavior #4)', () => {
+    const before = {
+      resolved: resolveModel('claude-sonnet-5-20260514'),
+      window: contextWindowFor('claude-sonnet-5-20260514'),
+    };
+    setDiscountRules([{ model: 'claude-sonnet-5', percentOff: 75 }]);
+    const after = {
+      resolved: resolveModel('claude-sonnet-5-20260514'),
+      window: contextWindowFor('claude-sonnet-5-20260514'),
+    };
+    // resolveModel (id, pricing, window) and contextWindowFor are untouched by rules
+    assert.deepEqual(after.resolved, before.resolved);
+    assert.equal(after.window, before.window);
+  });
+
+  it('a rule keyed by the canonical id covers dated variants', () => {
+    // list reference computed with no rules active
+    const list = costBreakdown('claude-sonnet-5-20260514', PARTS);
+    setDiscountRules([{ model: 'claude-sonnet-5', percentOff: 50 }]);
+    // a dated variant resolves to claude-sonnet-5, so the discount applies
+    const bd = costBreakdown('claude-sonnet-5-20260514', PARTS, DATE);
+    assert.ok(bd && list);
+    assert.ok(
+      Math.abs(bd.total - list.total * 0.5) < 1e-5,
+      `dated variant discounted via canonical key: expected ~${list.total * 0.5}, got ${bd.total}`,
+    );
+  });
+
+  it('MODEL_IDS exposes the canonical model ids', () => {
+    assert.ok(MODEL_IDS.includes('claude-opus-4-8'));
+    assert.ok(MODEL_IDS.includes('claude-sonnet-5'));
+    assert.ok(Array.isArray(MODEL_IDS));
+  });
+
+  it('DiscountRule type is exported and usable', () => {
+    const rule: DiscountRule = { model: 'claude-opus-4-8', percentOff: 25 };
+    setDiscountRules([rule]);
+    assert.equal(discountMultiplier('claude-opus-4-8'), 0.75);
   });
 });
