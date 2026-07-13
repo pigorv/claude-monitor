@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { VERSION } from '../shared/constants.js';
+import { initDiscounts } from '../shared/discount-config.js';
 import { exportCommand } from './commands/export.js';
 import { importCommand } from './commands/import.js';
 import { startCommand } from './commands/start.js';
@@ -36,6 +37,9 @@ async function main(): Promise<void> {
     console.log(VERSION);
     return;
   }
+
+  // Load per-model discount rules once, before any command reaches getDb().
+  initDiscounts();
 
   switch (command) {
     case 'import':
