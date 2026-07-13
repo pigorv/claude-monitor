@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Configurable per-model, time-bounded price discounts via `~/.claude-monitor/discounts.json` (set `CLAUDE_MONITOR_DISCOUNTS_FILE` to override the location), applied to new imports automatically and to existing sessions once on upgrade; re-apply to history after editing the file with `claude-monitor import --force`.
+
 ### Fixed
 
 - Release workflow now upgrades npm before publishing so npm Trusted Publishing (OIDC) works; Node 22 shipped an npm too old for OIDC, which broke the `0.7.0` npm publish with `ENEEDAUTH`.
