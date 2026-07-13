@@ -382,7 +382,7 @@ export async function importTranscript(
     output: row.output_tokens_total ?? 0,
   }));
 
-  const cost = sessionCostUsd(model, parentParts, agentParts);
+  const cost = sessionCostUsd(model, parentParts, agentParts, session.started_at);
   db.prepare('UPDATE sessions SET cost_estimate_usd = ? WHERE id = ?').run(cost, sessionId);
 
   // Detect and link plan↔implementation session pairs

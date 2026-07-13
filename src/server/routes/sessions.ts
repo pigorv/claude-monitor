@@ -139,7 +139,7 @@ function assembleTokenBudget(
   };
 
   function term(model: string | null | undefined, parts: Parts) {
-    const breakdown = costBreakdown(model, parts);
+    const breakdown = costBreakdown(model, parts, session.started_at);
     return { parts, perType: breakdown?.perType ?? zeroPerType, resolved: breakdown != null };
   }
 

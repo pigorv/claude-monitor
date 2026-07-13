@@ -16,7 +16,7 @@
 
 ## Contents
 
-[Why?](#why) · [Quick Start](#quick-start) · [Features](#features) · [How It Works](#how-it-works) · [CLI Reference](#cli-reference) · [Status line link](#status-line-link) · [Uninstall](#uninstall) · [Built With](#built-with) · [Development](#development)
+[Why?](#why) · [Quick Start](#quick-start) · [Features](#features) · [How It Works](#how-it-works) · [Configuration](#configuration) · [CLI Reference](#cli-reference) · [Status line link](#status-line-link) · [Uninstall](#uninstall) · [Built With](#built-with) · [Development](#development)
 
 ## Why?
 
@@ -80,6 +80,31 @@ npx @pigorv/claude-monitor start
 ## How It Works
 
 The `start` command watches `~/.claude/projects/` for JSONL transcript files. Each transcript is parsed into thinking blocks, tool calls, token snapshots, and compaction events, then stored in a local SQLite database (`~/.claude-monitor/data.sqlite`). The dashboard reads from this database — no data leaves your machine.
+
+## Configuration
+
+### Price discounts
+
+Cost estimates use each model's list price by default. To reflect a negotiated or promotional rate, add an optional discount config at `~/.claude-monitor/discounts.json` (override the path with the `CLAUDE_MONITOR_DISCOUNTS_FILE` environment variable). It's a JSON array of rules:
+
+```json
+[
+  { "model": "claude-sonnet-4-6", "percentOff": 40, "start": "2026-06-01", "end": "2026-06-30" },
+  { "model": "claude-opus-4-8", "percentOff": 15 }
+]
+```
+
+Each rule:
+
+- **`model`** — the canonical model id the discount applies to (e.g. `claude-sonnet-4-6`, `claude-opus-4-8`, `claude-fable-5`). A rule only affects sessions on that exact model.
+- **`percentOff`** — how much to knock off list price, `0`–`100`. `40` means the session pays 60% of list; the discount scales every token type (input, output, cache read/write) uniformly.
+- **`start`** / **`end`** *(optional)* — inclusive ISO `YYYY-MM-DD` bounds matched against each session's start date. Omit either bound to leave that side open-ended; omit both for an always-on rule. When several rules match a session, the **first matching rule wins**, so list more specific windows before catch-alls.
+
+Discounts affect **pricing only** — token counts, context %, and every other metric are untouched. They apply to new imports automatically, and existing sessions are repriced once on upgrade (a database migration recomputes stored costs from their token totals). After editing `discounts.json`, re-apply the change to your existing history with:
+
+```bash
+claude-monitor import --force
+```
 
 <!-- cli:start -->
 ## CLI Reference

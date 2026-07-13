@@ -86,6 +86,84 @@ export function resolveModel(model: string | null | undefined): ResolvedModel | 
   return null;
 }
 
+/** Export the canonical model ids (for config validation / dropdowns). */
+export const MODEL_IDS = Object.keys(MODELS);
+
+/**
+ * A time-bounded, per-model price discount. `percentOff` is 0–100 (a value of
+ * 50 means the session pays 50% of list price). `start`/`end` are inclusive ISO
+ * dates (`YYYY-MM-DD`); an omitted bound is open-ended on that side.
+ */
+export interface DiscountRule {
+  model: string;
+  percentOff: number;
+  start?: string;
+  end?: string;
+}
+
+let DISCOUNT_RULES: DiscountRule[] = [];
+
+/**
+ * Replace the in-memory discount rules. Keeps only entries whose `percentOff`
+ * is a finite number in [0, 100]; invalid entries are dropped. Order is
+ * preserved — on a date overlap the first matching rule wins.
+ */
+export function setDiscountRules(rules: DiscountRule[]): void {
+  DISCOUNT_RULES = rules.filter(
+    (r) => Number.isFinite(r.percentOff) && r.percentOff >= 0 && r.percentOff <= 100,
+  );
+}
+
+/** The currently-active discount rules (a shallow copy). */
+export function getDiscountRules(): DiscountRule[] {
+  return DISCOUNT_RULES.slice();
+}
+
+/**
+ * Multiplier (fraction of list price paid) for a canonical model id on a given
+ * date. Returns `1 − percentOff/100` (clamped to [0, 1]) for the first rule (in
+ * file order) whose `model` equals `id` and whose date window contains the date
+ * portion of `date`; otherwise `1`. A `date` of `undefined` only matches
+ * always-on rules (no `start`/`end`).
+ */
+export function discountMultiplier(id: string, date?: string): number {
+  const d = date?.slice(0, 10);
+  for (const rule of DISCOUNT_RULES) {
+    if (rule.model !== id) continue;
+    if (d === undefined) {
+      if (rule.start === undefined && rule.end === undefined) {
+        return clamp01(1 - rule.percentOff / 100);
+      }
+      continue;
+    }
+    if ((!rule.start || d >= rule.start) && (!rule.end || d <= rule.end)) {
+      return clamp01(1 - rule.percentOff / 100);
+    }
+  }
+  return 1;
+}
+
+function clamp01(x: number): number {
+  return Math.min(1, Math.max(0, x));
+}
+
+/**
+ * List pricing scaled by the discount multiplier for a model id on a date.
+ * Returns `list` unchanged when the multiplier is exactly 1.
+ */
+function effectivePricing(id: string, list: Pricing, date?: string): Pricing {
+  const m = discountMultiplier(id, date);
+  if (m === 1) return list;
+  return {
+    input: list.input * m,
+    output: list.output * m,
+    cache_read: list.cache_read * m,
+    cache_write_5m: list.cache_write_5m * m,
+    cache_write_1h: list.cache_write_1h * m,
+    cache_write_default: list.cache_write_default * m,
+  };
+}
+
 export interface CostParts {
   freshInput: number;
   cacheRead: number;
@@ -122,11 +200,12 @@ function rate(tokens: number, perMTok: number): number {
 export function costBreakdown(
   model: string | null | undefined,
   parts: CostParts,
+  date?: string,
 ): CostBreakdown | undefined {
   const resolved = resolveModel(model);
   if (!resolved) return undefined;
 
-  const p = resolved.pricing;
+  const p = effectivePricing(resolved.id, resolved.pricing, date);
   const perType = {
     freshInput: rate(parts.freshInput, p.input),
     cacheRead: rate(parts.cacheRead, p.cache_read),
@@ -172,10 +251,11 @@ export function sessionCostUsd(
     cacheWrite1h: number;
     output: number;
   }>,
+  date?: string,
 ): number | null {
   const breakdowns: CostBreakdown[] = [];
 
-  const parentCost = costBreakdown(parentModel, parent);
+  const parentCost = costBreakdown(parentModel, parent, date);
   if (parentCost) breakdowns.push(parentCost);
 
   for (const agent of agents) {
@@ -190,7 +270,7 @@ export function sessionCostUsd(
       // current cache_creation breakdown.
       cacheWriteDefault: 0,
       output: agent.output,
-    });
+    }, date);
     if (agentCost) breakdowns.push(agentCost);
   }
 
@@ -204,7 +284,9 @@ export function contextWindowFor(model: string | null | undefined): number | nul
   return resolveModel(model)?.context_window ?? null;
 }
 
-/** Pricing for a model, or null when unresolved. */
-export function pricingFor(model: string | null | undefined): Pricing | null {
-  return resolveModel(model)?.pricing ?? null;
+/** Pricing for a model on a given date (discount applied), or null when unresolved. */
+export function pricingFor(model: string | null | undefined, date?: string): Pricing | null {
+  const resolved = resolveModel(model);
+  if (!resolved) return null;
+  return effectivePricing(resolved.id, resolved.pricing, date);
 }

@@ -126,3 +126,70 @@ describe('migration 017 — cost backfill', () => {
     assert.equal(costOf(db, 's4'), null);
   });
 });
+
+/**
+ * Migrations 016 (cache-write split) and 017 (cost + agent model) add columns to
+ * a pre-existing agent_relationships table. On a fresh DB those columns already
+ * exist in INITIAL_SCHEMA, so the guarded ADD COLUMN branches never run. This
+ * drives the genuine legacy-upgrade path: a DB whose agent_relationships predates
+ * those columns, with migrations 1–15 already marked applied, so runMigrations
+ * executes 016/017's column adds against the legacy shape.
+ */
+describe('migrations 016/017 — legacy agent_relationships upgrade', () => {
+  let db: Database.Database;
+
+  afterEach(() => db?.close());
+
+  function hasColumn(d: Database.Database, table: string, column: string): boolean {
+    const rows = d.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    return rows.some((r) => r.name === column);
+  }
+
+  it('adds the cache-total and model columns to a legacy agent_relationships table', () => {
+    db = new Database(':memory:');
+    // Legacy schema: agent_relationships without the cache-total / model columns
+    // and sessions without the migration-016/017 aggregate columns.
+    db.exec(`
+      CREATE TABLE sessions (
+        id TEXT PRIMARY KEY,
+        project_path TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        model TEXT,
+        total_cache_read_tokens INTEGER DEFAULT 0,
+        total_cache_write_tokens INTEGER DEFAULT 0,
+        total_output_tokens INTEGER DEFAULT 0
+      );
+      CREATE TABLE agent_relationships (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        parent_session_id TEXT NOT NULL,
+        child_agent_id TEXT NOT NULL,
+        input_tokens_total INTEGER,
+        output_tokens_total INTEGER
+      );
+      CREATE TABLE _migrations (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    // Mark migrations 1–15 applied so runMigrations only runs 016/017/018.
+    const stamp = db.prepare('INSERT INTO _migrations (id, name) VALUES (?, ?)');
+    for (let i = 1; i <= 15; i++) stamp.run(i, `legacy-${i}`);
+
+    db.prepare(
+      'INSERT INTO sessions (id, project_path, started_at, model, total_cache_read_tokens, total_output_tokens) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run('legacy-1', '/p', '2025-01-01T00:00:00.000Z', 'claude-sonnet-4-6', 1000, 1000);
+
+    runMigrations(db);
+
+    // The guarded ADD COLUMN branches in 016/017 ran against the legacy shape.
+    for (const col of ['cache_read_total', 'cache_write_5m_total', 'cache_write_1h_total', 'model']) {
+      assert.ok(hasColumn(db, 'agent_relationships', col), `agent_relationships.${col} added`);
+    }
+    assert.ok(hasColumn(db, 'sessions', 'total_input_tokens_billed'), 'sessions.total_input_tokens_billed added');
+    assert.ok(hasColumn(db, 'sessions', 'cost_estimate_usd'), 'sessions.cost_estimate_usd added');
+    // 017's backfill priced the seeded session through the (now-complete) columns.
+    const cost = (db.prepare('SELECT cost_estimate_usd c FROM sessions WHERE id = ?').get('legacy-1') as { c: number | null }).c;
+    assert.ok(cost !== null && cost > 0, `expected a backfilled cost, got ${cost}`);
+  });
+});
