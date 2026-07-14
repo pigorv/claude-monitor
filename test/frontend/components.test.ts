@@ -11,6 +11,7 @@ import { Dropdown } from '../../frontend/src/components/Dropdown.js';
 import { FilterBar } from '../../frontend/src/components/FilterBar.js';
 import { TokenBudgetSummary } from '../../frontend/src/components/TokenBudgetSummary.js';
 import { ExportButton } from '../../frontend/src/components/ExportButton.js';
+import { Modal } from '../../frontend/src/components/Modal.js';
 import { transformTimeline } from '../../frontend/src/lib/chart-config.js';
 import type { Event as SessionEvent, AgentRelationship, TokenDataPoint, ProjectInfo, EventAnnotation, TokenBudget } from '../../src/shared/types.js';
 
@@ -1115,5 +1116,23 @@ describe('ExportButton', () => {
     assert.ok(out.includes('export-btn-menu'), 'menu should render when defaultMenuOpen');
     assert.ok(out.includes('Raw (unsanitized)'), 'menu should list the raw option');
     assert.ok(out.includes('Sanitized'), 'menu should list the sanitized option');
+  });
+});
+
+// ─── Modal ──────────────────────────────────────────────
+
+describe('Modal', () => {
+  it('renders nothing when closed', () => {
+    const out = render(html`<${Modal} open=${false} onClose=${() => {}} title=${'Export session'}>body</${Modal}>`);
+    assert.equal(out, '', 'closed modal should render nothing');
+  });
+
+  it('renders a labelled dialog with title and children when open', () => {
+    const out = render(html`<${Modal} open=${true} onClose=${() => {}} title=${'Export session'}><span>modal body content</span></${Modal}>`);
+    assert.ok(out.includes('role="dialog"'), 'should render a dialog role');
+    assert.ok(out.includes('aria-modal="true"'), 'should be an aria-modal');
+    assert.ok(out.includes('modal-overlay'), 'should render the overlay');
+    assert.ok(out.includes('Export session'), 'should render the title');
+    assert.ok(out.includes('modal body content'), 'should render its children');
   });
 });
