@@ -2,6 +2,24 @@
 
 .session-header {
   margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.session-header-main {
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .session-header {
+    flex-direction: column;
+  }
+  .export-btn-header {
+    align-self: stretch;
+    justify-content: center;
+  }
 }
 
 /* Title — from first user message */
