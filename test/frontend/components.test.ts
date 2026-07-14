@@ -1094,28 +1094,34 @@ describe('FilterBar', () => {
 // ─── ExportButton ───────────────────────────────────────
 
 describe('ExportButton', () => {
-  it('renders the primary button with the "Export (raw)" label', () => {
+  it('renders a single header button labelled "Export" with no caret', () => {
     const out = render(html`<${ExportButton} sessionId=${'sess-1'} />`);
-    assert.ok(out.includes('export-btn-primary'), 'should render the primary button');
-    assert.ok(out.includes('Export (raw)'), 'primary label names the default (raw) mode');
-    assert.ok(out.includes('copy-btn'), 'should sit at the .copy-btn pill scale');
+    assert.ok(out.includes('export-btn-header'), 'should render the header button');
+    assert.ok(out.includes('Export'), 'header button is labelled "Export"');
+    assert.ok(!out.includes('export-btn-caret'), 'should not render a caret toggle');
   });
 
-  it('renders the caret button', () => {
+  it('does not render the modal when closed by default', () => {
     const out = render(html`<${ExportButton} sessionId=${'sess-1'} />`);
-    assert.ok(out.includes('export-btn-caret'), 'should render the caret toggle');
+    assert.ok(!out.includes('role="dialog"'), 'modal should not render when closed');
+    assert.ok(!out.includes('export-row'), 'option rows should not render when closed');
   });
 
-  it('does not render the menu when closed by default', () => {
-    const out = render(html`<${ExportButton} sessionId=${'sess-1'} />`);
-    assert.ok(!out.includes('export-btn-menu'), 'menu should not render when closed');
-  });
-
-  it('renders both mode options when defaultMenuOpen=true', () => {
-    const out = render(html`<${ExportButton} sessionId=${'sess-1'} defaultMenuOpen=${true} />`);
-    assert.ok(out.includes('export-btn-menu'), 'menu should render when defaultMenuOpen');
-    assert.ok(out.includes('Raw (unsanitized)'), 'menu should list the raw option');
-    assert.ok(out.includes('Sanitized'), 'menu should list the sanitized option');
+  it('renders both option rows when defaultModalOpen=true', () => {
+    const out = render(html`<${ExportButton} sessionId=${'sess-1'} defaultModalOpen=${true} />`);
+    assert.ok(out.includes('role="dialog"'), 'modal should render when defaultModalOpen');
+    assert.ok(out.includes('export-row sanitized'), 'should render the sanitized row');
+    assert.ok(out.includes('export-row raw'), 'should render the raw row');
+    assert.ok(out.includes('Sanitized'), 'should render the sanitized title');
+    assert.ok(out.includes('Raw'), 'should render the raw title');
+    assert.ok(
+      out.includes('Paths and content scrambled beyond recognition'),
+      'should render the sanitized description',
+    );
+    assert.ok(
+      out.includes('Verbatim paths and content'),
+      'should render the raw description',
+    );
   });
 });
 

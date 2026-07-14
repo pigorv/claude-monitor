@@ -1,151 +1,75 @@
-import { useState, useEffect, useRef } from "preact/hooks";
+import { useState } from "preact/hooks";
 import { html } from "htm/preact";
 import { downloadSessionExport } from "../api/client";
+import { Modal } from "./Modal";
 
 interface ExportButtonProps {
   sessionId: string;
-  // Test seam: initialize the menu-open state so SSR can render it open.
-  defaultMenuOpen?: boolean;
+  // Test seam: initialize the modal-open state so SSR can render it open.
+  defaultModalOpen?: boolean;
 }
 
-type Mode = "idle" | "armed" | "pending";
-
-// Auto-disarm the two-step confirm after this long with no second click.
-const ARM_TIMEOUT_MS = 3000;
-
-export function ExportButton({ sessionId, defaultMenuOpen }: ExportButtonProps) {
-  const [mode, setMode] = useState<Mode>("idle");
-  const [menuOpen, setMenuOpen] = useState(defaultMenuOpen ?? false);
+export function ExportButton({ sessionId, defaultModalOpen }: ExportButtonProps) {
+  const [open, setOpen] = useState(defaultModalOpen ?? false);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function clearArmTimer() {
-    if (armTimer.current != null) {
-      clearTimeout(armTimer.current);
-      armTimer.current = null;
-    }
-  }
-
-  // Disarm the primary on outside pointerdown (mirrors Dropdown) — this also
-  // covers the menu, which shares the same root and closes on outside click.
-  useEffect(() => {
-    if (mode !== "armed" && !menuOpen) return;
-    const handler = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setMode((m) => (m === "armed" ? "idle" : m));
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", handler);
-    return () => document.removeEventListener("pointerdown", handler);
-  }, [mode, menuOpen]);
-
-  // Clear a pending arm timer whenever we leave the armed state / unmount.
-  useEffect(() => {
-    if (mode !== "armed") clearArmTimer();
-    return clearArmTimer;
-  }, [mode]);
 
   async function runDownload(raw: boolean) {
     setError(null);
-    setMode("pending");
+    setPending(true);
     try {
       await downloadSessionExport(sessionId, { raw });
     } catch (e: any) {
       setError(e?.message || "Export failed");
     } finally {
-      setMode("idle");
+      setPending(false);
     }
-  }
-
-  function handlePrimaryClick() {
-    if (mode === "pending") return;
-    if (mode === "idle") {
-      // First click arms the confirm and schedules an auto-disarm.
-      setMode("armed");
-      clearArmTimer();
-      armTimer.current = setTimeout(() => {
-        setMode((m) => (m === "armed" ? "idle" : m));
-      }, ARM_TIMEOUT_MS);
-      return;
-    }
-    // armed → second click starts the raw download.
-    void runDownload(true);
-  }
-
-  function handlePrimaryBlur() {
-    // Losing focus disarms the confirm.
-    setMode((m) => (m === "armed" ? "idle" : m));
-  }
-
-  function toggleMenu() {
-    if (mode === "pending") return;
-    // Opening the menu disarms the primary.
-    setMode((m) => (m === "armed" ? "idle" : m));
-    setMenuOpen((v) => !v);
   }
 
   function selectMode(raw: boolean) {
-    setMenuOpen(false);
     void runDownload(raw);
+    setOpen(false);
   }
 
-  const pending = mode === "pending";
-  const primaryLabel =
-    mode === "pending" ? "Exporting…" : mode === "armed" ? "Export raw?" : "Export (raw)";
-  const primaryTitle = error ? error : "Export this session as a raw (unsanitized) bundle";
-
   return html`
-    <div class="export-btn-root" ref=${rootRef}>
-      <button
-        class=${`copy-btn export-btn-primary${mode === "armed" ? " export-btn-armed" : ""}`}
-        type="button"
-        onClick=${handlePrimaryClick}
-        onBlur=${handlePrimaryBlur}
-        disabled=${pending}
-        title=${primaryTitle}
-      >
-        ${pending
-          ? "Exporting…"
-          : html`
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M6 1.5V7.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M3.5 5L6 7.5L8.5 5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 9.5H10" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
-              ${primaryLabel}
-            `}
+    <button
+      class="export-btn-header"
+      type="button"
+      onClick=${() => setOpen(true)}
+      disabled=${pending}
+      title=${error ?? undefined}
+    >
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M6 1.5V7.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M3.5 5L6 7.5L8.5 5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 9.5H10" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+      Export
+    </button>
+    <${Modal}
+      open=${open}
+      onClose=${() => setOpen(false)}
+      title="Export session"
+      subtitle="Choose what to include in the download."
+      footnote="Selecting a row starts that download immediately and closes this dialog."
+    >
+      <button class="export-row sanitized" type="button" onClick=${() => selectMode(false)}>
+        <div class="export-row-icon">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1.5L13.5 4V8C13.5 11.5 11 13.5 8 14.5C5 13.5 2.5 11.5 2.5 8V4L8 1.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5.5 8L7.2 9.7L10.5 6.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="export-row-text">
+          <div class="export-row-title">Sanitized <span class="export-row-badge">Recommended</span></div>
+          <div class="export-row-desc">Paths and content scrambled beyond recognition — unreadable, but structure is intact. Safe to share anywhere.</div>
+        </div>
+        <svg class="export-row-chevron" width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <button
-        class="copy-btn export-btn-caret"
-        type="button"
-        onClick=${toggleMenu}
-        disabled=${pending}
-        title="Choose export mode"
-        aria-label="Choose export mode"
-        aria-haspopup="menu"
-        aria-expanded=${menuOpen}
-      >
-        <span aria-hidden="true">▾</span>
+      <div class="modal-divider"></div>
+      <button class="export-row raw" type="button" onClick=${() => selectMode(true)}>
+        <div class="export-row-icon">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 2V9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="12.5" r="0.9" fill="currentColor"/></svg>
+        </div>
+        <div class="export-row-text">
+          <div class="export-row-title">Raw <span class="export-row-badge">Unsanitized</span></div>
+          <div class="export-row-desc">Verbatim paths and content — only share with people you trust.</div>
+        </div>
+        <svg class="export-row-chevron" width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      ${menuOpen &&
-        html`
-          <div class="export-btn-menu" role="menu">
-            <button
-              class="export-btn-option"
-              type="button"
-              role="menuitem"
-              onClick=${() => selectMode(true)}
-            >
-              Raw (unsanitized)
-            </button>
-            <button
-              class="export-btn-option"
-              type="button"
-              role="menuitem"
-              onClick=${() => selectMode(false)}
-            >
-              Sanitized
-            </button>
-          </div>
-        `}
-    </div>
+    </${Modal}>
   `;
 }
