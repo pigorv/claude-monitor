@@ -7,9 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+### Changed
 
-- A reusable, accessible modal component (dialog role, Escape/backdrop/✕ to close) underpinning upcoming dashboard dialogs.
+- The Session Detail Export button now sits in the page header and opens a modal to choose a Sanitized or Raw bundle — each explained inline — replacing the old two-step confirm and caret dropdown.
 
 ### Fixed
 
