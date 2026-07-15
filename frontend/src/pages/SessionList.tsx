@@ -163,7 +163,7 @@ export function renderSnippet(snip: string): unknown[] {
   return nodes;
 }
 
-function SessionRow({ s }: { s: SessionSummary }) {
+export function SessionRow({ s }: { s: SessionSummary }) {
   const summary = (s.summary ?? "").trim();
   const startedName = s.started_with?.name;
   // The started-with pill carries the slash-command/skill name on the title
