@@ -171,6 +171,7 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
   return html`
     <div class="page session-detail">
       <div class="session-header">
+        <div class="session-header-main">
         <div class="breadcrumb">
           <a href="#/">Sessions</a>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="opacity:0.4"><path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -204,6 +205,8 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
           <span class="sep">·</span>
           <span style="color:var(--color-text-tertiary)">ended ${formatEndTime(s.ended_at)}</span>
         </div>
+        </div>
+        <${ExportButton} sessionId=${s.id} />
       </div>
 
       ${data.linked_sessions && data.linked_sessions.length > 0 && html`
@@ -225,7 +228,6 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
           <code class="resume-cmd-text">claude --resume ${s.id}</code>
           <${CopyButton} text=${"claude --resume " + s.id} label="Copy" />
           <${OpenInTerminalButton} sessionId=${s.id} projectPath=${s.project_path} />
-          <${ExportButton} sessionId=${s.id} />
         </div>
       </div>
 

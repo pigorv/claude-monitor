@@ -11,6 +11,7 @@ import { Dropdown } from '../../frontend/src/components/Dropdown.js';
 import { FilterBar } from '../../frontend/src/components/FilterBar.js';
 import { TokenBudgetSummary } from '../../frontend/src/components/TokenBudgetSummary.js';
 import { ExportButton } from '../../frontend/src/components/ExportButton.js';
+import { Modal } from '../../frontend/src/components/Modal.js';
 import { transformTimeline } from '../../frontend/src/lib/chart-config.js';
 import type { Event as SessionEvent, AgentRelationship, TokenDataPoint, ProjectInfo, EventAnnotation, TokenBudget } from '../../src/shared/types.js';
 
@@ -1093,27 +1094,51 @@ describe('FilterBar', () => {
 // ─── ExportButton ───────────────────────────────────────
 
 describe('ExportButton', () => {
-  it('renders the primary button with the "Export (raw)" label', () => {
+  it('renders a single header button labelled "Export" with no caret', () => {
     const out = render(html`<${ExportButton} sessionId=${'sess-1'} />`);
-    assert.ok(out.includes('export-btn-primary'), 'should render the primary button');
-    assert.ok(out.includes('Export (raw)'), 'primary label names the default (raw) mode');
-    assert.ok(out.includes('copy-btn'), 'should sit at the .copy-btn pill scale');
+    assert.ok(out.includes('export-btn-header'), 'should render the header button');
+    assert.ok(out.includes('Export'), 'header button is labelled "Export"');
+    assert.ok(!out.includes('export-btn-caret'), 'should not render a caret toggle');
   });
 
-  it('renders the caret button', () => {
+  it('does not render the modal when closed by default', () => {
     const out = render(html`<${ExportButton} sessionId=${'sess-1'} />`);
-    assert.ok(out.includes('export-btn-caret'), 'should render the caret toggle');
+    assert.ok(!out.includes('role="dialog"'), 'modal should not render when closed');
+    assert.ok(!out.includes('export-row'), 'option rows should not render when closed');
   });
 
-  it('does not render the menu when closed by default', () => {
-    const out = render(html`<${ExportButton} sessionId=${'sess-1'} />`);
-    assert.ok(!out.includes('export-btn-menu'), 'menu should not render when closed');
+  it('renders both option rows when defaultModalOpen=true', () => {
+    const out = render(html`<${ExportButton} sessionId=${'sess-1'} defaultModalOpen=${true} />`);
+    assert.ok(out.includes('role="dialog"'), 'modal should render when defaultModalOpen');
+    assert.ok(out.includes('export-row sanitized'), 'should render the sanitized row');
+    assert.ok(out.includes('export-row raw'), 'should render the raw row');
+    assert.ok(out.includes('Sanitized'), 'should render the sanitized title');
+    assert.ok(out.includes('Raw'), 'should render the raw title');
+    assert.ok(
+      out.includes('Paths and content scrambled beyond recognition'),
+      'should render the sanitized description',
+    );
+    assert.ok(
+      out.includes('Verbatim paths and content'),
+      'should render the raw description',
+    );
+  });
+});
+
+// ─── Modal ──────────────────────────────────────────────
+
+describe('Modal', () => {
+  it('renders nothing when closed', () => {
+    const out = render(html`<${Modal} open=${false} onClose=${() => {}} title=${'Export session'}>body</${Modal}>`);
+    assert.equal(out, '', 'closed modal should render nothing');
   });
 
-  it('renders both mode options when defaultMenuOpen=true', () => {
-    const out = render(html`<${ExportButton} sessionId=${'sess-1'} defaultMenuOpen=${true} />`);
-    assert.ok(out.includes('export-btn-menu'), 'menu should render when defaultMenuOpen');
-    assert.ok(out.includes('Raw (unsanitized)'), 'menu should list the raw option');
-    assert.ok(out.includes('Sanitized'), 'menu should list the sanitized option');
+  it('renders a labelled dialog with title and children when open', () => {
+    const out = render(html`<${Modal} open=${true} onClose=${() => {}} title=${'Export session'}><span>modal body content</span></${Modal}>`);
+    assert.ok(out.includes('role="dialog"'), 'should render a dialog role');
+    assert.ok(out.includes('aria-modal="true"'), 'should be an aria-modal');
+    assert.ok(out.includes('modal-overlay'), 'should render the overlay');
+    assert.ok(out.includes('Export session'), 'should render the title');
+    assert.ok(out.includes('modal body content'), 'should render its children');
   });
 });

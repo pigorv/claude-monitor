@@ -2,6 +2,24 @@
 
 .session-header {
   margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.session-header-main {
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .session-header {
+    flex-direction: column;
+  }
+  .export-btn-header {
+    align-self: stretch;
+    justify-content: center;
+  }
 }
 
 /* Title — from first user message */
@@ -3428,64 +3446,69 @@
   flex-shrink: 0;
 }
 
-/* ── ExportButton (split button: primary confirm + caret menu) ── */
-.export-btn-root {
-  position: relative;
+/* ── ExportButton (header button + modal option rows) ── */
+.export-btn-header {
+  flex-shrink: 0;
   display: inline-flex;
-  align-items: stretch;
-}
-
-.export-btn-primary {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-/* Armed confirm affordance — accent outline without a full hover fill. */
-.export-btn-primary.export-btn-armed {
-  color: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
-.export-btn-caret {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-left: none;
-  padding-left: 6px;
-  padding-right: 6px;
-}
-
-.export-btn-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  min-width: 160px;
-  background: var(--color-background-primary);
-  border: 1px solid var(--color-border-primary);
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  z-index: 100;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
 }
+.export-btn-header:hover { opacity: 0.9; }
+.export-btn-header:disabled { opacity: 0.6; cursor: default; }
 
-.export-btn-option {
-  display: block;
+.export-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
   text-align: left;
-  padding: 7px 10px;
-  border: none;
-  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 12px;
   background: transparent;
-  color: var(--color-text-secondary);
-  font-family: var(--font-mono);
-  font-size: 11px;
   cursor: pointer;
-  white-space: nowrap;
+  transition: all 0.12s;
 }
-
-.export-btn-option:hover {
-  background: var(--color-background-hover);
+.export-row:hover { background: var(--color-background-hover); border-color: var(--color-border-primary); }
+.export-row-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.export-row.sanitized .export-row-icon { background: var(--color-status-completed-bg); color: var(--color-status-completed-text); }
+.export-row.raw .export-row-icon { background: var(--color-status-danger-bg); color: var(--color-status-danger-text); }
+.export-row-text { flex: 1; min-width: 0; }
+.export-row-title {
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--color-text-primary);
 }
+.export-row-badge {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+}
+.export-row.sanitized .export-row-badge { background: var(--color-status-completed-bg); color: var(--color-status-completed-text); }
+.export-row.raw .export-row-badge { background: var(--color-status-danger-bg); color: var(--color-status-danger-text); }
+.export-row-desc { font-size: 11.5px; color: var(--color-text-secondary); margin-top: 2px; line-height: 1.4; }
+.export-row-chevron { color: var(--color-text-tertiary); flex-shrink: 0; }
