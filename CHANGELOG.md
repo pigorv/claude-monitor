@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Session List rows are now real links, so cmd/ctrl-click or middle-click opens a session's detail view in a new browser tab (plain click still opens it in the current tab).
 - The Session Detail Export button now sits in the page header and opens a modal to choose a Sanitized or Raw bundle — each explained inline — replacing the old two-step confirm and caret dropdown.
 
 ### Fixed
