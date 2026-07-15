@@ -48,8 +48,15 @@ export async function importTranscript(
   if (isSubagentFile(filePath)) {
     const parentSessionId = await deriveSessionIdFromFile(filePath);
     if (parentSessionId && sessionExists(parentSessionId)) {
-      // Parent already imported — import this subagent's events as children
-      const agentId = basename(filePath, '.jsonl');
+      // Parent already imported — import this subagent's events as children.
+      // Derive the SAME path-qualified agent_id the parent-driven import uses
+      // (importSubagentTranscripts → subagentIdFromPath). A bare basename would
+      // key a nested Workflow child (subagents/workflows/<runId>/agent-x.jsonl)
+      // as `agent-x` here but as `workflows/<runId>/agent-x` there, importing the
+      // same file twice under two ids — duplicate events + a duplicate
+      // agent_relationships row. Flat children are unaffected (bare == qualified).
+      const parentTranscriptPath = parentTranscriptPathForSubagent(filePath);
+      const agentId = subagentIdFromPath(parentTranscriptPath, filePath);
       const result = await importSubagentFile(parentSessionId, agentId, filePath, { force: options.force });
       if (!result.skipped) {
         logger.info('Imported subagent transcript', { parentSessionId, agentId, events: result.events });

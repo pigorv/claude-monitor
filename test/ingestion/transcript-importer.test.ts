@@ -2326,4 +2326,74 @@ describe('discoverSubagentFiles recursion + nested parent resolution (T1.1)', ()
 
     assert.equal(getSession(sid)!.subagent_count, 2, 'both distinct subagents must be counted');
   });
+
+  // ── Regression: importing a nested subagent file STANDALONE (the watcher's
+  //    per-file path) must key it by the SAME path-qualified id the parent-driven
+  //    import uses — not the bare basename — or the file lands twice under two
+  //    ids (duplicate events + a duplicate agent_relationships row). ──
+  it('standalone import of a nested subagent reuses the qualified id (no duplicate)', async () => {
+    const projDir = join(TEST_DIR, 'sproj');
+    const sid = 'standalone-parent';
+    // Parent runs ONLY a Workflow (assignAgentIds ignores it), so the sole
+    // subagent is the nested child below — no phantom Agent/Task rows.
+    const parent = [
+      JSON.stringify({
+        parentUuid: null, cwd: '/tmp/project', sessionId: sid, version: '2.1.0', type: 'user',
+        message: { role: 'user', content: 'Run the workflow.' },
+        timestamp: '2026-01-01T00:00:00.000Z', uuid: 's-u-1',
+      }),
+      JSON.stringify({
+        parentUuid: 's-u-1', cwd: '/tmp/project', sessionId: sid, version: '2.1.0', type: 'assistant',
+        message: {
+          model: 'claude-opus-4-6', role: 'assistant',
+          content: [
+            { type: 'text', text: 'Launching workflow.' },
+            { type: 'tool_use', id: 'wf-1', name: 'Workflow', input: { description: 'x', script: "agent('go')" } },
+          ],
+          usage: { input_tokens: 1000, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        },
+        timestamp: '2026-01-01T00:00:01.000Z', uuid: 's-a-1',
+      }),
+      JSON.stringify({
+        parentUuid: 's-a-1', cwd: '/tmp/project', sessionId: sid, version: '2.1.0', type: 'user',
+        message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'wf-1', content: 'done' }] },
+        timestamp: '2026-01-01T00:00:05.000Z', uuid: 's-u-2',
+      }),
+    ].join('\n');
+
+    const parentPath = join(projDir, `${sid}.jsonl`);
+    const runDir = join(projDir, sid, 'subagents', 'workflows', 'wf-run-01');
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(parentPath, parent);
+    const nestedPath = join(runDir, 'agent-nested.jsonl');
+    // The subagent file must carry the parent's sessionId so the standalone
+    // branch's deriveSessionIdFromFile resolves back to this parent.
+    writeFileSync(nestedPath, NESTED_SUBAGENT_JSONL.replace(/nested-parent/g, sid));
+    const qualifiedId = 'workflows/wf-run-01/agent-nested';
+
+    // Parent import covers the nested child under its qualified id.
+    await importTranscript(parentPath);
+    // Now import the nested file on its own, as the watcher does when it walks
+    // the tree and sees the child change.
+    const standalone = await importTranscript(nestedPath);
+    assert.equal(standalone.sessionId, sid);
+
+    const db = getDb();
+
+    // Exactly one relationship row for the nested agent, keyed by the qualified id.
+    const ids = (db.prepare(
+      'SELECT child_agent_id FROM agent_relationships WHERE parent_session_id = ? ORDER BY child_agent_id',
+    ).all(sid) as { child_agent_id: string }[]).map((r) => r.child_agent_id);
+    assert.deepEqual(ids, [qualifiedId], 'no bare-basename duplicate relationship row');
+
+    // Events live only under the qualified id — the bare `agent-nested` id must
+    // not exist, and the qualified stream is not duplicated.
+    const bare = (db.prepare(
+      'SELECT count(*) AS n FROM events WHERE session_id = ? AND agent_id = ?',
+    ).get(sid, 'agent-nested') as { n: number }).n;
+    assert.equal(bare, 0, 'no events under the bare basename id');
+
+    // subagent_count counts the lone nested child exactly once.
+    assert.equal(getSession(sid)!.subagent_count, 1, 'nested child counted once');
+  });
 });

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Nested Workflow subagents are no longer imported twice. When the watcher (or a non-force batch) imported a nested `subagents/workflows/<runId>/agent-*.jsonl` file on its own, it keyed the agent by its bare filename instead of the path-qualified id the parent import uses, producing a duplicate agent in the tree and double-counted events; the standalone path now derives the same qualified id.
+- The Export button's "Export raw?" confirm now auto-disarms after 3 seconds again — a mis-scoped effect was clearing the timer the moment the button armed, so the confirm stayed armed until it lost focus.
 - Release workflow now upgrades npm before publishing so npm Trusted Publishing (OIDC) works; Node 22 shipped an npm too old for OIDC, which broke the `0.7.0` npm publish with `ENEEDAUTH`.
 
 ## [0.7.0] - 2026-07-12

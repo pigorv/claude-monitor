@@ -35,20 +35,23 @@ export function ExportButton({ sessionId, defaultMenuOpen }: ExportButtonProps) 
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
         setMode((m) => (m === "armed" ? "idle" : m));
         setMenuOpen(false);
+        clearArmTimer();
       }
     };
     document.addEventListener("pointerdown", handler);
     return () => document.removeEventListener("pointerdown", handler);
   }, [mode, menuOpen]);
 
-  // Clear a pending arm timer whenever we leave the armed state / unmount.
-  useEffect(() => {
-    if (mode !== "armed") clearArmTimer();
-    return clearArmTimer;
-  }, [mode]);
+  // The arm timer is owned by the handlers (each disarm site clears it). This
+  // effect only guards against a timer outliving the component. It must NOT
+  // depend on `mode`: a `[mode]` effect's cleanup runs on the same commit that
+  // enters "armed" and would clear the timer handlePrimaryClick just set,
+  // silently killing the auto-disarm.
+  useEffect(() => clearArmTimer, []);
 
   async function runDownload(raw: boolean) {
     setError(null);
+    clearArmTimer();
     setMode("pending");
     try {
       await downloadSessionExport(sessionId, { raw });
@@ -77,12 +80,14 @@ export function ExportButton({ sessionId, defaultMenuOpen }: ExportButtonProps) 
   function handlePrimaryBlur() {
     // Losing focus disarms the confirm.
     setMode((m) => (m === "armed" ? "idle" : m));
+    clearArmTimer();
   }
 
   function toggleMenu() {
     if (mode === "pending") return;
     // Opening the menu disarms the primary.
     setMode((m) => (m === "armed" ? "idle" : m));
+    clearArmTimer();
     setMenuOpen((v) => !v);
   }
 
