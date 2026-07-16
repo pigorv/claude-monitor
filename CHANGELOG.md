@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The session detail API now reports whether the session's transcript file still exists on disk (`transcript_exists`), computed per detail request without touching the session list.
+
 ### Changed
 
 - The Session Detail Export button now sits in the page header and opens a modal to choose a Sanitized or Raw bundle — each explained inline — replacing the old two-step confirm and caret dropdown.

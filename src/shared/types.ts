@@ -362,6 +362,7 @@ export interface SessionDetailResponse {
   peak_parent_tokens?: number;
   event_annotations?: EventAnnotation[];
   token_budget: TokenBudget;
+  transcript_exists: boolean;
 }
 
 export interface SessionStats {

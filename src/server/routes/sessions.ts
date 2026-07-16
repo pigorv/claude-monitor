@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { Hono } from 'hono';
 import type {
   Session,
@@ -405,6 +406,10 @@ sessions.get('/api/sessions/:id', (c) => {
   const fileActivity = getFileActivity(id, compactionTimestamps);
   const peakParentTokens = getPeakParentTokens(id);
 
+  const transcriptExists = session.transcript_path
+    ? existsSync(session.transcript_path)
+    : false;
+
   const response: SessionDetailResponse = {
     session,
     token_timeline: tokenTimeline,
@@ -418,6 +423,7 @@ sessions.get('/api/sessions/:id', (c) => {
     peak_parent_tokens: peakParentTokens ?? undefined,
     event_annotations: eventAnnotations.length > 0 ? eventAnnotations : undefined,
     token_budget: assembleTokenBudget(session, agents, peakParentTokens),
+    transcript_exists: transcriptExists,
   };
 
   return c.json(response);
