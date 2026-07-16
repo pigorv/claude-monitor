@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The session detail API now reports whether the session's transcript file still exists on disk (`transcript_exists`), computed per detail request without touching the session list.
+- Session Detail now shows an "Expired" pill in place of the Open in Terminal button when Claude Code's retention cleanup has deleted the session's transcript — the session can no longer be resumed, though its data stays preserved in claude-monitor.
 
 ### Changed
 

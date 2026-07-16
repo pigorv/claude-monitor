@@ -237,6 +237,23 @@
   border-color: var(--color-accent);
 }
 
+.expired-pill {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-background-tertiary);
+  color: var(--color-text-tertiary);
+  cursor: default;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+}
+
 /* Timeline */
 .timeline-toolbar {
   display: flex;
