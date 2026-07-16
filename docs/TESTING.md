@@ -111,9 +111,11 @@ target design.
     miscount.
 - **Tools:** Vitest; fixture corpora (see [Fixture-corpus taxonomy](#fixture-corpus-taxonomy));
   schema/shape assertions over API responses.
-- **Where tests live (target):** alongside the area each contract belongs to —
+- **Where tests live:** alongside the area each contract belongs to —
   JSONL contract under `test/ingestion/`, API contract under `test/server/`,
-  migration/upgrade-path under `test/db/`.
+  and the migration/upgrade-path check under `test/db/`
+  (`test/db/migration-upgrade-path.test.ts`), which restores the versioned
+  SQLite snapshots in `test/fixtures/db/` and runs every migration forward.
 
 ### L4 — End-to-end
 
@@ -274,7 +276,8 @@ today are marked **planned**: do not invent a command for them.
 | L1 Component / module | `npm test` |
 | L2 Integration | `npm test` |
 | Token-style lint | `npm run lint:tokens` |
-| L3 Contract / schema / data-quality | **planned** |
+| L3 Migration / upgrade-path | `npm test` (`test/db/migration-upgrade-path.test.ts`) |
+| L3 Contract / schema / data-quality (JSONL + API) | **planned** |
 | L4 E2E | **planned** |
 | L5 Non-functional (perf, a11y, visual, cross-OS) | **planned** |
 | L6 Manual / release acceptance | manual process (see [L6](#l6--manual--exploratory--release-acceptance)) |

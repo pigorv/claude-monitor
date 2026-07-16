@@ -72,7 +72,7 @@ Hono app with routes: `/api/health`, `/api/sessions`, `/api/sessions/:id`, `/api
 
 - **connection.ts** — singleton with prepared statement caching and WAL pragmas
 - **schema.ts** — tables: `sessions` (23 cols), `events`, `agent_relationships`, `session_links`
-- **migrations.ts** — 10 sequential migrations
+- **migrations.ts** — 17 sequential migrations
 - **queries/** — batch queries to avoid N+1; statement caching for hot paths
 
 ### Frontend (`frontend/src/`)

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A migration upgrade-path test (`test/db/migration-upgrade-path.test.ts`) restores versioned SQLite snapshots of older schema versions (`test/fixtures/db/`) and runs every migration forward, guarding the database upgrade path against data loss, wrong backfills, and schema drift.
+
 ### Changed
 
 - The Session Detail Export button now sits in the page header and opens a modal to choose a Sanitized or Raw bundle — each explained inline — replacing the old two-step confirm and caret dropdown.
