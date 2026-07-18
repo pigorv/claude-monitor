@@ -3,6 +3,8 @@ dist/
 coverage/
 .test-dist/
 *.sqlite
+!test/fixtures/db/
+!test/fixtures/db/*.sqlite
 .claude-monitor/
 .DS_Store
 .playwright-cli/

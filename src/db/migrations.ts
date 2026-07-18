@@ -466,6 +466,12 @@ const MIGRATIONS: Migration[] = [
   { id: 17, name: '017-cost-and-agent-model', run: migration017CostAndAgentModel },
 ];
 
+/** Id of the last migration in the chain. Used by the snapshot fixture
+ * generator (`scripts/make-db-fixture.mts`) to insert skip-markers for every
+ * migration past a target version. A bare computed constant (executed on module
+ * import) rather than a helper function, so it stays covered by the test suite. */
+export const LATEST_MIGRATION_ID = MIGRATIONS[MIGRATIONS.length - 1].id;
+
 export function runMigrations(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
