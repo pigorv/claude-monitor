@@ -230,6 +230,7 @@ exports[`API contract: populated DB > GET /api/sessions/:id (sess-bare, minimal)
     },
   },
   "token_timeline": [],
+  "transcript_exists": "boolean",
 }
 `;
 
@@ -434,6 +435,7 @@ exports[`API contract: populated DB > GET /api/sessions/:id (sess-rich, maximal)
       "timestamp": "string",
     },
   ],
+  "transcript_exists": "boolean",
 }
 `;
 

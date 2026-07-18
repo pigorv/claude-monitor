@@ -1,6 +1,6 @@
 import { describe, it, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getDb, closeDb } from '../../src/db/index.js';
@@ -710,5 +710,81 @@ describe('token_budget in session detail', () => {
     //   + residual cache-write (4000-2500-1500=0) + output 2000 = 10000.
     assert.equal(tb.billed_tokens, 10000);
     assert.ok(tb.billed_tokens > 0);
+  });
+});
+
+// ── transcript_exists in session detail ──────────────────────────────
+
+describe('transcript_exists in session detail', () => {
+  let tmpDir: string;
+  let app: ReturnType<typeof createApp>;
+  let realTranscript: string;
+
+  beforeAll(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'transcript-exists-'));
+    const db = getDb(join(tmpDir, 'test.sqlite'));
+
+    // A transcript file that actually exists on disk.
+    realTranscript = join(tmpDir, 'real-transcript.jsonl');
+    writeFileSync(realTranscript, '{"type":"user"}\n');
+
+    const insertSession = db.prepare(`
+      INSERT INTO sessions (
+        id, project_path, status, started_at,
+        total_input_tokens, total_output_tokens,
+        total_cache_read_tokens, total_cache_write_tokens,
+        compaction_count, tool_call_count, subagent_count, transcript_path
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    // transcript_path points at an existing file.
+    insertSession.run('te-present', '/tmp/p', 'completed', '2026-05-01T00:00:00Z',
+      0, 0, 0, 0, 0, 0, 0, realTranscript);
+    // transcript_path points at a missing file.
+    insertSession.run('te-missing', '/tmp/p', 'completed', '2026-05-02T00:00:00Z',
+      0, 0, 0, 0, 0, 0, 0, join(tmpDir, 'does-not-exist.jsonl'));
+    // transcript_path is NULL.
+    insertSession.run('te-null', '/tmp/p', 'completed', '2026-05-03T00:00:00Z',
+      0, 0, 0, 0, 0, 0, 0, null);
+
+    app = createApp();
+  });
+
+  afterAll(() => {
+    closeDb();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('is true when transcript_path exists on disk', async () => {
+    const res = await app.request('/api/sessions/te-present');
+    assert.equal(res.status, 200);
+    const body: SessionDetailResponse = await res.json();
+    assert.equal(body.transcript_exists, true);
+  });
+
+  it('is false when transcript_path points at a missing file', async () => {
+    const res = await app.request('/api/sessions/te-missing');
+    assert.equal(res.status, 200);
+    const body: SessionDetailResponse = await res.json();
+    assert.equal(body.transcript_exists, false);
+  });
+
+  it('is false when transcript_path is NULL', async () => {
+    const res = await app.request('/api/sessions/te-null');
+    assert.equal(res.status, 200);
+    const body: SessionDetailResponse = await res.json();
+    assert.equal(body.transcript_exists, false);
+  });
+
+  it('list endpoint does not compute transcript_exists (Behavior #7)', async () => {
+    // The list handler is unchanged: it never touches the filesystem to check
+    // transcript existence, so no summary carries a transcript_exists field.
+    const res = await app.request('/api/sessions');
+    assert.equal(res.status, 200);
+    const body: SessionListResponse = await res.json();
+    assert.ok(body.sessions.length > 0);
+    for (const s of body.sessions) {
+      assert.equal((s as Record<string, unknown>).transcript_exists, undefined);
+    }
   });
 });
