@@ -108,6 +108,18 @@ function OpenInTerminalButton({ sessionId, projectPath }: { sessionId: string; p
   `;
 }
 
+const EXPIRED_PILL_TOOLTIP =
+  "Claude Code's retention cleanup deleted this session's transcript — it can't be resumed. The session data is preserved in claude-monitor's database.";
+
+function ExpiredPill() {
+  return html`
+    <span class="expired-pill" title=${EXPIRED_PILL_TOOLTIP}>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.1"/><path d="M6 3.5V6L7.75 7.25" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Expired
+    </span>
+  `;
+}
+
 export function SessionDetail({ id, params }: { id: string; params: URLSearchParams }) {
   const [data, setData] = useState<SessionDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -227,7 +239,9 @@ export function SessionDetail({ id, params }: { id: string; params: URLSearchPar
           <span class="resume-cmd-dollar">$</span>
           <code class="resume-cmd-text">claude --resume ${s.id}</code>
           <${CopyButton} text=${"claude --resume " + s.id} label="Copy" />
-          <${OpenInTerminalButton} sessionId=${s.id} projectPath=${s.project_path} />
+          ${data.transcript_exists === false
+            ? html`<${ExpiredPill} />`
+            : html`<${OpenInTerminalButton} sessionId=${s.id} projectPath=${s.project_path} />`}
         </div>
       </div>
 

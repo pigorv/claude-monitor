@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Session Detail now shows an "Expired" pill in place of the Open in Terminal button when Claude Code's retention cleanup has deleted the session's transcript — the session can no longer be resumed, though its data stays preserved in claude-monitor.
+
 ### Changed
 
 - The Session Detail Export button now sits in the page header and opens a modal to choose a Sanitized or Raw bundle — each explained inline — replacing the old two-step confirm and caret dropdown.

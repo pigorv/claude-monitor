@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { spawn, spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { getSession } from '../../db/queries/sessions.js';
 import * as logger from '../../shared/logger.js';
 
@@ -271,6 +272,17 @@ terminal.post('/api/sessions/:id/open-terminal', async (c) => {
         message: 'This session has no recorded project directory.',
       },
       400,
+    );
+  }
+
+  if (!session.transcript_path || !existsSync(session.transcript_path)) {
+    return c.json(
+      {
+        error: 'transcript_deleted',
+        message:
+          "This session's transcript was deleted by Claude Code's retention cleanup, so it can't be resumed.",
+      },
+      410,
     );
   }
 

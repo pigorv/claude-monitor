@@ -6,7 +6,7 @@
 // separate file so the vi.mock stays scoped and doesn't affect the darwin tests.
 import { describe, it, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { EventEmitter } from 'node:events';
@@ -31,12 +31,15 @@ vi.mock('node:child_process', async (importOriginal) => {
 
 describe('POST /api/sessions/:id/open-terminal (win32)', () => {
   let tmpDir: string;
+  let transcriptPath: string;
   let app: ReturnType<typeof createApp>;
   const realPlatform = process.platform;
 
   beforeAll(() => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
     tmpDir = mkdtempSync(join(tmpdir(), 'terminal-win32-test-'));
+    transcriptPath = join(tmpDir, 'transcript.jsonl');
+    writeFileSync(transcriptPath, '{}\n');
     getDb(join(tmpDir, 'test.sqlite'));
     app = createApp();
   });
@@ -55,12 +58,25 @@ describe('POST /api/sessions/:id/open-terminal (win32)', () => {
   function insertSession(id: string, projectPath: string): void {
     getDb()
       .prepare(`
-        INSERT INTO sessions (id, project_path, status, started_at,
+        INSERT INTO sessions (id, project_path, transcript_path, status, started_at,
           total_input_tokens, total_output_tokens, total_cache_read_tokens,
           total_cache_write_tokens, compaction_count, tool_call_count, subagent_count)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
-      .run(id, projectPath, 'completed', '2026-01-15T10:00:00Z', 100, 50, 0, 0, 0, 0, 0);
+      .run(
+        id,
+        projectPath,
+        transcriptPath,
+        'completed',
+        '2026-01-15T10:00:00Z',
+        100,
+        50,
+        0,
+        0,
+        0,
+        0,
+        0,
+      );
   }
 
   it('returns 200 and spawns the chosen terminal for an explicit pref', async () => {
