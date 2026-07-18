@@ -1,6 +1,5 @@
-import { describe, it, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, beforeAll, afterAll, beforeEach } from 'vitest';
 import assert from 'node:assert/strict';
-import * as childProcess from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -391,57 +390,6 @@ describe('POST /api/sessions/:id/open-terminal', () => {
     assert.equal(res.status, 404);
     const body = (await res.json()) as { error: string };
     assert.equal(body.error, 'not_found');
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  function insertSessionWithTranscript(
-    id: string,
-    projectPath: string,
-    transcriptPath: string,
-  ): void {
-    const db = getDb();
-    db.prepare(`
-      INSERT INTO sessions (id, project_path, transcript_path, status, started_at,
-        total_input_tokens, total_output_tokens, total_cache_read_tokens,
-        total_cache_write_tokens, compaction_count, tool_call_count, subagent_count)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id,
-      projectPath,
-      transcriptPath,
-      'completed',
-      '2026-01-15T10:00:00Z',
-      100,
-      50,
-      0,
-      0,
-      0,
-      0,
-      0,
-    );
-  }
-
-  it('returns 410 when the transcript was deleted, without spawning (on supported platforms)', async () => {
-    if (process.platform !== 'darwin' && process.platform !== 'win32') return;
-    const spawnSpy = vi.spyOn(childProcess, 'spawn');
-    insertSessionWithTranscript(
-      'sess-gone',
-      '/tmp/proj',
-      join(tmpDir, 'does-not-exist.jsonl'),
-    );
-    const res = await app.request('/api/sessions/sess-gone/open-terminal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ terminal: 'auto' }),
-    });
-    assert.equal(res.status, 410);
-    const body = (await res.json()) as { error: string; message: string };
-    assert.equal(body.error, 'transcript_deleted');
-    assert.ok(body.message.length > 0);
-    assert.equal(spawnSpy.mock.calls.length, 0);
   });
 
   it('returns 400 when session has no project_path (on supported platforms)', async () => {

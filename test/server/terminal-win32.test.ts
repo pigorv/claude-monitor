@@ -102,6 +102,40 @@ describe('POST /api/sessions/:id/open-terminal (win32)', () => {
     ]);
   });
 
+  it('returns 410 transcript_deleted when the transcript is gone, without spawning', async () => {
+    getDb()
+      .prepare(`
+        INSERT INTO sessions (id, project_path, transcript_path, status, started_at,
+          total_input_tokens, total_output_tokens, total_cache_read_tokens,
+          total_cache_write_tokens, compaction_count, tool_call_count, subagent_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        'sess-gone',
+        'C:\\Users\\proj',
+        join(tmpDir, 'does-not-exist.jsonl'),
+        'completed',
+        '2026-01-15T10:00:00Z',
+        100,
+        50,
+        0,
+        0,
+        0,
+        0,
+        0,
+      );
+    const res = await app.request('/api/sessions/sess-gone/open-terminal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ terminal: 'cmd' }),
+    });
+    assert.equal(res.status, 410);
+    const body = (await res.json()) as { error: string; message: string };
+    assert.equal(body.error, 'transcript_deleted');
+    assert.ok(body.message.length > 0);
+    assert.equal(vi.mocked(spawn).mock.calls.length, 0);
+  });
+
   it('returns 500 invalid_project_path when the path has an unsupported char', async () => {
     insertSession('sess-bad', 'C:\\bad"path');
     const res = await app.request('/api/sessions/sess-bad/open-terminal', {
