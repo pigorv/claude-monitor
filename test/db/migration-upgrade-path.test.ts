@@ -1,4 +1,4 @@
-import { describe, it, afterEach } from 'vitest';
+import { describe, it, afterEach, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { copyFileSync, unlinkSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -49,7 +49,8 @@ const REF_EVENTS_COLS = columnSet(ref, 'events');
 const REF_AGENT_REL_COLS = columnSet(ref, 'agent_relationships');
 const REF_MIGRATION_IDS = migrationIds(ref);
 
-// The 8 columns consolidated by migrations 016/017 — absent from the v1 snapshot.
+// The 8 columns consolidated by migrations 016/017 — added past every captured
+// version (all < 16), so absent from all three snapshots pre-migration.
 const CONSOLIDATED_SESSION_COLS = [
   'total_input_tokens_billed',
   'total_cache_write_5m_tokens',
@@ -62,6 +63,9 @@ const CONSOLIDATED_AGENT_REL_COLS = [
   'cache_write_1h_total',
   'model',
 ];
+// sessions.invocations / started_with — added by migration 010, so present
+// pre-migration only in fixtures captured at v10 or later (of our set, just v15).
+const SESSION_PILLS_COLS = ['invocations', 'started_with'];
 
 interface Case {
   name: string;
@@ -89,35 +93,56 @@ describe('forward migration upgrade-path over versioned fixtures', () => {
 
   for (const c of CASES) {
     it(`upgrades ${c.name} (mig ${c.version} → current) with no data loss and correct backfills`, () => {
-      // Copy the committed fixture to a deterministic temp path — never mutate
-      // the fixture in place. Unlink any stale copy from a prior run first.
+      // Copy the committed fixture to a process-scoped temp path — never mutate
+      // the fixture in place. The pid keeps two concurrent vitest invocations on
+      // one machine (CI + local watch) off the same file. Unlink any stale copy
+      // from a prior run first.
       const fixturePath = fileURLToPath(
         new URL(`../fixtures/db/${c.name}.sqlite`, import.meta.url),
       );
-      tmpPath = join(tmpdir(), `cm-migration-upgrade-${c.name}.sqlite`);
+      tmpPath = join(tmpdir(), `cm-migration-upgrade-${c.name}-${process.pid}.sqlite`);
       if (existsSync(tmpPath)) unlinkSync(tmpPath);
       copyFileSync(fixturePath, tmpPath);
 
       db = new Database(tmpPath);
 
-      // ---- Pre-state (Acceptance: max id == N; v1 lacks consolidated cols) ----
-      const maxIdBefore = (
-        db.prepare('SELECT MAX(id) AS m FROM _migrations').get() as { m: number }
-      ).m;
-      assert.equal(maxIdBefore, c.version, `${c.name}: expected pre-state _migrations max id`);
+      // ---- Pre-state: prove each fixture is genuinely its claimed old version,
+      // not just that MAX(id) lines up. The `_migrations` set must be exactly
+      // 1..version (no gaps, no strays), and the schema must match what that
+      // version actually looked like. Without this, a regeneration bug in a
+      // committed binary is invisible: the post-migration schema is normalized
+      // against `ref`, which papers over a wrong starting shape. This check runs
+      // for every case, not just v1. ----
+      assert.deepEqual(
+        migrationIds(db),
+        Array.from({ length: c.version }, (_, i) => i + 1),
+        `${c.name}: pre-state _migrations holds exactly 1..${c.version}`,
+      );
 
-      if (c.name === 'v1') {
-        const sessCols = columnSet(db, 'sessions');
-        for (const col of CONSOLIDATED_SESSION_COLS) {
-          assert.ok(!sessCols.includes(col), `v1 sessions should lack ${col} pre-migration`);
-        }
-        const arCols = columnSet(db, 'agent_relationships');
-        for (const col of CONSOLIDATED_AGENT_REL_COLS) {
-          assert.ok(
-            !arCols.includes(col),
-            `v1 agent_relationships should lack ${col} pre-migration`,
-          );
-        }
+      const preSessCols = columnSet(db, 'sessions');
+      const preArCols = columnSet(db, 'agent_relationships');
+      for (const col of CONSOLIDATED_SESSION_COLS) {
+        assert.ok(
+          !preSessCols.includes(col),
+          `${c.name}: sessions should lack ${col} pre-migration`,
+        );
+      }
+      for (const col of CONSOLIDATED_AGENT_REL_COLS) {
+        assert.ok(
+          !preArCols.includes(col),
+          `${c.name}: agent_relationships should lack ${col} pre-migration`,
+        );
+      }
+
+      // invocations/started_with are added by mig 010, so they exist pre-migration
+      // iff the fixture was captured at v10 or later — present in v15, absent in v1/v9.
+      const hasSessionPillsCols = c.version >= 10;
+      for (const col of SESSION_PILLS_COLS) {
+        assert.equal(
+          preSessCols.includes(col),
+          hasSessionPillsCols,
+          `${c.name}: sessions ${hasSessionPillsCols ? 'should have' : 'should lack'} ${col} pre-migration`,
+        );
       }
 
       // Capture pre-migration row counts and seeded key values.
@@ -251,7 +276,7 @@ describe('forward migration upgrade-path over versioned fixtures', () => {
     });
   }
 
-  it('cleanup: closes the shared reference DB', () => {
+  afterAll(() => {
     ref.close();
   });
 });
