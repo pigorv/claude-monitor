@@ -12,6 +12,8 @@ import { FilterBar } from '../../frontend/src/components/FilterBar.js';
 import { TokenBudgetSummary } from '../../frontend/src/components/TokenBudgetSummary.js';
 import { ExportButton } from '../../frontend/src/components/ExportButton.js';
 import { Modal } from '../../frontend/src/components/Modal.js';
+import { SessionRow } from '../../frontend/src/pages/SessionList.js';
+import type { SessionSummary } from '../../src/shared/types.js';
 import { transformTimeline } from '../../frontend/src/lib/chart-config.js';
 import type { Event as SessionEvent, AgentRelationship, TokenDataPoint, ProjectInfo, EventAnnotation, TokenBudget } from '../../src/shared/types.js';
 
@@ -1140,5 +1142,47 @@ describe('Modal', () => {
     assert.ok(out.includes('modal-overlay'), 'should render the overlay');
     assert.ok(out.includes('Export session'), 'should render the title');
     assert.ok(out.includes('modal body content'), 'should render its children');
+  });
+});
+
+// ─── SessionRow ─────────────────────────────────────────
+
+describe('SessionRow', () => {
+  function makeSession(overrides: Partial<SessionSummary> = {}): SessionSummary {
+    return {
+      id: 'sess-abc',
+      project_name: 'my-proj',
+      model: 'claude-opus-4-8',
+      status: 'completed',
+      started_at: '2026-01-15T10:00:00Z',
+      duration_ms: 120000,
+      total_input_tokens: 1000,
+      total_output_tokens: 500,
+      total_cache_read_tokens: 200,
+      total_cache_write_tokens: 100,
+      peak_context_pct: 42,
+      peak_tokens: 84000,
+      compaction_count: 0,
+      tool_call_count: 3,
+      subagent_count: 0,
+      turn_count: 4,
+      summary: 'Fix the parser',
+      ...overrides,
+    } as SessionSummary;
+  }
+
+  it('renders each row as a real anchor linking to the session detail hash route', () => {
+    const out = render(html`<${SessionRow} s=${makeSession()} />`);
+    assert.ok(out.includes('<a'), 'row should be an anchor, not a div');
+    assert.ok(out.includes('class="srow"'), 'anchor should keep the srow class');
+    assert.ok(
+      out.includes('href="#/session/sess-abc"'),
+      'href should point at the hash route so cmd/ctrl/middle-click open a new tab',
+    );
+  });
+
+  it('builds the href from the session id', () => {
+    const out = render(html`<${SessionRow} s=${makeSession({ id: 'other-id' })} />`);
+    assert.ok(out.includes('href="#/session/other-id"'), 'href should track the id');
   });
 });

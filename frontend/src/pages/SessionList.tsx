@@ -163,7 +163,7 @@ export function renderSnippet(snip: string): unknown[] {
   return nodes;
 }
 
-function SessionRow({ s, onOpen }: { s: SessionSummary; onOpen: (id: string) => void }) {
+export function SessionRow({ s }: { s: SessionSummary }) {
   const summary = (s.summary ?? "").trim();
   const startedName = s.started_with?.name;
   // The started-with pill carries the slash-command/skill name on the title
@@ -206,7 +206,7 @@ function SessionRow({ s, onOpen }: { s: SessionSummary; onOpen: (id: string) => 
   const cachePct = cacheHitPct(s);
 
   return html`
-    <div class="srow" onClick=${() => onOpen(s.id)}>
+    <a class="srow" href=${`#/session/${s.id}`}>
       <div class="srow-main">
         <div class="srow-l1">
           <span class="proj-dot" style=${`background:${projectColor(s.project_name || "default")}`}></span>
@@ -267,7 +267,7 @@ function SessionRow({ s, onOpen }: { s: SessionSummary; onOpen: (id: string) => 
             : null}
         </div>
       </div>
-    </div>
+    </a>
   `;
 }
 
@@ -541,10 +541,6 @@ export function SessionList({ params }: { params: URLSearchParams }) {
 
   useInfiniteScroll(sentinelRef, { hasMore, loading, onLoadMore: loadMore });
 
-  function navigateToSession(id: string) {
-    location.hash = `#/session/${id}`;
-  }
-
   // Date-group headers only make sense when rows are ordered by start time.
   const grouped = sortCol === "started_at";
   const bucketCounts = new Map<string, number>();
@@ -643,7 +639,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
                   `;
                 }
               }
-              return html`${header}<${SessionRow} s=${s} onOpen=${navigateToSession} />`;
+              return html`${header}<${SessionRow} s=${s} />`;
             });
           })()}
           <div class="infinite-sentinel" ref=${sentinelRef}>
