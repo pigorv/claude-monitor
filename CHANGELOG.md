@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A `POST /api/stats/rollup` endpoint returns the same aggregate token/cost/duration/compaction stats as `GET /api/stats`, but scoped to a supplied set of session ids — so a selection of sessions can be totaled on demand.
 - Session Detail now shows an "Expired" pill in place of the Open in Terminal button when Claude Code's retention cleanup has deleted the session's transcript — the session can no longer be resumed, though its data stays preserved in claude-monitor.
 - A migration upgrade-path test (`test/db/migration-upgrade-path.test.ts`) restores versioned SQLite snapshots of older schema versions (`test/fixtures/db/`) and runs every migration forward, guarding the database upgrade path against data loss, wrong backfills, and schema drift.
 
