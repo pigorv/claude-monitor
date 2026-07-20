@@ -552,3 +552,43 @@ exports[`API contract: populated DB > POST /api/reimport (202) 1`] = `
   "total": "number",
 }
 `;
+
+exports[`API contract: populated DB > POST /api/stats/rollup (matched) 1`] = `
+{
+  "avg_duration_ms": "number",
+  "matched_count": "number",
+  "newest_session": "string",
+  "oldest_session": "string",
+  "requested_count": "number",
+  "session_count": "number",
+  "sessions_with_compactions": "number",
+  "total_cache_read_tokens": "number",
+  "total_cache_write_tokens": "number",
+  "total_compactions": "number",
+  "total_cost_estimate_usd": "number",
+  "total_input_tokens": "number",
+  "total_output_tokens": "number",
+  "total_subagents": "number",
+  "total_tool_calls": "number",
+}
+`;
+
+exports[`API contract: populated DB > POST /api/stats/rollup (unknown ids, zeroed) 1`] = `
+{
+  "avg_duration_ms": "number",
+  "matched_count": "number",
+  "newest_session": "null",
+  "oldest_session": "null",
+  "requested_count": "number",
+  "session_count": "number",
+  "sessions_with_compactions": "number",
+  "total_cache_read_tokens": "number",
+  "total_cache_write_tokens": "number",
+  "total_compactions": "number",
+  "total_cost_estimate_usd": "number",
+  "total_input_tokens": "number",
+  "total_output_tokens": "number",
+  "total_subagents": "number",
+  "total_tool_calls": "number",
+}
+`;
