@@ -237,6 +237,26 @@ describe('API contract: populated DB', () => {
     expect(shapeOf(await res.json())).toMatchSnapshot();
   });
 
+  it('POST /api/stats/rollup (matched)', async () => {
+    const res = await app.request('/api/stats/rollup', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session_ids: ['sess-rich', 'sess-bare'] }),
+    });
+    expect(res.status).toBe(200);
+    expect(shapeOf(await res.json())).toMatchSnapshot();
+  });
+
+  it('POST /api/stats/rollup (unknown ids, zeroed)', async () => {
+    const res = await app.request('/api/stats/rollup', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session_ids: ['nope-1', 'nope-2'] }),
+    });
+    expect(res.status).toBe(200);
+    expect(shapeOf(await res.json())).toMatchSnapshot();
+  });
+
   it('GET /api/projects', async () => {
     const res = await app.request('/api/projects');
     expect(res.status).toBe(200);

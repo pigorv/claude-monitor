@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { getDb } from '../../db/connection.js';
-import { getDbStats } from '../../db/queries/stats.js';
+import { getDbStats, getStatsRollup } from '../../db/queries/stats.js';
 
 const stats = new Hono();
 
@@ -50,6 +50,43 @@ stats.get('/api/stats', (c) => {
     total_cost_estimate_usd: totalCostEstimate,
     sessions_today: todayRow.cnt,
   });
+});
+
+stats.post('/api/stats/rollup', async (c) => {
+  const body = await c.req.json().catch(() => null);
+
+  if (typeof body !== 'object' || body === null) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        message: 'Request body must be a JSON object with a "session_ids" array.',
+      },
+      400,
+    );
+  }
+
+  const sessionIds = (body as { session_ids?: unknown }).session_ids;
+  if (!Array.isArray(sessionIds)) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        message: '"session_ids" is required and must be an array of session id strings.',
+      },
+      400,
+    );
+  }
+
+  if (!sessionIds.every((id) => typeof id === 'string')) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        message: 'Every element of "session_ids" must be a string.',
+      },
+      400,
+    );
+  }
+
+  return c.json(getStatsRollup(sessionIds));
 });
 
 export { stats };

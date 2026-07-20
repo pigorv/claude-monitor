@@ -1,6 +1,7 @@
 import { statSync } from 'node:fs';
 import type Database from 'better-sqlite3';
 import { getDb, getDbPath, onDbClose } from '../connection.js';
+import { chunkIds, idPlaceholders } from './id-set.js';
 import type { FileActivityData, FileActivityEntry } from '../../shared/types.js';
 
 // ── Cached prepared statements ──────────────────────────────────────
@@ -302,4 +303,144 @@ export function getPeakParentTokensForSessions(sessionIds: string[]): Map<string
     out.set(r.session_id, r.peak_tokens ?? 0);
   }
   return out;
+}
+
+// ── Stats rollup over an id set ─────────────────────────────────────
+
+export interface StatsRollup {
+  requested_count: number;
+  matched_count: number;
+  session_count: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cache_read_tokens: number;
+  total_cache_write_tokens: number;
+  total_cost_estimate_usd: number;
+  avg_duration_ms: number;
+  total_compactions: number;
+  total_tool_calls: number;
+  total_subagents: number;
+  sessions_with_compactions: number;
+  oldest_session: string | null;
+  newest_session: string | null;
+}
+
+interface StatsRollupChunkRow {
+  matched_count: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cache_read_tokens: number;
+  total_cache_write_tokens: number;
+  total_cost_estimate_usd: number;
+  dur_sum: number | null;
+  dur_count: number;
+  total_compactions: number;
+  total_tool_calls: number;
+  total_subagents: number;
+  sessions_with_compactions: number;
+  oldest_session: string | null;
+  newest_session: string | null;
+}
+
+export function getStatsRollup(sessionIds: string[]): StatsRollup {
+  const distinct = [...new Set(sessionIds)];
+  const requested_count = distinct.length;
+
+  if (requested_count === 0) {
+    return {
+      requested_count: 0,
+      matched_count: 0,
+      session_count: 0,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_cache_read_tokens: 0,
+      total_cache_write_tokens: 0,
+      total_cost_estimate_usd: 0,
+      avg_duration_ms: 0,
+      total_compactions: 0,
+      total_tool_calls: 0,
+      total_subagents: 0,
+      sessions_with_compactions: 0,
+      oldest_session: null,
+      newest_session: null,
+    };
+  }
+
+  const db = getDb();
+
+  let matched_count = 0;
+  let total_input_tokens = 0;
+  let total_output_tokens = 0;
+  let total_cache_read_tokens = 0;
+  let total_cache_write_tokens = 0;
+  let total_cost_estimate_usd = 0;
+  let dur_sum = 0;
+  let dur_count = 0;
+  let total_compactions = 0;
+  let total_tool_calls = 0;
+  let total_subagents = 0;
+  let sessions_with_compactions = 0;
+  let oldest_session: string | null = null;
+  let newest_session: string | null = null;
+
+  for (const chunk of chunkIds(distinct)) {
+    const placeholders = idPlaceholders(chunk.length);
+    const row = db.prepare(`
+      SELECT
+        COUNT(*)                                             AS matched_count,
+        COALESCE(SUM(total_input_tokens), 0)                 AS total_input_tokens,
+        COALESCE(SUM(total_output_tokens), 0)                AS total_output_tokens,
+        COALESCE(SUM(total_cache_read_tokens), 0)            AS total_cache_read_tokens,
+        COALESCE(SUM(total_cache_write_tokens), 0)           AS total_cache_write_tokens,
+        COALESCE(SUM(cost_estimate_usd), 0)                  AS total_cost_estimate_usd,
+        SUM(duration_ms)                                     AS dur_sum,
+        COUNT(duration_ms)                                   AS dur_count,
+        COALESCE(SUM(compaction_count), 0)                   AS total_compactions,
+        COALESCE(SUM(tool_call_count), 0)                    AS total_tool_calls,
+        COALESCE(SUM(subagent_count), 0)                     AS total_subagents,
+        COUNT(CASE WHEN compaction_count > 0 THEN 1 END)     AS sessions_with_compactions,
+        MIN(started_at)                                      AS oldest_session,
+        MAX(started_at)                                      AS newest_session
+      FROM sessions
+      WHERE id IN (${placeholders})
+    `).get(...chunk) as StatsRollupChunkRow;
+
+    matched_count += row.matched_count;
+    total_input_tokens += row.total_input_tokens;
+    total_output_tokens += row.total_output_tokens;
+    total_cache_read_tokens += row.total_cache_read_tokens;
+    total_cache_write_tokens += row.total_cache_write_tokens;
+    total_cost_estimate_usd += row.total_cost_estimate_usd;
+    dur_sum += row.dur_sum ?? 0;
+    dur_count += row.dur_count;
+    total_compactions += row.total_compactions;
+    total_tool_calls += row.total_tool_calls;
+    total_subagents += row.total_subagents;
+    sessions_with_compactions += row.sessions_with_compactions;
+
+    if (row.oldest_session !== null && (oldest_session === null || row.oldest_session < oldest_session)) {
+      oldest_session = row.oldest_session;
+    }
+    if (row.newest_session !== null && (newest_session === null || row.newest_session > newest_session)) {
+      newest_session = row.newest_session;
+    }
+  }
+
+  return {
+    requested_count,
+    matched_count,
+    session_count: matched_count,
+    total_input_tokens,
+    total_output_tokens,
+    total_cache_read_tokens,
+    total_cache_write_tokens,
+    total_cost_estimate_usd,
+    avg_duration_ms: dur_count > 0 ? Math.round(dur_sum / dur_count) : 0,
+    total_compactions,
+    total_tool_calls,
+    total_subagents,
+    sessions_with_compactions,
+    oldest_session,
+    newest_session,
+  };
 }
