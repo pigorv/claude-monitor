@@ -16,7 +16,7 @@
 
 ## Contents
 
-[Why?](#why) · [Quick Start](#quick-start) · [Features](#features) · [How It Works](#how-it-works) · [CLI Reference](#cli-reference) · [Status line link](#status-line-link) · [Uninstall](#uninstall) · [Built With](#built-with) · [Development](#development)
+[Why?](#why) · [Quick Start](#quick-start) · [Features](#features) · [How It Works](#how-it-works) · [CLI Reference](#cli-reference) · [Configuration](#configuration) · [Run in a container](#run-in-a-container) · [Status line link](#status-line-link) · [Uninstall](#uninstall) · [Built With](#built-with) · [Development](#development)
 
 ## Why?
 
@@ -98,6 +98,45 @@ Options for `import`: `--force` (re-import existing sessions)
 Options for `export`: `--out <path>` (destination file or directory), `--raw` / `--no-sanitize` (verbatim, unsanitized bundle — do not share)
 <!-- cli:end -->
 
+## Configuration
+
+claude-monitor reads its deployment settings from environment variables, so you can point it at non-default paths or run it as a service without editing code:
+
+| Variable | Controls | Default |
+|----------|----------|---------|
+| `CLAUDE_MONITOR_PORT` | HTTP listen port | `4173` |
+| `CLAUDE_MONITOR_HOST` | Bind address | *(unset — binds all interfaces)* |
+| `CLAUDE_MONITOR_DB_PATH` | SQLite database file | `~/.claude-monitor/data.sqlite` |
+| `CLAUDE_MONITOR_PROJECTS_PATH` | Transcript directory the watcher scans | `~/.claude/projects` |
+| `CLAUDE_MONITOR_DATA_DIR` | Base data directory | `~/.claude-monitor` |
+
+- **Port precedence:** the `--port` / `-p` flag wins over `CLAUDE_MONITOR_PORT`, which wins over the `4173` default.
+- **Relative paths** in any of the path variables resolve against the current working directory.
+- **Bind host:** by default the server binds all interfaces. Set `CLAUDE_MONITOR_HOST=127.0.0.1` to restrict it to loopback (localhost only).
+
+## Run in a container
+
+A multi-stage `Dockerfile` ships in the repo. No image is published — build it locally:
+
+```bash
+docker build -t claude-monitor .
+```
+
+Then run it, mounting your transcripts read-only and a volume for the database:
+
+```bash
+docker run --rm \
+  -e CLAUDE_MONITOR_HOST=0.0.0.0 \
+  -e CLAUDE_MONITOR_PROJECTS_PATH=/transcripts \
+  -e CLAUDE_MONITOR_DB_PATH=/data/data.sqlite \
+  -v "$HOME/.claude/projects:/transcripts:ro" \
+  -v "claude-monitor-data:/data" \
+  -p 127.0.0.1:4173:4173 \
+  claude-monitor
+```
+
+Open `http://localhost:4173`. The image binds `0.0.0.0` inside the container so the published port can reach it; you control host exposure through the `-p` mapping — `127.0.0.1:4173:4173` keeps the dashboard on loopback.
+
 ## Status line link
 
 <details>
@@ -105,7 +144,7 @@ Options for `export`: `--out <path>` (destination file or directory), `--raw` / 
 
 Add a clickable **🔗 monitor** link to your Claude Code [status line](https://code.claude.com/docs/en/statusline) that opens the current session straight in the dashboard. Claude Code hands your status line command the live `session_id`, and that id is exactly what the dashboard routes on — so the link always points at the session you're in (`http://localhost:4173/#/session/<id>`).
 
-**Requirements:** a terminal that renders OSC 8 hyperlinks (iTerm2, Kitty, WezTerm — not Apple Terminal; tmux/SSH may strip them), `jq`, and a running `claude-monitor start`. The port defaults to `4173`; override it with `CLAUDE_MONITOR_PORT`.
+**Requirements:** a terminal that renders OSC 8 hyperlinks (iTerm2, Kitty, WezTerm — not Apple Terminal; tmux/SSH may strip them), `jq`, and a running `claude-monitor start`. The port defaults to `4173`; override it with `CLAUDE_MONITOR_PORT` (see [Configuration](#configuration)).
 
 ### Set it up from scratch
 

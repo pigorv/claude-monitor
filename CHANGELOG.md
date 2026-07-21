@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A `POST /api/stats/rollup` endpoint returns the same aggregate token/cost/duration/compaction stats as `GET /api/stats`, but scoped to a supplied set of session ids — so a selection of sessions can be totaled on demand.
 - Session Detail now shows an "Expired" pill in place of the Open in Terminal button when Claude Code's retention cleanup has deleted the session's transcript — the session can no longer be resumed, though its data stays preserved in claude-monitor.
 - A migration upgrade-path test (`test/db/migration-upgrade-path.test.ts`) restores versioned SQLite snapshots of older schema versions (`test/fixtures/db/`) and runs every migration forward, guarding the database upgrade path against data loss, wrong backfills, and schema drift.
+- Deployment configuration via environment variables (`CLAUDE_MONITOR_PORT`, `CLAUDE_MONITOR_HOST`, `CLAUDE_MONITOR_DB_PATH`, `CLAUDE_MONITOR_PROJECTS_PATH`, `CLAUDE_MONITOR_DATA_DIR`) plus a committed multi-stage `Dockerfile` and `.dockerignore`, so claude-monitor can run as a container/service with its database and watched transcript directory on mounted volumes; `SECURITY.md` now accurately documents the bind posture (binds all interfaces by default; set `CLAUDE_MONITOR_HOST=127.0.0.1` to restrict to loopback).
 
 ### Changed
 
