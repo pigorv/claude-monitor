@@ -1,7 +1,7 @@
 import { mkdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_CONFIG, VERSION } from '../../shared/constants.js';
+import { CONFIG, VERSION } from '../../shared/constants.js';
 import * as logger from '../../shared/logger.js';
 import { getDb, closeDb } from '../../db/connection.js';
 import { startServer } from '../../server/app.js';
@@ -10,10 +10,11 @@ import { createTranscriptWatcher } from '../../ingestion/transcript-watcher.js';
 const USAGE = `Usage: claude-monitor start [options]
 
   Start the dashboard server with auto-import polling.
-  Imports any missed sessions on startup, then polls ~/.claude/projects/ every 5s.
+  Imports any missed sessions on startup, then polls the transcripts directory
+  (default ~/.claude/projects/, override with CLAUDE_MONITOR_PROJECTS_PATH) every 5s.
 
 Options:
-  --port, -p <number>   Port number (default: ${DEFAULT_CONFIG.defaultPort})
+  --port, -p <number>   Port number (default: ${CONFIG.defaultPort})
   --no-open             Don't open browser automatically
   --verbose             Enable debug logging`;
 
@@ -51,7 +52,7 @@ export async function startCommand(args: string[]): Promise<void> {
   }
 
   // Ensure data directory exists
-  const dbPath = DEFAULT_CONFIG.dbPath;
+  const dbPath = CONFIG.dbPath;
   const dataDir = dirname(dbPath);
   if (!existsSync(dataDir)) {
     mkdirSync(dataDir, { recursive: true });
@@ -61,7 +62,7 @@ export async function startCommand(args: string[]): Promise<void> {
   getDb(dbPath);
   logger.debug('Database initialized', { path: dbPath });
 
-  const port = opts.port ?? DEFAULT_CONFIG.defaultPort;
+  const port = opts.port ?? CONFIG.defaultPort;
 
   // Resolve frontend directory (relative to this CLI entry point)
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -80,7 +81,7 @@ export async function startCommand(args: string[]): Promise<void> {
   }
 
   // Start transcript watcher — imports missed sessions on startup, then polls every 5s
-  const transcriptWatcher = createTranscriptWatcher();
+  const transcriptWatcher = createTranscriptWatcher({ projectsPath: CONFIG.claudeProjectsPath });
   transcriptWatcher.start();
 
   const shutdown = () => {
