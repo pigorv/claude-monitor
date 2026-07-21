@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.gitignore
+.work
+coverage
+test
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.DS_Store
+*.log
