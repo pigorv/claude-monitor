@@ -3,7 +3,7 @@ import { existsSync, statSync, readdirSync } from 'node:fs';
 import { getDb } from '../../db/connection.js';
 import { closeDb } from '../../db/connection.js';
 import { importTranscripts } from '../../ingestion/transcript-importer.js';
-import { DEFAULT_CONFIG } from '../../shared/constants.js';
+import { CONFIG } from '../../shared/constants.js';
 
 const USAGE = `Usage: claude-monitor import [path] [--force]
 
@@ -113,7 +113,7 @@ export async function importCommand(args: string[]): Promise<void> {
   const paths = args.filter((a) => !a.startsWith('--'));
 
   // Default to ~/.claude/projects/ when no path given
-  const targetPath = paths.length > 0 ? paths[0] : DEFAULT_CONFIG.claudeProjectsPath;
+  const targetPath = paths.length > 0 ? paths[0] : CONFIG.claudeProjectsPath;
   const files = collectJsonlFiles(targetPath);
 
   if (files.length === 0) return;

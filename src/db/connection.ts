@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { DEFAULT_CONFIG } from '../shared/constants.js';
+import { CONFIG } from '../shared/constants.js';
 import * as logger from '../shared/logger.js';
 import { runMigrations } from './migrations.js';
 
@@ -19,7 +19,7 @@ export function onDbClose(resetter: () => void): void {
 export function getDb(dbPath?: string): Database.Database {
   if (instance) return instance;
 
-  const resolvedPath = dbPath ?? DEFAULT_CONFIG.dbPath;
+  const resolvedPath = dbPath ?? CONFIG.dbPath;
 
   try {
     mkdirSync(dirname(resolvedPath), { recursive: true });
@@ -95,5 +95,5 @@ export function closeDb(): void {
 }
 
 export function getDbPath(): string {
-  return currentDbPath ?? DEFAULT_CONFIG.dbPath;
+  return currentDbPath ?? CONFIG.dbPath;
 }

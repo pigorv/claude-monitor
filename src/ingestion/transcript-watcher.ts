@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { DEFAULT_CONFIG } from '../shared/constants.js';
+import { CONFIG } from '../shared/constants.js';
 import { importTranscript } from './transcript-importer.js';
 import { getImportedMtimes } from '../db/queries/sessions.js';
 import * as logger from '../shared/logger.js';
@@ -21,7 +21,7 @@ export function createTranscriptWatcher(options?: {
   projectsPath?: string;
   pollIntervalMs?: number;
 }): TranscriptWatcher {
-  const projectsPath = options?.projectsPath ?? DEFAULT_CONFIG.claudeProjectsPath;
+  const projectsPath = options?.projectsPath ?? CONFIG.claudeProjectsPath;
   const pollMs = options?.pollIntervalMs ?? DEFAULT_POLL_MS;
 
   // Track mtime per file so we only import new/modified transcripts
