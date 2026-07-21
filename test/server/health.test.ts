@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getDb, closeDb } from '../../src/db/index.js';
 import { createApp } from '../../src/server/app.js';
-import { VERSION } from '../../src/shared/constants.js';
+import { VERSION, CONFIG } from '../../src/shared/constants.js';
 
 describe('Health route', () => {
   let tmpDir: string;
@@ -94,6 +94,19 @@ describe('Health route', () => {
     const body = await res.json();
     assert.equal(typeof body.db_engine, 'string');
     assert.equal(typeof body.server_port, 'number');
+  });
+
+  it('reports the port passed to createApp', async () => {
+    const portedApp = createApp({ port: 9000 });
+    const res = await portedApp.request('/api/health');
+    const body = await res.json();
+    assert.equal(body.server_port, 9000);
+  });
+
+  it('reports CONFIG.defaultPort when no port is passed', async () => {
+    const res = await app.request('/api/health');
+    const body = await res.json();
+    assert.equal(body.server_port, CONFIG.defaultPort);
   });
 });
 

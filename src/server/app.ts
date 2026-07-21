@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { DEFAULT_CONFIG } from '../shared/constants.js';
+import { CONFIG } from '../shared/constants.js';
 import * as logger from '../shared/logger.js';
 import { corsMiddleware } from './middleware.js';
 import { health } from './routes/health.js';
@@ -15,6 +15,7 @@ import { staticRoutes } from './static.js';
 
 export interface AppOptions {
   frontendDir?: string;
+  port?: number;
 }
 
 export function createApp(options?: AppOptions): Hono {
@@ -28,7 +29,7 @@ export function createApp(options?: AppOptions): Hono {
   });
 
   app.use('*', corsMiddleware);
-  app.route('/', health);
+  app.route('/', health(options?.port));
   // Register the per-session export before the sessions routes so the static
   // `/export` segment is matched and never shadowed by `/api/sessions/:id`.
   app.route('/', sessionExport);
@@ -48,13 +49,14 @@ export function createApp(options?: AppOptions): Hono {
 }
 
 export function startServer(port?: number, options?: AppOptions): Promise<ReturnType<typeof serve>> {
-  const app = createApp(options);
-  const resolvedPort = port ?? DEFAULT_CONFIG.defaultPort;
+  const resolvedPort = port ?? CONFIG.defaultPort;
+  const app = createApp({ ...options, port: resolvedPort });
 
   return new Promise((resolve, reject) => {
     const server = serve({
       fetch: app.fetch,
       port: resolvedPort,
+      ...(CONFIG.host ? { hostname: CONFIG.host } : {}),
     }, () => {
       logger.info(`Server listening on http://localhost:${resolvedPort}`);
       resolve(server);
