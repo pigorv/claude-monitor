@@ -1034,11 +1034,11 @@
   font-size: 12px;
   color: var(--color-text-secondary);
   line-height: 1.65;
-  padding: 8px 14px;
+  padding: var(--space-3) var(--space-4);
   background: var(--color-background-primary);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-primary);
-  max-height: 72px;
+  max-height: 80px;
   overflow: hidden;
   position: relative;
   cursor: pointer;
