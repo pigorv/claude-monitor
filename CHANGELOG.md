@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-07-22
+
 ### Added
 
 - A `POST /api/stats/rollup` endpoint returns the same aggregate token/cost/duration/compaction stats as `GET /api/stats`, but scoped to a supplied set of session ids — so a selection of sessions can be totaled on demand.
