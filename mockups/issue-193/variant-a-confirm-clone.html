@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Issue #193 — Variant A: Confirm &amp; Clone</title>
+<style>
+/* ═══ Tokens copied from frontend/src/styles/globals.css ═══ */
+:root {
+  --purple-50:#EEEDFE; --purple-100:#CECBF6; --purple-200:#AFA9EC; --purple-400:#7F77DD; --purple-600:#534AB7; --purple-800:#3C3489; --purple-900:#26215C;
+  --teal-50:#E1F5EE; --teal-100:#9FE1CB; --teal-200:#5DCAA5; --teal-400:#1D9E75; --teal-600:#0F6E56; --teal-800:#085041; --teal-900:#04342C;
+  --amber-50:#FAEEDA; --amber-100:#FAC775; --amber-200:#EF9F27; --amber-400:#BA7517; --amber-600:#854F0B; --amber-800:#633806; --amber-900:#412402;
+  --red-50:#FCEBEB; --red-100:#F7C1C1; --red-200:#F09595; --red-400:#E24B4A; --red-600:#A32D2D; --red-800:#791F1F; --red-900:#501313;
+  --gray-50:#F1EFE8; --gray-100:#D3D1C7; --gray-200:#B4B2A9; --gray-400:#888780; --gray-600:#5F5E5A; --gray-800:#444441; --gray-900:#2C2C2A;
+  --blue-50:#E6F1FB; --blue-600:#1E5B9E; --blue-800:#0C447C;
+  --green-50:#EAF3DE; --green-600:#3B6D11; --green-800:#27500A;
+
+  --radius-sm:4px; --radius-md:8px; --radius-lg:12px; --radius-pill:99px;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px;
+  --font-mono:"IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  --font-sans:"Instrument Sans", -apple-system, "Segoe UI", sans-serif;
+  --font-size-h1:22px; --font-size-h2:18px; --font-size-h3:15px;
+  --font-size-body:13px; --font-size-meta:12px; --font-size-label:11px;
+
+  /* Dark theme is primary here — remapped per the comments in globals.css */
+  --color-text-primary: var(--gray-50);
+  --color-text-secondary: var(--gray-200);
+  --color-text-tertiary: var(--gray-400);
+  --color-text-inverse: var(--gray-900);
+  --color-background-primary: var(--gray-900);
+  --color-background-secondary: var(--gray-800);
+  --color-background-tertiary: #3A3A37;
+  --color-background-hover: #34332F;
+  --color-background-active: var(--purple-900);
+  --color-border-primary: #3A3A37;
+  --color-border-secondary: #4A4945;
+  --color-border-accent: var(--purple-600);
+  --color-accent: var(--purple-200);
+  --color-accent-tint: color-mix(in srgb, var(--purple-200) 12%, transparent);
+  --color-interactive-selected-bg: var(--purple-800);
+  --color-interactive-selected-border: var(--purple-600);
+  --color-interactive-selected-text: var(--purple-50);
+  --color-status-completed: var(--teal-200);
+  --color-status-completed-bg: var(--teal-800);
+  --color-status-completed-text: var(--teal-50);
+  --color-status-warning-bg: var(--amber-800);
+  --color-status-warning-text: var(--amber-50);
+  --color-status-danger-bg: var(--red-800);
+  --color-status-danger-text: var(--red-100);
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.24);
+  --shadow:0 1px 3px rgba(0,0,0,0.3),0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.4);
+}
+
+:root[data-theme="light"] {
+  --color-text-primary:#1c1917;
+  --color-text-secondary:#6b6560;
+  --color-text-tertiary:#7d7872;
+  --color-text-inverse:#fffffe;
+  --color-background-primary:#fffffe;
+  --color-background-secondary:#f7f5f2;
+  --color-background-tertiary:#f3f0ec;
+  --color-background-hover:#f2eeea;
+  --color-background-active:#f0edfa;
+  --color-border-primary:#e8e4df;
+  --color-border-secondary:#d6d1ca;
+  --color-border-accent:var(--purple-200);
+  --color-accent:var(--purple-600);
+  --color-accent-tint: color-mix(in srgb, var(--purple-600) 12%, transparent);
+  --color-interactive-selected-bg:var(--purple-50);
+  --color-interactive-selected-border:var(--purple-200);
+  --color-interactive-selected-text:var(--purple-800);
+  --color-status-completed:var(--teal-400);
+  --color-status-completed-bg:var(--teal-50);
+  --color-status-completed-text:var(--teal-800);
+  --color-status-warning-bg:var(--amber-50);
+  --color-status-warning-text:var(--amber-800);
+  --color-status-danger-bg:var(--red-50);
+  --color-status-danger-text:var(--red-600);
+  --shadow-sm:0 1px 2px rgba(28,25,23,0.04);
+  --shadow:0 1px 3px rgba(28,25,23,0.06),0 1px 2px rgba(28,25,23,0.04);
+  --shadow-md:0 4px 12px rgba(28,25,23,0.08);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══ Mockup scaffold (not app chrome) ═══ */
+.sheet-head {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  padding: 14px 32px;
+  background: var(--color-background-primary);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+.sheet-head h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }
+.sheet-head .tag {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 3px 9px; border-radius: var(--radius-pill);
+  background: var(--color-interactive-selected-bg); color: var(--color-interactive-selected-text);
+  margin-left: 8px;
+}
+.theme-toggle {
+  font-family: var(--font-mono); font-size: 11px; padding: 6px 12px;
+  border-radius: var(--radius-md); border: 1px solid var(--color-border-primary);
+  background: var(--color-background-tertiary); color: var(--color-text-secondary); cursor: pointer;
+}
+.wrap { max-width: 1160px; margin: 0 auto; padding: 32px; display: flex; flex-direction: column; gap: 40px; }
+.panel-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--color-text-tertiary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+}
+.panel-label .idea { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--color-text-secondary); }
+.panel {
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+.row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+
+/* ═══ Real app classes, copied verbatim ═══ */
+.session-header { margin-bottom: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.session-header-main { min-width: 0; }
+.breadcrumb { font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.breadcrumb a { color: var(--color-text-secondary); font-weight: 500; }
+.session-title { font-size: 20px; font-weight: 700; letter-spacing: -0.04em; margin-bottom: 10px; color: var(--color-text-primary); line-height: 1.3; }
+.session-subtitle { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.session-subtitle .sep { color: var(--color-border-secondary); }
+.meta-item { display: flex; align-items: center; gap: 4px; }
+.header-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.model-pill { font-size: 10px; padding: 4px 12px; border-radius: var(--radius-md); font-weight: 600; letter-spacing: 0.02em; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); }
+.model-pill.sonnet { background: var(--color-interactive-selected-bg); color: var(--color-accent); border: 1px solid var(--color-border-accent); }
+.pill-ver { font-family: var(--font-mono); font-size: 10px; font-weight: 500; margin-left: 4px; }
+
+.export-btn-header, .clone-btn-header {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 18px; border-radius: var(--radius-md);
+  font-family: var(--font-sans); font-size: 13px; font-weight: 600; cursor: pointer;
+  box-shadow: var(--shadow-sm); border: 1px solid transparent;
+}
+.export-btn-header { border-color: var(--color-accent); background: var(--color-accent); color: var(--color-text-inverse); }
+.export-btn-header:hover { opacity: 0.9; }
+.clone-btn-header { border-color: var(--color-border-primary); background: var(--color-background-primary); color: var(--color-text-primary); }
+.clone-btn-header:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.clone-btn-header:disabled, .clone-btn-header.is-disabled { opacity: 0.45; cursor: not-allowed; }
+.clone-btn-header:disabled:hover, .clone-btn-header.is-disabled:hover { border-color: var(--color-border-primary); color: var(--color-text-primary); }
+
+.resume-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.resume-cmd { display: flex; align-items: center; gap: 8px; padding: 7px 14px; background: var(--color-background-tertiary); border-radius: var(--radius-md); font-family: var(--font-mono); font-size: 11px; color: var(--color-text-secondary); border: 1px solid var(--color-border-primary); }
+.resume-cmd-dollar { color: var(--color-text-tertiary); }
+.resume-cmd-text { font-family: var(--font-mono); font-size: 11px; }
+.copy-btn { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: var(--radius-sm); border: 1px solid var(--color-border-primary); background: var(--color-background-primary); color: var(--color-text-secondary); cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 4px; font-family: var(--font-mono); }
+.copy-btn:hover { background: var(--color-accent); color: var(--color-text-inverse); border-color: var(--color-accent); }
+.expired-pill { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: var(--radius-sm); border: 1px solid var(--color-border-secondary); background: var(--color-background-tertiary); color: var(--color-text-tertiary); display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); }
+
+.modal-overlay { position: relative; background: color-mix(in srgb, var(--gray-900) 55%, transparent); display: flex; align-items: center; justify-content: center; padding: 40px 20px; border-radius: var(--radius-lg); }
+.modal { width: 100%; max-width: 420px; background: var(--color-background-primary); border: 1px solid var(--color-border-primary); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden; }
+.modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 20px 4px; }
+.modal-title { font-size: 16px; font-weight: 700; letter-spacing: -0.03em; }
+.modal-sub { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; }
+.modal-close { border: none; background: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 18px; line-height: 1; padding: 4px; border-radius: var(--radius-sm); }
+.modal-body { padding: 16px 20px 8px; display: flex; flex-direction: column; gap: 12px; }
+.modal-divider { height: 1px; background: var(--color-border-primary); margin: 4px 0; }
+.modal-footnote { font-size: 11px; color: var(--color-text-tertiary); padding: 4px 20px 18px; text-align: center; }
+.modal-actions { display: flex; gap: 8px; padding: 4px 20px 20px; }
+
+.field-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-tertiary); margin-bottom: 5px; }
+.path-readout { font-family: var(--font-mono); font-size: 12px; color: var(--color-text-primary); background: var(--color-background-tertiary); border: 1px solid var(--color-border-primary); border-radius: var(--radius-md); padding: 9px 12px; word-break: break-all; }
+
+.btn { font-family: var(--font-sans); font-size: 13px; font-weight: 600; padding: 8px 20px; border-radius: var(--radius-md); border: 1px solid var(--color-accent); background: var(--color-accent); color: var(--color-text-inverse); cursor: pointer; box-shadow: var(--shadow-sm); flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-secondary { background: var(--color-background-primary); color: var(--color-text-primary); border-color: var(--color-border-primary); flex: 0 0 auto; }
+
+.spinner { width: 13px; height: 13px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--color-text-inverse) 35%, transparent); border-top-color: var(--color-text-inverse); animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.success-box { display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center; padding: 6px 0 10px; }
+.success-icon { width: 38px; height: 38px; border-radius: 50%; background: var(--color-status-completed-bg); color: var(--color-status-completed-text); display: flex; align-items: center; justify-content: center; }
+.success-title { font-size: 14px; font-weight: 700; color: var(--color-text-primary); }
+.success-sub { font-size: 12px; color: var(--color-text-secondary); }
+.success-cmd { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--color-background-tertiary); border: 1px solid var(--color-border-primary); border-radius: var(--radius-md); font-family: var(--font-mono); font-size: 11px; color: var(--color-text-secondary); text-align: left; }
+
+.error-banner { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-md); background: var(--color-status-danger-bg); color: var(--color-status-danger-text); font-size: 12px; border: 1px solid color-mix(in srgb, var(--color-status-danger-text) 30%, transparent); }
+.error-banner svg { flex-shrink: 0; margin-top: 1px; }
+
+.mobile-frame { width: 390px; border: 1px solid var(--color-border-primary); border-radius: 18px; overflow: hidden; background: var(--color-background-secondary); }
+.mobile-frame .page { padding: 16px; }
+@media (max-width: 480px) {
+  .m-session-header { flex-direction: column; align-items: stretch; }
+  .m-session-header .clone-btn-header, .m-session-header .export-btn-header { align-self: stretch; justify-content: center; }
+}
+</style>
+</head>
+<body>
+
+<div class="sheet-head">
+  <h1>Issue #193 — Clone action <span class="tag">Variant A</span></h1>
+  <button class="theme-toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? '' : 'light'; this.textContent = document.documentElement.dataset.theme === 'light' ? '☀ light' : '● dark'">● dark</button>
+</div>
+
+<div class="wrap">
+
+  <div>
+    <div class="panel-label">1 · Session Detail header — idle <span class="idea">Clone sits next to Export, same visual weight as the resume-command row's other actions</span></div>
+    <div class="panel">
+      <div class="session-header">
+        <div class="session-header-main">
+          <div class="breadcrumb"><a href="#">Sessions</a> › <span style="color:var(--color-text-tertiary)">claude-monitor</span></div>
+          <h1 class="session-title">Add Clone action for expired-worktree sessions</h1>
+          <div class="session-subtitle">
+            <span class="model-pill sonnet">Sonnet<span class="pill-ver">5</span></span>
+            <span class="sep">·</span>
+            <span class="meta-item">42m 18s</span>
+            <span class="sep">·</span>
+            118 tool calls
+            <span class="sep">·</span>
+            <span style="color:var(--color-text-tertiary)">ended 2h ago</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="clone-btn-header" title="Clone this session into a new resumable Claude Code transcript">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1.5" y="3.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.1"/><path d="M4 3.5V2.5C4 1.95 4.45 1.5 5 1.5H9C9.55 1.5 10 1.95 10 2.5V6.5C10 7.05 9.55 7.5 9 7.5H8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Clone
+          </button>
+          <button class="export-btn-header">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5V7.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M3.5 5L6 7.5L8.5 5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 9.5H10" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+            Export
+          </button>
+        </div>
+      </div>
+      <div class="resume-row">
+        <div class="resume-cmd">
+          <span class="resume-cmd-dollar">$</span>
+          <code class="resume-cmd-text">claude --resume a3f9c821-4b2e-4f91-9c3d-7e1b2a9f5c60</code>
+          <button class="copy-btn">Copy</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel-label">2 · Expired session — Clone disabled <span class="idea">Tier-2 (reconstruct from stored events) is out of scope per the issue — Clone is disabled with the same pattern as Open in Terminal, not hidden</span></div>
+    <div class="panel">
+      <div class="session-header">
+        <div class="session-header-main">
+          <div class="breadcrumb"><a href="#">Sessions</a> › <span style="color:var(--color-text-tertiary)">claude-monitor</span></div>
+          <h1 class="session-title">Investigate flaky ingestion test on CI</h1>
+          <div class="session-subtitle">
+            <span class="model-pill sonnet">Sonnet<span class="pill-ver">5</span></span>
+            <span class="sep">·</span>
+            <span class="meta-item">1h 04m</span>
+            <span class="sep">·</span>
+            203 tool calls
+            <span class="sep">·</span>
+            <span style="color:var(--color-text-tertiary)">ended 19d ago</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="clone-btn-header is-disabled" title="This session's transcript was deleted by Claude Code's retention cleanup — nothing to clone from yet (tracked separately for stored-event reconstruction)">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1.5" y="3.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.1"/><path d="M4 3.5V2.5C4 1.95 4.45 1.5 5 1.5H9C9.55 1.5 10 1.95 10 2.5V6.5C10 7.05 9.55 7.5 9 7.5H8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Clone
+          </button>
+          <button class="export-btn-header">Export</button>
+        </div>
+      </div>
+      <div class="resume-row">
+        <div class="resume-cmd">
+          <span class="resume-cmd-dollar">$</span>
+          <code class="resume-cmd-text">claude --resume 6d21f0a4-88e3-4a6f-b9d2-fa0821c3e9b1</code>
+          <button class="copy-btn">Copy</button>
+          <span class="expired-pill">Expired</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div style="flex:1; min-width:340px;">
+      <div class="panel-label">3 · Modal — confirm <span class="idea">Recorded path shown read-only, mirrors the Export modal's one-click pattern</span></div>
+      <div class="panel">
+        <div class="modal-overlay">
+          <div class="modal">
+            <div class="modal-header">
+              <div>
+                <div class="modal-title">Clone session</div>
+                <div class="modal-sub">Writes a new resumable Claude Code transcript.</div>
+              </div>
+              <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+              <div>
+                <div class="field-label">Target directory</div>
+                <div class="path-readout">/Users/pigorv/dev/claude-monitor-worktrees/feature-clone-193</div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn-secondary btn">Cancel</button>
+              <button class="btn">Clone Session</button>
+            </div>
+            <div class="modal-footnote">A new session id is created — the original stays untouched.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1; min-width:340px;">
+      <div class="panel-label">4 · Modal — path no longer exists <span class="idea">The exact case the issue is filed for: worktree deleted, recorded path is stale</span></div>
+      <div class="panel">
+        <div class="modal-overlay">
+          <div class="modal">
+            <div class="modal-header">
+              <div>
+                <div class="modal-title">Clone session</div>
+                <div class="modal-sub">Writes a new resumable Claude Code transcript.</div>
+              </div>
+              <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+              <div>
+                <div class="field-label">Target directory</div>
+                <div class="path-readout">/Users/pigorv/dev/claude-monitor-worktrees/feature-clone-193</div>
+              </div>
+              <div class="error-banner">
+                <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.1"/><path d="M6 4V6.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="6" cy="8.3" r="0.6" fill="currentColor"/></svg>
+                <span>This directory no longer exists — it was likely a worktree that's since been removed. The clone will still succeed, but <code style="font-family:var(--font-mono)">claude --resume</code> will need a valid <code style="font-family:var(--font-mono)">cd</code> target before it can open.</span>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn-secondary btn">Cancel</button>
+              <button class="btn">Clone Anyway</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div style="flex:1; min-width:340px;">
+      <div class="panel-label">5 · Modal — cloning <span class="idea">Same pending pattern as ExportButton: button disables + spinner replaces label</span></div>
+      <div class="panel">
+        <div class="modal-overlay">
+          <div class="modal">
+            <div class="modal-header">
+              <div>
+                <div class="modal-title">Clone session</div>
+                <div class="modal-sub">Writes a new resumable Claude Code transcript.</div>
+              </div>
+              <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+              <div>
+                <div class="field-label">Target directory</div>
+                <div class="path-readout" style="opacity:0.5">/Users/pigorv/dev/claude-monitor-worktrees/feature-clone-193</div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn-secondary btn" disabled>Cancel</button>
+              <button class="btn" disabled><span class="spinner"></span> Cloning…</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1; min-width:340px;">
+      <div class="panel-label">6 · Modal — cloned <span class="idea">New session id surfaced immediately with a ready-to-copy resume command; original session is untouched</span></div>
+      <div class="panel">
+        <div class="modal-overlay">
+          <div class="modal">
+            <div class="modal-header">
+              <div>
+                <div class="modal-title">Session cloned</div>
+              </div>
+              <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="success-box">
+                <div class="success-icon">
+                  <svg width="18" height="18" viewBox="0 0 12 12" fill="none"><path d="M2.5 6.3L4.8 8.5L9.5 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="success-title">New transcript written</div>
+                <div class="success-sub">f2e8b104-9a3c-4d17-8b5a-611cf3d0a9e2</div>
+                <div class="success-cmd">
+                  <span style="color:var(--color-text-tertiary)">$</span>
+                  <code style="flex:1">claude --resume f2e8b104…</code>
+                  <button class="copy-btn">Copy</button>
+                </div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn-secondary btn">View Clone</button>
+              <button class="btn">Open in Terminal</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel-label">7 · Mobile (390px) — idle header <span class="idea">Clone stacks above Export, both full-width, matching the existing @media rule for .export-btn-header</span></div>
+    <div class="mobile-frame">
+      <div class="page">
+        <div class="session-header m-session-header" style="flex-direction:column; align-items:stretch; gap:12px;">
+          <div class="session-header-main">
+            <div class="breadcrumb"><a href="#">Sessions</a> › <span style="color:var(--color-text-tertiary)">claude-monitor</span></div>
+            <h1 class="session-title" style="font-size:17px">Add Clone action for expired-worktree sessions</h1>
+            <div class="session-subtitle">
+              <span class="model-pill sonnet">Sonnet<span class="pill-ver">5</span></span>
+              <span class="sep">·</span>
+              <span class="meta-item">42m 18s</span>
+            </div>
+          </div>
+          <div class="header-actions" style="flex-direction:column; align-self:stretch;">
+            <button class="clone-btn-header" style="justify-content:center;">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1.5" y="3.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.1"/><path d="M4 3.5V2.5C4 1.95 4.45 1.5 5 1.5H9C9.55 1.5 10 1.95 10 2.5V6.5C10 7.05 9.55 7.5 9 7.5H8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Clone
+            </button>
+            <button class="export-btn-header" style="justify-content:center;">Export</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
