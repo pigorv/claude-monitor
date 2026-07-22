@@ -9,15 +9,21 @@ export { MODEL_THRESHOLDS, SONNET_1M_THRESHOLDS } from './model-thresholds.js';
 // Injected at build time by tsup (see tsup.config.ts `define`)
 export const VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
 
+/** True when `n` is a valid TCP port: an integer in 1..65535. */
+export function isValidPort(n: number): boolean {
+  return Number.isInteger(n) && n >= 1 && n <= 65535;
+}
+
 /**
  * Parse a CLAUDE_MONITOR_PORT value. Unset or empty falls back to 4173.
  * Otherwise the value must be an integer in 1..65535, or an Error is thrown.
- * Mirrors the `--port` validation in src/cli/commands/start.ts.
+ * Shares `isValidPort` with the `--port` flag in src/cli/commands/start.ts, so
+ * both reject the same inputs (`Number`-based, no truncation).
  */
 export function parsePort(v: string | undefined): number {
   if (v === undefined || v === '') return 4173;
   const val = Number(v);
-  if (!Number.isInteger(val) || val < 1 || val > 65535) {
+  if (!isValidPort(val)) {
     throw new Error(`Invalid CLAUDE_MONITOR_PORT "${v}": expected an integer 1-65535`);
   }
   return val;

@@ -39,6 +39,16 @@ describe('start command', () => {
     assert.ok(stdout.includes('--port'));
     assert.ok(stdout.includes('--no-open'));
   });
+
+  it('rejects a non-integer --port instead of truncating it', () => {
+    // Matches parsePort/CLAUDE_MONITOR_PORT: "12.5" and "80abc" are invalid,
+    // not silently coerced to 12/80 the way parseInt() used to.
+    for (const bad of ['12.5', '80abc', 'abc', '0', '70000']) {
+      const { exitCode, stderr } = run('start', '--port', bad);
+      assert.equal(exitCode, 1, `--port ${bad} should exit 1`);
+      assert.ok(stderr.includes('Invalid port number'), `--port ${bad} should print the error`);
+    }
+  });
 });
 
 describe('status command', () => {

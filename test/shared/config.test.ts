@@ -2,7 +2,7 @@ import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { loadConfig, parsePort, CONFIG, DEFAULT_CONFIG } from '../../src/shared/constants.js';
+import { loadConfig, parsePort, isValidPort, CONFIG, DEFAULT_CONFIG } from '../../src/shared/constants.js';
 
 const defaults = {
   dataDir: join(homedir(), '.claude-monitor'),
@@ -92,5 +92,28 @@ describe('parsePort validation (Behavior #10)', () => {
 
   it('loadConfig propagates the throw for a bad CLAUDE_MONITOR_PORT', () => {
     assert.throws(() => loadConfig({ CLAUDE_MONITOR_PORT: 'abc' }), /Invalid CLAUDE_MONITOR_PORT/);
+  });
+});
+
+describe('isValidPort — shared by env parsePort and the --port flag', () => {
+  it('accepts integers in 1..65535', () => {
+    assert.equal(isValidPort(1), true);
+    assert.equal(isValidPort(4173), true);
+    assert.equal(isValidPort(65535), true);
+  });
+
+  it('rejects out-of-range, zero, and negatives', () => {
+    assert.equal(isValidPort(0), false);
+    assert.equal(isValidPort(-1), false);
+    assert.equal(isValidPort(70000), false);
+  });
+
+  it('rejects non-integers and NaN — no truncation (the flag/env divergence fix)', () => {
+    assert.equal(isValidPort(12.5), false);
+    assert.equal(isValidPort(NaN), false);
+    // The --port flag now parses with Number(), so "80abc" → NaN → rejected,
+    // matching parsePort instead of the old parseInt() truncation to 80.
+    assert.equal(isValidPort(Number('80abc')), false);
+    assert.equal(isValidPort(Number('12.5')), false);
   });
 });

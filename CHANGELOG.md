@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Release workflow now upgrades npm before publishing so npm Trusted Publishing (OIDC) works; Node 22 shipped an npm too old for OIDC, which broke the `0.7.0` npm publish with `ENEEDAUTH`.
+- The `--port` flag and `CLAUDE_MONITOR_PORT` now validate identically: a non-integer like `--port 12.5` or `--port 80abc` is rejected instead of being silently truncated to `12`/`80`.
 
 ## [0.7.0] - 2026-07-12
 

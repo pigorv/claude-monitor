@@ -1,7 +1,7 @@
 import { mkdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CONFIG, VERSION } from '../../shared/constants.js';
+import { CONFIG, VERSION, isValidPort } from '../../shared/constants.js';
 import * as logger from '../../shared/logger.js';
 import { getDb, closeDb } from '../../db/connection.js';
 import { startServer } from '../../server/app.js';
@@ -28,8 +28,8 @@ function parseArgs(args: string[]): { port?: number; open: boolean; verbose: boo
       process.exit(0);
     }
     if (arg === '--port' || arg === '-p') {
-      const val = parseInt(args[++i], 10);
-      if (isNaN(val) || val < 1 || val > 65535) {
+      const val = Number(args[++i]);
+      if (!isValidPort(val)) {
         console.error('Error: Invalid port number');
         process.exit(1);
       }
