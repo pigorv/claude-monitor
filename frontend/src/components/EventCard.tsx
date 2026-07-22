@@ -424,42 +424,6 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
     `;
   }
 
-  // Slash commands → blue command block with dedup
-  if (event.event_type === 'user_message' && isCommand) {
-    const cmdArgs = getCommandArgs(meta!);
-
-    return html`
-      <div class=${"event-card event-user-message event-cmd" + (hasExpandable ? " expandable" : "")}
-        onClick=${hasExpandable ? toggleExpand : undefined}
-      >
-        <div class="event-dot dot-cmd"></div>
-        <div class="event-content">
-          <div class="event-header">
-            <span class="event-time">${formatTime(event.timestamp, sessionStart)}</span>
-            ${hasExpandable && html`<span class="event-expand">${expanded ? "▾" : "▸"}</span>`}
-          </div>
-          <div class="cmd-block">
-            <div class="cmd-header">
-              <span class="cmd-pill">${meta!.command}</span>
-              ${cmdArgs && html`<span class="cmd-args">${cmdArgs}</span>`}
-            </div>
-          </div>
-          ${expanded && html`
-            <div class="event-detail" onClick=${stopToggle}>
-              ${event.input_data && html`
-                <div class="detail-section">
-                  ${sectionHeader("Input", event.input_data)}
-                  ${StructuredContent({ text: event.input_data, hint: "markdown" })}
-                </div>
-              `}
-              ${collapseFooter}
-            </div>
-          `}
-        </div>
-      </div>
-    `;
-  }
-
   // Interrupted assistant message → amber style
   if (event.event_type === 'assistant_message' && (meta?.subtype === 'interrupted' || (event.output_preview || '').includes('[Request interrupted'))) {
     return html`
@@ -852,8 +816,6 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
       <div class="event-content">
       <div class="event-header">
         <span class="event-time">${formatTime(event.timestamp, sessionStart)}</span>
-        ${isCommand && html`<span class="command-pill">${meta.command}</span>`}
-        ${isSkillExpansion && html`<span class="skill-badge">skill: ${skillName || "expansion"}</span>`}
         ${isSystemGenerated && html`<span class="event-pill pill-gray">system</span>`}
         ${!isToolEvent && !isCommand && !isSkillExpansion && !isSystemGenerated && !SUPPRESS_PILL_TYPES.has(event.event_type) && html`<span class=${"event-pill " + pillClass + (isRoleMsg ? " pill-role" : "")}>${isRoleMsg ? label.toUpperCase() : label}</span>`}
         ${event.tool_name && html`<span class=${"tool-badge " + toolBadgeClass}>${event.tool_name}</span>`}
@@ -897,14 +859,20 @@ export function EventCard({ event, sessionStart, groupIndex, rationale }: EventC
         `;
       })()}
 
-      ${!expanded && event.event_type === "user_message" && !isSkillExpansion && !isSystemGenerated && event.input_preview && html`
+      ${!expanded && event.event_type === "user_message" && !isSkillExpansion && !isSystemGenerated && (isCommand || event.input_preview) && html`
         <div class="event-body event-body-user" onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}>
-          ${event.input_preview}
+          ${isCommand
+            ? (() => {
+                const cmdArgs = getCommandArgs(meta!);
+                return html`<span class="command-pill">${meta!.command}</span>${cmdArgs ? ` ${cmdArgs}` : null}`;
+              })()
+            : event.input_preview}
         </div>
       `}
 
       ${!expanded && event.event_type === "user_message" && isSkillExpansion && html`
         <div class="event-body skill-expansion-body" onClick=${(e: globalThis.Event) => { e.stopPropagation(); toggleExpand(); }}>
+          <span class="skill-badge">skill: ${skillName || "expansion"}</span>
           <span class="skill-expansion-label">${event.input_preview ? truncate(event.input_preview, 120) : "[skill expansion content]"}</span>
         </div>
       `}

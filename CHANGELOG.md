@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- In the Session Detail timeline, a collapsed slash-command row now shows its `/command` pill (with any arguments) inline in the message body instead of in the timestamp header, and a skill-expansion row shows its `skill:` badge inline ahead of the preview — both using the standard purple user-message styling.
+
 ## [0.7.1] - 2026-07-22
 
 ### Added

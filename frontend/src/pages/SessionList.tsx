@@ -217,7 +217,7 @@ export function SessionRow({ s }: { s: SessionSummary }) {
         </div>
         <div class="srow-title">
           ${s.started_with
-            ? html`<span class="${s.started_with.type === "skill" ? "skill-badge" : "cmd-pill"} srow-title-pill">${s.started_with.name}</span>`
+            ? html`<span class="${s.started_with.type === "skill" ? "skill-badge" : "command-pill"} srow-title-pill">${s.started_with.name}</span>`
             : null}
           ${titleText
             ? html`<span class="srow-title-text">${titleText}</span>`
