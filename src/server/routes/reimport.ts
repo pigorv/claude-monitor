@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_CONFIG } from '../../shared/constants.js';
+import { CONFIG } from '../../shared/constants.js';
 import { importTranscripts } from '../../ingestion/transcript-importer.js';
 import { getDb } from '../../db/connection.js';
 import { compactDatabase } from '../../db/maintenance.js';
@@ -73,7 +73,7 @@ async function runReimport(): Promise<void> {
   // Yield once so the 202 response flushes before the synchronous directory scan.
   await new Promise((r) => setImmediate(r));
 
-  const projectsDir = DEFAULT_CONFIG.claudeProjectsPath;
+  const projectsDir = CONFIG.claudeProjectsPath;
 
   try {
     const files = collectJsonlFilesRecursive(projectsDir).sort();

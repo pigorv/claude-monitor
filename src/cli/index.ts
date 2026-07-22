@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-import { VERSION } from '../shared/constants.js';
-import { exportCommand } from './commands/export.js';
-import { importCommand } from './commands/import.js';
-import { startCommand } from './commands/start.js';
-import { statusCommand } from './commands/status.js';
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const command = args[0];
 
-const HELP = `claude-monitor v${VERSION}
+  const { VERSION } = await import('../shared/constants.js');
+
+  const HELP = `claude-monitor v${VERSION}
 
 Usage: claude-monitor <command> [options]
 
@@ -23,10 +23,6 @@ Options:
 
 Run 'claude-monitor <command> --help' for command-specific help.`;
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const command = args[0];
-
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     console.log(HELP);
     return;
@@ -38,18 +34,26 @@ async function main(): Promise<void> {
   }
 
   switch (command) {
-    case 'import':
+    case 'import': {
+      const { importCommand } = await import('./commands/import.js');
       await importCommand(args.slice(1));
       break;
-    case 'export':
+    }
+    case 'export': {
+      const { exportCommand } = await import('./commands/export.js');
       await exportCommand(args.slice(1));
       break;
-    case 'start':
+    }
+    case 'start': {
+      const { startCommand } = await import('./commands/start.js');
       await startCommand(args.slice(1));
       break;
-    case 'status':
+    }
+    case 'status': {
+      const { statusCommand } = await import('./commands/status.js');
       await statusCommand(args.slice(1));
       break;
+    }
     default:
       console.error(`Unknown command: ${command}`);
       console.error(`Run 'claude-monitor --help' for available commands.`);

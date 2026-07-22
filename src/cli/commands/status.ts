@@ -1,5 +1,5 @@
 import { existsSync, statSync } from 'node:fs';
-import { DEFAULT_CONFIG, VERSION } from '../../shared/constants.js';
+import { CONFIG, VERSION } from '../../shared/constants.js';
 import { getDb, closeDb } from '../../db/connection.js';
 
 const USAGE = `Usage: claude-monitor status
@@ -49,8 +49,8 @@ export async function statusCommand(args: string[]): Promise<void> {
     return;
   }
 
-  const port = DEFAULT_CONFIG.defaultPort;
-  const dbPath = DEFAULT_CONFIG.dbPath;
+  const port = CONFIG.defaultPort;
+  const dbPath = CONFIG.dbPath;
 
   const database = checkDatabase(dbPath);
   const serverRunning = await checkServer(port);

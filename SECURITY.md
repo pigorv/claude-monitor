@@ -2,7 +2,7 @@
 
 ## About This Project
 
-claude-monitor is a **local-only** observability tool. It reads Claude Code transcript files from your filesystem and serves a dashboard on `localhost`. There is no remote API, authentication, or multi-user access by default.
+claude-monitor is a **local-only** observability tool. It reads Claude Code transcript files from your filesystem and serves a local dashboard. By default the server binds all interfaces; set `CLAUDE_MONITOR_HOST=127.0.0.1` to restrict it to loopback (localhost only). There is no remote API, authentication, or multi-user access.
 
 ## Reporting a Vulnerability
 
@@ -21,7 +21,7 @@ Examples of issues we'd consider security-relevant:
 Examples of things that are **not** in scope:
 
 - Attacks requiring physical access to the machine already running claude-monitor
-- Denial-of-service against the local server (it only binds to localhost)
+- Denial-of-service against the local server (it binds all interfaces by default; restrict it with `CLAUDE_MONITOR_HOST=127.0.0.1`, and exposure is further governed by your network and any port mapping)
 - Issues in Claude Code itself (report those to [Anthropic](https://www.anthropic.com))
 
 ## Supported Versions
