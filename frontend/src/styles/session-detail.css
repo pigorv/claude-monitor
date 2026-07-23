@@ -1038,7 +1038,7 @@
   background: var(--color-background-primary);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-primary);
-  max-height: 80px;
+  max-height: 72px;
   overflow: hidden;
   position: relative;
   cursor: pointer;
