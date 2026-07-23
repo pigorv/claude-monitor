@@ -201,6 +201,22 @@ describe('Session clone route (POST /api/sessions/:id/clone)', () => {
     assert.match(body.error, /no longer exists|raw transcript/i);
   });
 
+  it('returns 410 when transcript_path was never recorded', async () => {
+    seedSessionRow('null-path', null);
+    const targetDir = join(TEST_DIR, 'dest-project');
+    mkdirSync(targetDir, { recursive: true });
+
+    const res = await app.request('/api/sessions/null-path/clone', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetDir }),
+    });
+
+    assert.equal(res.status, 410);
+    const body = await res.json();
+    assert.match(body.error, /transcript path was never recorded|re-import/i);
+  });
+
   it('does not let /api/sessions/:id shadow the /clone sub-route', async () => {
     const parentPath = layOutParent();
     seedSessionRow(SOURCE_ID, parentPath);

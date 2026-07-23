@@ -1,7 +1,7 @@
 import { describe, it, beforeAll, beforeEach, afterEach, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 // The clone writes to `<CONFIG.claudeProjectsPath>/<slug>/<newId>.jsonl`, and
@@ -249,6 +249,8 @@ describe('cloneSession', () => {
         return true;
       },
     );
+    // The guard runs before any write, so no slug dir is created.
+    assert.deepEqual(readdirSync(PROJECTS_DIR), []);
   });
 
   it('rejects a relative targetDir', async () => {
@@ -312,6 +314,10 @@ describe('cloneSession', () => {
     // Output lands at the expected slug-derived path.
     const expectedPath = join(PROJECTS_DIR, encodeProjectDirName(targetDir), `${newId}.jsonl`);
     const written = readFileSync(expectedPath, 'utf8');
+    // The file must end with a newline: it is the input to `claude --resume`,
+    // which appends each new event at EOF — without the final newline the first
+    // appended event glues onto the last existing line and stops parsing.
+    assert.ok(written.endsWith('\n'), 'clone transcript ends with a newline so --resume appends cleanly');
     const outLines = written.split('\n').filter((l) => l.length > 0);
     const srcLines = PARENT_JSONL.split('\n');
     assert.equal(outLines.length, srcLines.length);
@@ -336,6 +342,47 @@ describe('cloneSession', () => {
     // leafUuid / uuid / parentUuid are NOT reminted (spot-check the summary).
     const summaryOut = JSON.parse(outLines[outLines.length - 1]) as Record<string, unknown>;
     assert.equal(summaryOut.leafUuid, 'uuid-asst-1');
+  });
+
+  it('drops blank lines and passes malformed (non-JSON) lines through verbatim', async () => {
+    // A parent whose lines mix a valid object, a non-JSON garbage line (kept
+    // byte-for-byte), and a blank line (skipped). The clone still imports
+    // because the parser also skips malformed/blank lines.
+    const GARBAGE = 'this is not json {{{ [[[';
+    // The real (importable) parent lines with a non-JSON garbage line and a
+    // blank line injected in the middle.
+    const validLines = PARENT_JSONL.split('\n');
+    const mixed = [validLines[0], GARBAGE, '', ...validLines.slice(1)].join('\n');
+    const projDir = join(TEST_DIR, 'srcproj');
+    mkdirSync(projDir, { recursive: true });
+    const parentPath = join(projDir, `${SOURCE_ID}.jsonl`);
+    writeFileSync(parentPath, mixed);
+    seedSessionRow(SOURCE_ID, parentPath);
+
+    const targetDir = join(TEST_DIR, 'dest-project');
+    mkdirSync(targetDir, { recursive: true });
+
+    const { id: newId } = await cloneSession(SOURCE_ID, { targetDir });
+
+    const expectedPath = join(PROJECTS_DIR, encodeProjectDirName(targetDir), `${newId}.jsonl`);
+    const outLines = readFileSync(expectedPath, 'utf8').split('\n').filter((l) => l.length > 0);
+
+    // Blank line dropped; garbage kept verbatim; every valid line rewritten.
+    assert.equal(
+      outLines.length,
+      validLines.length + 1,
+      'blank line is dropped, garbage + all valid lines remain',
+    );
+    assert.ok(outLines.includes(GARBAGE), 'the non-JSON line survives byte-for-byte');
+    for (const line of outLines) {
+      if (line === GARBAGE) continue;
+      const obj = JSON.parse(line) as Record<string, unknown>;
+      assert.equal(obj.sessionId, newId);
+      assert.equal(obj.cwd, targetDir);
+    }
+
+    // The clone still imported (parser skips the malformed/blank lines).
+    assert.ok(getSession(newId), 'clone with a malformed line is still importable');
   });
 
   it('expands a leading ~ in targetDir to the home directory', async () => {

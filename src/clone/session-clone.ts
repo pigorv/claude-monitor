@@ -158,7 +158,11 @@ export async function cloneSession(
 
   mkdirSync(projectDir, { recursive: true });
   const newParentPath = join(projectDir, `${newId}.jsonl`);
-  writeFileSync(newParentPath, out.join('\n'));
+  // Terminate the parent transcript with a trailing newline. This file is the
+  // input to `claude --resume <newId>`, which appends each new event as
+  // `JSON.stringify(event) + '\n'` at EOF — without the final newline the first
+  // appended event glues onto the last existing line and stops parsing as JSON.
+  writeFileSync(newParentPath, out.length ? out.join('\n') + '\n' : '');
 
   // ── Copy the whole subagents/ subtree (Behavior #3) ─────────────────
   //
