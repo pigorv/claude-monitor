@@ -126,22 +126,30 @@ jobs:
           name: coverage
           path: coverage/
 
-  # e2e-smoke:
-  #   Deferred PR-gate slow layer (see docs/TESTING.md). To be wired by a sibling issue.
-  #   name: E2E smoke
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 20
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: 22
-  #         cache: npm
-  #     - run: npm ci
-  #     - name: Download dist
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: dist
-  #         path: dist/
-  #     - run: npm run test:e2e
+  # Deferred PR-gate slow layer (see docs/TESTING.md).
+  e2e-smoke:
+    name: E2E smoke
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run test:e2e:smoke
