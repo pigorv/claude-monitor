@@ -22,16 +22,31 @@ import { CONFIG } from '../shared/constants.js';
 // stream-line-by-line read.
 
 /**
+ * Discriminant on {@link CloneError} so the route can map each known failure to
+ * a distinct 4xx: `unknown_session` → 404, `no_transcript_path` /
+ * `transcript_missing` → 410 (the raw transcript is gone), `bad_target_dir` →
+ * 400 (blank / relative / nonexistent / not-a-dir).
+ */
+export type CloneErrorCode =
+  | 'unknown_session'
+  | 'no_transcript_path'
+  | 'transcript_missing'
+  | 'bad_target_dir';
+
+/**
  * Thrown for the known, user-actionable clone failures (unknown session,
  * null transcript path, missing transcript file, invalid target dir).
  * Mirrors {@link SessionExportError} so the route can map these to a 4xx
  * while letting any *unexpected* error surface as a real 500 instead of
- * masquerading as a client mistake.
+ * masquerading as a client mistake. The `code` discriminant lets the route
+ * pick the right status (404 / 410 / 400) instead of collapsing all cases.
  */
 export class CloneError extends Error {
-  constructor(message: string) {
+  readonly code: CloneErrorCode;
+  constructor(message: string, code: CloneErrorCode) {
     super(message);
     this.name = 'CloneError';
+    this.code = code;
   }
 }
 
@@ -82,6 +97,7 @@ export async function cloneSession(
   if (!session) {
     throw new CloneError(
       `Cannot clone session "${sessionId}": no such session. Run "claude-monitor import" first, or check the session id.`,
+      'unknown_session',
     );
   }
 
@@ -89,28 +105,35 @@ export async function cloneSession(
   if (!transcriptPath) {
     throw new CloneError(
       `Cannot clone session "${sessionId}": its transcript path was never recorded. Re-import the session with "claude-monitor import --force".`,
+      'no_transcript_path',
     );
   }
   if (!existsSync(transcriptPath)) {
     throw new CloneError(
       `Cannot clone session "${sessionId}": the transcript file no longer exists at ${transcriptPath}. Cloning requires the raw transcript.`,
+      'transcript_missing',
     );
   }
 
   // ── Validate the target dir BEFORE any write ────────────────────────
   const rawTarget = options.targetDir;
   if (typeof rawTarget !== 'string' || rawTarget.trim() === '') {
-    throw new CloneError('Cannot clone: targetDir is required and must be a non-empty path.');
+    throw new CloneError(
+      'Cannot clone: targetDir is required and must be a non-empty path.',
+      'bad_target_dir',
+    );
   }
   const targetDir = expandHome(rawTarget);
   if (!isAbsolute(targetDir)) {
     throw new CloneError(
       `Cannot clone: targetDir "${rawTarget}" must be an absolute path (e.g. /home/you/project).`,
+      'bad_target_dir',
     );
   }
   if (!existsSync(targetDir) || !statSync(targetDir).isDirectory()) {
     throw new CloneError(
       `Cannot clone: targetDir "${targetDir}" is not an existing directory. Create it first, or pick an existing one.`,
+      'bad_target_dir',
     );
   }
 
