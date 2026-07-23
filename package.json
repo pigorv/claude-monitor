@@ -43,6 +43,8 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
+    "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test --grep @smoke",
     "test:schema-drift": "SCHEMA_DRIFT_STRICT=1 vitest run test/fixtures/schema-drift-canary.test.ts",
     "coverage": "vitest run --coverage",
     "lint:tokens": "node scripts/lint-tokens.mjs",
@@ -62,6 +64,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.0",
+    "@playwright/test": "^1.58.2",
     "@types/prismjs": "^1.26.6",
     "@vitest/coverage-v8": "^4.1.9",
     "fast-check": "^4.9.0",
