@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Property-based data-quality invariant tests (fast-check) over token tracking (`test/ingestion/token-tracker.property.test.ts`) and agent efficiency (`test/analysis/agent-efficiency.property.test.ts`), asserting the pipeline's math holds across randomized inputs instead of only hand-picked fixtures.
+
 ### Changed
 
 - In the Session Detail timeline, a collapsed slash-command row now shows its `/command` pill (with any arguments) inline in the message body instead of in the timestamp header, and a skill-expansion row shows its `skill:` badge inline ahead of the preview — both using the standard purple user-message styling.
