@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<title>Issue #200 — Variant B: Unified terminal block</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+/* ═══ Tokens copied from frontend/src/styles/globals.css — Tier 1 + Tier 2 ═══ */
+:root {
+  --purple-50:#EEEDFE; --purple-100:#CECBF6; --purple-200:#AFA9EC; --purple-400:#7F77DD; --purple-600:#534AB7; --purple-800:#3C3489; --purple-900:#26215C;
+  --teal-50:#E1F5EE; --teal-100:#9FE1CB; --teal-200:#5DCAA5; --teal-400:#1D9E75; --teal-600:#0F6E56; --teal-800:#085041; --teal-900:#04342C;
+  --amber-50:#FAEEDA; --amber-100:#FAC775; --amber-200:#EF9F27; --amber-400:#BA7517; --amber-600:#854F0B; --amber-800:#633806; --amber-900:#412402;
+  --red-50:#FCEBEB; --red-100:#F7C1C1; --red-200:#F09595; --red-400:#E24B4A; --red-600:#A32D2D; --red-800:#791F1F; --red-900:#501313;
+  --gray-50:#F1EFE8; --gray-100:#D3D1C7; --gray-200:#B4B2A9; --gray-400:#888780; --gray-600:#5F5E5A; --gray-800:#444441; --gray-900:#2C2C2A;
+  --blue-50:#E6F1FB; --blue-600:#1E5B9E; --blue-800:#0C447C;
+  --green-50:#EAF3DE; --green-600:#3B6D11; --green-800:#27500A;
+
+  --color-text-primary:#1c1917; --color-text-secondary:#6b6560; --color-text-tertiary:#7d7872; --color-text-inverse:#fffffe;
+  --color-background-primary:#fffffe; --color-background-secondary:#f7f5f2; --color-background-tertiary:#f3f0ec; --color-background-hover:#f2eeea; --color-background-active:#f0edfa;
+  --color-border-primary:#e8e4df; --color-border-secondary:#d6d1ca; --color-border-accent:var(--purple-200);
+  --color-accent:var(--purple-600); --color-accent-tint:color-mix(in srgb, var(--purple-600) 12%, transparent);
+  --color-interactive-selected-bg:var(--purple-50); --color-interactive-selected-border:var(--purple-200); --color-interactive-selected-text:var(--purple-800);
+  --color-interactive-tab-active-line:var(--purple-600); --color-interactive-count-bg-selected:var(--purple-100);
+  --color-status-completed:var(--teal-400); --color-status-completed-bg:var(--teal-50); --color-status-completed-text:var(--teal-800);
+  --color-status-running:var(--purple-600);
+  --color-status-warning-bg:var(--amber-50); --color-status-warning-text:var(--amber-800);
+  --color-status-danger-bg:var(--red-50); --color-status-danger-text:var(--red-600);
+  --color-tool-bash-bg:var(--amber-50); --color-tool-bash-text:var(--amber-800);
+  --color-tool-read-bg:var(--blue-50); --color-tool-read-text:var(--blue-800);
+  --color-tool-edit-bg:var(--purple-50); --color-tool-edit-text:var(--purple-800);
+  --color-tool-write-bg:var(--green-50); --color-tool-write-text:var(--green-800);
+  --color-tool-default-bg:var(--gray-50); --color-tool-default-text:var(--gray-600);
+  --shadow-sm:0 1px 2px rgba(28,25,23,0.04); --shadow:0 1px 3px rgba(28,25,23,0.06),0 1px 2px rgba(28,25,23,0.04); --shadow-md:0 4px 12px rgba(28,25,23,0.08);
+  --radius-sm:4px; --radius-md:8px; --radius-lg:12px; --radius-pill:99px;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px;
+  --font-mono:"IBM Plex Mono", monospace; --font-sans:"Instrument Sans", sans-serif;
+}
+
+:root[data-theme="dark"] {
+  --color-text-primary:var(--gray-50); --color-text-secondary:var(--gray-200); --color-text-tertiary:var(--gray-400); --color-text-inverse:var(--gray-900);
+  --color-background-primary:var(--gray-900); --color-background-secondary:var(--gray-800); --color-background-tertiary:#3A3A37; --color-background-hover:#34332F; --color-background-active:var(--purple-900);
+  --color-border-primary:#3A3A37; --color-border-secondary:#4A4945; --color-border-accent:var(--purple-600);
+  --color-accent:var(--purple-200); --color-accent-tint:color-mix(in srgb, var(--purple-200) 12%, transparent);
+  --color-interactive-selected-bg:var(--purple-800); --color-interactive-selected-border:var(--purple-600); --color-interactive-selected-text:var(--purple-50);
+  --color-interactive-tab-active-line:var(--purple-200); --color-interactive-count-bg-selected:var(--purple-600);
+  --color-status-completed:var(--teal-200); --color-status-completed-bg:var(--teal-800); --color-status-completed-text:var(--teal-50);
+  --color-status-running:var(--purple-200);
+  --color-status-warning-bg:var(--amber-800); --color-status-warning-text:var(--amber-50);
+  --color-status-danger-bg:var(--red-800); --color-status-danger-text:var(--red-100);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--color-background-secondary); color: var(--color-text-primary); font-family: var(--font-sans); font-size: 13px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+
+nav { display: flex; align-items: center; gap: 16px; padding: 12px 32px; background: var(--color-background-primary); border-bottom: 1px solid var(--color-border-primary); box-shadow: var(--shadow-sm); }
+nav .brand { font-weight: 700; font-size: 16px; letter-spacing: -0.03em; }
+nav .brand-accent { font-weight: 400; color: var(--color-accent); }
+.theme-toggle { margin-left: auto; padding: 7px 16px; border-radius: var(--radius-md); border: 1px solid var(--color-border-primary); background: var(--color-background-primary); color: var(--color-text-secondary); font-size: 12px; font-weight: 500; cursor: pointer; font-family: var(--font-sans); }
+.theme-toggle:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+.page { max-width: 900px; margin: 0 auto; padding: 32px; }
+.breadcrumb { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; }
+.page h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.04em; margin-bottom: 4px; }
+.page-sub { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 20px; }
+
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--color-border-primary); margin-bottom: 20px; }
+.tab { padding: 10px 22px; font-size: 13px; font-weight: 500; color: var(--color-text-tertiary); border: none; background: none; border-bottom: 2px solid transparent; }
+.tab.active { color: var(--color-interactive-selected-text); border-bottom-color: var(--color-interactive-tab-active-line); font-weight: 600; }
+
+.exploration-banner { display: flex; align-items: flex-start; gap: 10px; background: var(--color-interactive-selected-bg); border: 1px solid var(--color-interactive-selected-border); color: var(--color-interactive-selected-text); border-radius: var(--radius-md); padding: 10px 14px; font-size: 12px; margin-bottom: 24px; }
+.exploration-banner b { font-weight: 700; }
+
+.shape-tag { display: inline-block; font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--color-text-tertiary); background: var(--color-background-primary); border: 1px dashed var(--color-border-secondary); border-radius: var(--radius-sm); padding: 2px 8px; margin: 18px 0 6px 20px; }
+.shape-tag:first-of-type { margin-top: 0; }
+
+.timeline-events { position: relative; }
+.timeline-events::before { content: ""; position: absolute; left: 20px; top: 0; bottom: 0; width: 1.5px; background: var(--color-border-primary); }
+
+.tool-row-standalone { position: relative; display: flex; gap: 12px; padding: 2px 0 2px 20px; }
+.tool-row { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: var(--radius-md); font-size: 12px; }
+.tool-name { font-family: var(--font-mono); font-size: 12px; color: var(--color-text-primary); flex: 1; }
+.tool-dur { font-size: 10px; color: var(--color-text-tertiary); font-family: var(--font-mono); min-width: 34px; text-align: right; }
+
+.event-dot { position: absolute; left: -27px; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: transparent; border: 1.5px solid var(--color-text-tertiary); }
+
+.tool-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-sm); font-family: var(--font-mono); display: inline-block; }
+.tool-badge.tool-bash { background: var(--color-tool-bash-bg); color: var(--color-tool-bash-text); }
+.tool-badge.tool-edit { background: var(--color-tool-edit-bg); color: var(--color-tool-edit-text); }
+.tool-badge.tool-read { background: var(--color-tool-read-bg); color: var(--color-tool-read-text); }
+
+/* ═══ NEW: Bash card — single continuous terminal block, no internal divider ═══ */
+.event-card-bash { position: relative; padding: 3px 0 3px 20px; margin: 6px 0; }
+.event-card-bash .bash-card-content { background: var(--color-background-primary); border: 1px solid var(--color-border-primary); border-left: 3px solid var(--amber-400); border-radius: var(--radius-md); overflow: hidden; }
+.event-card-bash.is-error .bash-card-content { border-left-color: var(--color-status-danger-text); }
+.event-card-bash .event-dot { top: 14px; border-color: var(--amber-400); }
+.event-card-bash.is-error .event-dot { border-color: var(--color-status-danger-text); background: var(--color-status-danger-text); }
+
+.bash-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px 6px; }
+.bash-title { font-size: 12.5px; font-weight: 500; color: var(--color-text-primary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bash-title.is-command { font-family: var(--font-mono); font-size: 12px; color: var(--color-text-secondary); }
+.bash-dur { font-size: 10px; color: var(--color-text-tertiary); font-family: var(--font-mono); flex-shrink: 0; }
+.exit-chip { font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: var(--color-status-danger-text); background: var(--color-status-danger-bg); border-radius: 4px; padding: 2px 7px; flex-shrink: 0; }
+.copy-btn-mock { font-size: 10px; color: var(--color-text-tertiary); border: 1px solid var(--color-border-primary); background: var(--color-background-tertiary); border-radius: 4px; padding: 2px 6px; font-family: var(--font-sans); flex-shrink: 0; }
+
+/* One seamless block: $ line and output share the same background, only the
+   prompt glyph + amber tint on the first line signal "this part is the command". */
+.bash-term { font-family: var(--font-mono); font-size: 11.5px; line-height: 1.6; background: var(--color-background-tertiary); padding: 8px 12px 10px; white-space: pre-wrap; word-break: break-word; }
+.bash-term .prompt-line { color: var(--color-text-primary); }
+.bash-term .prompt { color: var(--amber-600); user-select: none; font-weight: 600; }
+:root[data-theme="dark"] .bash-term .prompt { color: var(--amber-200); }
+.bash-term .cmd-more { color: var(--color-text-tertiary); font-style: italic; display: block; margin-left: 14px; }
+.bash-term .output-text { color: var(--color-text-secondary); display: block; }
+.event-card-bash.is-error .bash-term .output-text { color: var(--color-text-primary); }
+.bash-term .output-text.no-cmd { color: var(--color-text-secondary); margin-top: 2px; }
+
+.bash-more-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); background: var(--color-background-tertiary); border: none; border-top: 1px solid var(--color-border-primary); font-family: var(--font-sans); cursor: pointer; }
+.bash-more-btn:hover { background: var(--color-background-hover); color: var(--color-text-secondary); }
+</style>
+</head>
+<body>
+<nav>
+  <span class="brand">claude<span class="brand-accent">-monitor</span></span>
+  <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='dark' ? 'light' : 'dark')">Toggle theme</button>
+</nav>
+<div class="page">
+  <div class="breadcrumb"><a href="#" style="color:var(--color-text-secondary)">Sessions</a> / sess_8f2a1c94</div>
+  <h1>Session detail</h1>
+  <div class="page-sub">claude-sonnet-5 · 47m session · started 14:02</div>
+
+  <div class="tab-bar">
+    <button class="tab active">Timeline</button>
+    <button class="tab">Context</button>
+    <button class="tab">Agents</button>
+  </div>
+
+  <div class="exploration-banner">
+    <span>🎨</span>
+    <span><b>Design exploration — Variant B: Unified terminal block.</b> Command and output share one continuous band instead of a separated divider — more compact, reads closer to an actual terminal. Automated draft for issue #200 — not implemented.</span>
+  </div>
+
+  <div class="timeline-events">
+
+    <div class="tool-row-standalone">
+      <div class="event-dot" style="border-color:var(--color-text-tertiary)"></div>
+      <div class="tool-row">
+        <span class="tool-badge tool-edit">Edit</span>
+        <span class="tool-name">frontend/src/components/EventCard.tsx</span>
+        <span class="tool-dur">340ms</span>
+      </div>
+    </div>
+
+    <div class="shape-tag">shape: one-liner — 33% of Bash outputs</div>
+    <div class="event-card-bash">
+      <div class="event-dot"></div>
+      <div class="bash-card-content">
+        <div class="bash-header">
+          <span class="tool-badge tool-bash">Bash</span>
+          <span class="bash-title">Run lint</span>
+          <span class="bash-dur">612ms</span>
+          <span class="copy-btn-mock">copy</span>
+        </div>
+        <div class="bash-term"><span class="prompt-line"><span class="prompt">$ </span>npm run lint</span>
+<span class="output-text">All checks passed!</span></div>
+      </div>
+    </div>
+
+    <div class="shape-tag">shape: failure — 3.2% of Bash calls, exit chip + red rule</div>
+    <div class="event-card-bash is-error">
+      <div class="event-dot"></div>
+      <div class="bash-card-content">
+        <div class="bash-header">
+          <span class="tool-badge tool-bash">Bash</span>
+          <span class="bash-title">Lint src and tests</span>
+          <span class="exit-chip">exit 1</span>
+          <span class="bash-dur">890ms</span>
+          <span class="copy-btn-mock">copy</span>
+        </div>
+        <div class="bash-term"><span class="prompt-line"><span class="prompt">$ </span>ruff check src/ tests/</span>
+<span class="output-text">I001 [*] Import block is un-sorted or un-formatted
+ --&gt; tests/test_example.py:1:1
+help: Organize imports
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.</span></div>
+      </div>
+    </div>
+
+    <div class="shape-tag">shape: multiline / heredoc — 19% of commands, collapsed per maintainer's lean</div>
+    <div class="event-card-bash">
+      <div class="event-dot"></div>
+      <div class="bash-card-content">
+        <div class="bash-header">
+          <span class="tool-badge tool-bash">Bash</span>
+          <span class="bash-title">Commit plan doc</span>
+          <span class="bash-dur">1.2s</span>
+          <span class="copy-btn-mock">copy</span>
+        </div>
+        <div class="bash-term"><span class="prompt-line"><span class="prompt">$ </span>git add docs/plan.md</span><span class="cmd-more">… 6 more lines of heredoc <u>[expand]</u></span>
+<span class="output-text">[main 4a1f0c2] docs: refresh plan for issue #200
+ 1 file changed, 12 insertions(+), 3 deletions(-)</span></div>
+      </div>
+    </div>
+
+    <div class="shape-tag">shape: long output — 20% run past 25 lines, capped body</div>
+    <div class="event-card-bash">
+      <div class="event-dot"></div>
+      <div class="bash-card-content">
+        <div class="bash-header">
+          <span class="tool-badge tool-bash">Bash</span>
+          <span class="bash-title">Summarize dataset</span>
+          <span class="bash-dur">2.4s</span>
+          <span class="copy-btn-mock">copy</span>
+        </div>
+        <div class="bash-term"><span class="prompt-line"><span class="prompt">$ </span>python3 - &lt;&lt;'PY'</span><span class="cmd-more">… 22 lines of heredoc <u>[expand]</u></span>
+<span class="output-text">record count: 1720
+categories: 30 | blocks: 66
+top category: "tool_call_start" (612)
+avg duration: 840ms</span></div>
+        <button class="bash-more-btn"><span>▾</span> Show 31 more lines · 40 total</button>
+      </div>
+    </div>
+
+    <div class="shape-tag">shape: no description — 13%, command becomes the header, $ line dropped as redundant</div>
+    <div class="event-card-bash">
+      <div class="event-dot"></div>
+      <div class="bash-card-content">
+        <div class="bash-header">
+          <span class="tool-badge tool-bash">Bash</span>
+          <span class="bash-title is-command">du -sh vendor/ &amp;&amp; ls -la vendor/</span>
+          <span class="bash-dur">101ms</span>
+          <span class="copy-btn-mock">copy</span>
+        </div>
+        <div class="bash-term"><span class="output-text no-cmd">1.7G	vendor/
+total 448</span></div>
+      </div>
+    </div>
+
+    <div class="tool-row-standalone">
+      <div class="event-dot" style="border-color:var(--color-text-tertiary)"></div>
+      <div class="tool-row">
+        <span class="tool-badge tool-read">Read</span>
+        <span class="tool-name">CHANGELOG.md</span>
+        <span class="tool-dur">18ms</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
