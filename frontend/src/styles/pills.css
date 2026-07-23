@@ -1,7 +1,7 @@
 /* Shared pill primitives reused by Timeline event cards and the Session List.
    Keep visual parity with EventCard pills so users recognize them at a glance. */
 
-.command-pill, .cmd-pill {
+.command-pill {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;

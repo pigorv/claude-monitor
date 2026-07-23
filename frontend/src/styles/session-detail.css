@@ -1034,7 +1034,7 @@
   font-size: 12px;
   color: var(--color-text-secondary);
   line-height: 1.65;
-  padding: 8px 14px;
+  padding: var(--space-2) var(--space-3);
   background: var(--color-background-primary);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-primary);
@@ -1137,6 +1137,9 @@
 }
 
 .skill-expansion-body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--color-text-secondary);
   max-height: 36px;
   background: var(--color-interactive-selected-bg);
@@ -2846,27 +2849,6 @@
   color: var(--color-text-tertiary);
 }
 
-/* ── Slash Command Blocks ── */
-.cmd-block {
-  border: 1px solid color-mix(in srgb, var(--color-tool-read-text) 30%, transparent);
-  border-radius: 8px;
-  overflow: hidden;
-  border-left: 3px solid var(--color-tool-read-text);
-  background: color-mix(in srgb, var(--color-tool-read-text) 4%, transparent);
-}
-.cmd-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-}
-/* .cmd-pill lives in styles/pills.css — shared with SessionList. */
-.cmd-args {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  font-family: var(--font-mono);
-}
-
 /* ── Interrupt (amber) ── */
 .msg-interrupt {
   border-left: 3px solid var(--color-status-warning-text) !important;
@@ -2900,11 +2882,6 @@
   top: 9px !important;
   background: var(--color-text-tertiary) !important;
   opacity: 0.35;
-}
-
-/* ── Command dot (blue) ── */
-.dot-cmd {
-  background: var(--color-tool-read-text) !important;
 }
 
 /* ── Parsed /context Card ── */
@@ -3200,7 +3177,7 @@
    and slash-command branches (those have their
    own render paths in EventCard.tsx).
    ═══════════════════════════════════════════ */
-.event-card.event-user-message:not(.event-system-tagged):not(.event-skill-expansion):not(.event-cmd) {
+.event-card.event-user-message:not(.event-system-tagged):not(.event-skill-expansion) {
   padding: 3px 0 3px 20px;
   margin: 6px 0;
 }
