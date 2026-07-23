@@ -22,6 +22,7 @@ let CloneError: typeof import('../../src/clone/session-clone.js').CloneError;
 let getDb: typeof import('../../src/db/connection.js').getDb;
 let closeDb: typeof import('../../src/db/connection.js').closeDb;
 let upsertSession: typeof import('../../src/db/queries/sessions.js').upsertSession;
+let getSession: typeof import('../../src/db/queries/sessions.js').getSession;
 type Session = import('../../src/shared/types.js').Session;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -58,6 +59,47 @@ const PARENT_JSONL = [
   JSON.stringify({
     type: 'summary', summary: 'Read project config', leafUuid: 'uuid-asst-1',
     cwd: SOURCE_CWD, sessionId: SOURCE_ID,
+  }),
+].join('\n');
+
+// Two subagent transcripts under the source `subagents/` subtree: one flat
+// (`agent-x.jsonl`) and one nested (`workflows/wf-run-01/agent-y.jsonl`). Each
+// carries its OWN sessionId (which must survive the clone) and a `cwd` (which
+// must be repointed at the target).
+const SUB_X_ID = 'sub-agent-x-001';
+const SUB_Y_ID = 'sub-agent-y-002';
+const SUB_X_JSONL = [
+  JSON.stringify({
+    parentUuid: null, cwd: SOURCE_CWD, sessionId: SUB_X_ID, version: '2.1.0',
+    type: 'user', message: { role: 'user', content: 'Subagent X: inspect the tree.' },
+    timestamp: '2026-01-01T00:02:00.000Z', uuid: 'uuid-subx-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'uuid-subx-1', cwd: SOURCE_CWD, sessionId: SUB_X_ID, version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'Done inspecting.' }],
+      usage: { input_tokens: 300, output_tokens: 40, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:02:05.000Z', uuid: 'uuid-subx-2',
+  }),
+].join('\n');
+const SUB_Y_JSONL = [
+  JSON.stringify({
+    parentUuid: null, cwd: SOURCE_CWD, sessionId: SUB_Y_ID, version: '2.1.0',
+    type: 'user', message: { role: 'user', content: 'Subagent Y: run the workflow.' },
+    timestamp: '2026-01-01T00:03:00.000Z', uuid: 'uuid-suby-1',
+  }),
+  JSON.stringify({
+    parentUuid: 'uuid-suby-1', cwd: SOURCE_CWD, sessionId: SUB_Y_ID, version: '2.1.0',
+    type: 'assistant',
+    message: {
+      model: 'claude-opus-4-6', role: 'assistant',
+      content: [{ type: 'text', text: 'Workflow complete.' }],
+      usage: { input_tokens: 250, output_tokens: 30, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+    timestamp: '2026-01-01T00:03:05.000Z', uuid: 'uuid-suby-2',
   }),
 ].join('\n');
 
@@ -109,10 +151,26 @@ function layOutParent(): string {
   return parentPath;
 }
 
+/**
+ * Lay out the source `subagents/` subtree next to the parent transcript:
+ *   <sessionDir>/subagents/agent-x.jsonl                      (flat)
+ *   <sessionDir>/subagents/workflows/wf-run-01/agent-y.jsonl  (nested)
+ * where <sessionDir> == <dirname(parentPath)>/<SOURCE_ID>.
+ */
+function layOutSubagents(parentPath: string): void {
+  const sessionDir = join(parentPath.slice(0, -'.jsonl'.length));
+  const subagentsDir = join(sessionDir, 'subagents');
+  mkdirSync(subagentsDir, { recursive: true });
+  writeFileSync(join(subagentsDir, 'agent-x.jsonl'), SUB_X_JSONL);
+  const nestedDir = join(subagentsDir, 'workflows', 'wf-run-01');
+  mkdirSync(nestedDir, { recursive: true });
+  writeFileSync(join(nestedDir, 'agent-y.jsonl'), SUB_Y_JSONL);
+}
+
 beforeAll(async () => {
   ({ cloneSession, encodeProjectDirName, CloneError } = await import('../../src/clone/session-clone.js'));
   ({ getDb, closeDb } = await import('../../src/db/connection.js'));
-  ({ upsertSession } = await import('../../src/db/queries/sessions.js'));
+  ({ upsertSession, getSession } = await import('../../src/db/queries/sessions.js'));
 });
 
 describe('encodeProjectDirName', () => {
@@ -291,6 +349,53 @@ describe('cloneSession', () => {
     assert.equal(projectPath, homedir());
     const expectedPath = join(PROJECTS_DIR, encodeProjectDirName(homedir()), `${newId}.jsonl`);
     assert.ok(readFileSync(expectedPath, 'utf8').length > 0);
+  });
+
+  // ── Subagent subtree copy + synchronous import (Behavior #3, #4) ─────
+
+  it('copies the subagents/ subtree at the right depth (cwd rewritten, sessionId preserved) and imports the clone', async () => {
+    const parentPath = layOutParent();
+    layOutSubagents(parentPath);
+    seedSessionRow(SOURCE_ID, parentPath);
+
+    const targetDir = join(TEST_DIR, 'dest-project');
+    mkdirSync(targetDir, { recursive: true });
+
+    const { id: newId, projectPath } = await cloneSession(SOURCE_ID, { targetDir });
+    assert.equal(projectPath, targetDir);
+
+    const cloneSlugDir = join(PROJECTS_DIR, encodeProjectDirName(targetDir));
+
+    // Each child is written under <slug>/<newId>/subagents/<relpath> at the
+    // SAME relative depth as the source (flat + nested workflow dir).
+    const checks: Array<{ rel: string; expectSessionId: string; body: string }> = [
+      { rel: 'agent-x.jsonl', expectSessionId: SUB_X_ID, body: SUB_X_JSONL },
+      { rel: join('workflows', 'wf-run-01', 'agent-y.jsonl'), expectSessionId: SUB_Y_ID, body: SUB_Y_JSONL },
+    ];
+    for (const { rel, expectSessionId, body } of checks) {
+      const childPath = join(cloneSlugDir, newId, 'subagents', rel);
+      const outLines = readFileSync(childPath, 'utf8').split('\n').filter((l) => l.length > 0);
+      const srcLines = body.split('\n');
+      assert.equal(outLines.length, srcLines.length, `child ${rel} preserves line count`);
+
+      for (let i = 0; i < outLines.length; i++) {
+        const outObj = JSON.parse(outLines[i]) as Record<string, unknown>;
+        const srcObj = JSON.parse(srcLines[i]) as Record<string, unknown>;
+        // sessionId is the child's OWN id, untouched; cwd repointed at target.
+        assert.equal(outObj.sessionId, expectSessionId, `child ${rel} keeps its own sessionId`);
+        assert.equal(outObj.cwd, targetDir, `child ${rel} cwd rewritten to target`);
+        // Everything else byte-identical.
+        delete outObj.cwd;
+        delete srcObj.cwd;
+        assert.deepEqual(outObj, srcObj, `child ${rel} line ${i} preserves all other fields`);
+      }
+    }
+
+    // The clone landed in the DB before returning (Behavior #4): getSession
+    // resolves it with project_path === targetDir.
+    const record = getSession(newId);
+    assert.ok(record, 'clone is importable — getSession(newId) returns a record');
+    assert.equal(record.project_path, targetDir);
   });
 });
 

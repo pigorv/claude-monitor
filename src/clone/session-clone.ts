@@ -1,9 +1,10 @@
 import { homedir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative } from 'node:path';
 import { createReadStream, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { getSession, sessionExists } from '../db/queries/sessions.js';
+import { discoverSubagentFiles, importTranscript } from '../ingestion/transcript-importer.js';
 import { CONFIG } from '../shared/constants.js';
 
 // ── Session clone ───────────────────────────────────────────────────
@@ -133,22 +134,58 @@ export async function cloneSession(
   }
 
   mkdirSync(projectDir, { recursive: true });
-  writeFileSync(join(projectDir, `${newId}.jsonl`), out.join('\n'));
+  const newParentPath = join(projectDir, `${newId}.jsonl`);
+  writeFileSync(newParentPath, out.join('\n'));
 
-  // NOTE (T1.2): subagent copying and the synchronous re-import are layered on
-  // top of this. The return shape is already the final one so T1.2 only adds
-  // those steps; do not add the import call here.
+  // ── Copy the whole subagents/ subtree (Behavior #3) ─────────────────
+  //
+  // The source subagent files live under `<sourceSessionDir>/subagents/…`.
+  // Mirror each child under `<projectDir>/<newId>/subagents/<relpath>` at the
+  // same relative depth (flat `agent-*.jsonl` AND nested
+  // `subagents/workflows/<runId>/agent-*.jsonl`). A subagent is an independent
+  // transcript that the importer discovers via the parent *dir*, so only its
+  // `cwd` is repointed at the target — its own `sessionId` is left intact.
+  const sourceBase = basename(transcriptPath, '.jsonl'); // == source sessionId by convention.
+  const sourceSubagentsDir = join(dirname(transcriptPath), sourceBase, 'subagents');
+  const newSubagentsDir = join(projectDir, newId, 'subagents');
+  for (const subFile of discoverSubagentFiles(transcriptPath)) {
+    const relPath = relative(sourceSubagentsDir, subFile);
+    const destPath = join(newSubagentsDir, relPath);
+
+    const subRl = createInterface({
+      input: createReadStream(subFile, { encoding: 'utf8' }),
+      crlfDelay: Infinity,
+    });
+    const subOut: string[] = [];
+    for await (const line of subRl) {
+      if (line.length === 0) continue;
+      subOut.push(rewriteLine(line, null, targetDir));
+    }
+    mkdirSync(dirname(destPath), { recursive: true });
+    writeFileSync(destPath, subOut.join('\n'));
+  }
+
+  // ── Import the clone before returning (Behavior #4) ─────────────────
+  //
+  // Import must happen AFTER both the parent file and all subagent files are
+  // on disk: importTranscript discovers and ingests the subagents we just
+  // wrote, so `getSession(newId)` is populated by the time we return.
+  await importTranscript(newParentPath, { force: true });
+
   return { id: newId, projectPath: targetDir };
 }
 
 /**
- * Rewrite one JSONL line: set `sessionId` to the new id and, when a `cwd`
- * field is present, repoint it at the target dir. Every other field —
- * `uuid`, `parentUuid`, `leafUuid`, content, usage — is preserved verbatim.
- * A line that isn't a JSON object (malformed, or a bare scalar/array) is kept
- * byte-for-byte so no transcript data is lost.
+ * Rewrite one JSONL line: when a `cwd` field is present, repoint it at the
+ * target dir, and — when `newId` is a string — set `sessionId` to that new id.
+ * Passing `newId === null` rewrites `cwd` ONLY, leaving `sessionId` untouched:
+ * that is the subagent case, where each child is an independent transcript
+ * referenced by the parent *dir*, so its own `sessionId` must survive.
+ * Every other field — `uuid`, `parentUuid`, `leafUuid`, content, usage — is
+ * preserved verbatim. A line that isn't a JSON object (malformed, or a bare
+ * scalar/array) is kept byte-for-byte so no transcript data is lost.
  */
-function rewriteLine(line: string, newId: string, targetDir: string): string {
+function rewriteLine(line: string, newId: string | null, targetDir: string): string {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
@@ -159,7 +196,7 @@ function rewriteLine(line: string, newId: string, targetDir: string): string {
     return line;
   }
   const obj = parsed as Record<string, unknown>;
-  obj.sessionId = newId;
+  if (newId !== null) obj.sessionId = newId;
   if ('cwd' in obj) obj.cwd = targetDir;
   return JSON.stringify(obj);
 }
