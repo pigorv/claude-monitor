@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Clone a session into another project directory: the transcript is copied under a fresh session id with its recorded working directory repointed at the chosen target folder, so the same conversation can be re-rooted and resumed elsewhere.
 - Property-based data-quality invariant tests (fast-check) over token tracking (`test/ingestion/token-tracker.property.test.ts`) and agent efficiency (`test/analysis/agent-efficiency.property.test.ts`), asserting the pipeline's math holds across randomized inputs instead of only hand-picked fixtures.
 
 ### Changed
