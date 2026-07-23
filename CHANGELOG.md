@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Property-based data-quality invariant tests (fast-check) over token tracking (`test/ingestion/token-tracker.property.test.ts`) and agent efficiency (`test/analysis/agent-efficiency.property.test.ts`), asserting the pipeline's math holds across randomized inputs instead of only hand-picked fixtures.
-- CI now runs the Playwright e2e smoke subset on every PR and the full e2e suite nightly, each installing the Chromium browser before running.
+- End-to-end (Playwright) test harness: `npm run test:e2e` (and `test:e2e:smoke`) builds the app, seeds a temporary SQLite database from the fixture corpus, boots the real `claude-monitor` server, and drives it in a headless browser — shipping with a dashboard-loads smoke test and wired into CI (smoke on every PR, full suite nightly).
 
 ### Changed
 
