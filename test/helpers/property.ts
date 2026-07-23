@@ -33,9 +33,10 @@ export const PROPERTY_RUNS: number = (() => {
 })();
 
 /**
- * fast-check {@link fc.Parameters} for `fc.assert`. No seed is set — fast-check
- * uses its own deterministic default so runs are reproducible without
- * `Date.now()` / `Math.random()`.
+ * fast-check {@link fc.Parameters} for `fc.assert`. Only the run count is set;
+ * no explicit seed, so fast-check picks its own each run and explores different
+ * cases over time (a failing case prints the seed to reproduce). Set a `seed`
+ * here if a run ever needs to be deterministic.
  */
 export function fcParams(): fc.Parameters<unknown> {
   return { numRuns: PROPERTY_RUNS };

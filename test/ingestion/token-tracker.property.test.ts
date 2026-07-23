@@ -57,10 +57,14 @@ describe('token-tracker properties — Behavior #2 (context_pct)', () => {
     fc.assert(
       fc.property(
         transcriptArb,
-        fc.constantFrom('claude-sonnet-4-6', 'claude-opus-4-6', null),
+        // All three are non-null so buildTokenSnapshots' `model ?? msg.model`
+        // actually takes this value and overrides each message's own model —
+        // giving every snapshot one known window. (A `null` here would fall
+        // through to per-message models, so the single `window` below wouldn't
+        // match what the code used.) The unresolvable id exercises the
+        // default-window fallback path (contextWindowFor → null → sonnet 200k).
+        fc.constantFrom('claude-sonnet-4-6', 'claude-opus-4-6', 'claude-unknown-model'),
         (msgs, model) => {
-          // Passing an explicit model overrides per-message model, so every
-          // snapshot shares this one known model and window.
           const snapshots = buildTokenSnapshots(msgs, model);
           const window = contextWindowFor(model) ?? resolveThreshold(model).maxTokens;
           for (const s of snapshots) {
