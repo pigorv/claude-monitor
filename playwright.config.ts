@@ -1,5 +1,23 @@
 import { defineConfig } from '@playwright/test';
-import { BASE_URL, DIST_CLI, PORT, SERVER_ENV } from './test/e2e/helpers/paths.js';
+import {
+  BASE_URL,
+  DIST_CLI,
+  HAPPY_CORPUS,
+  PORT,
+  PREPARE_SCRIPT,
+  SERVER_ENV,
+} from './test/e2e/helpers/paths.js';
+
+// Playwright starts `webServer` BEFORE `globalSetup`, so the DB must be seeded
+// inside the server command itself — seeding from globalSetup would race the
+// already-running server (and wipe the file it holds open). The command resets
+// the isolated temp dir, imports the golden corpus into the temp DB, then boots
+// the real server; Playwright only considers it ready once `/api/health` responds,
+// which is after the import has finished.
+const q = (s: string) => JSON.stringify(s);
+const reset = `node ${q(PREPARE_SCRIPT)}`;
+const seed = `node ${q(DIST_CLI)} import ${q(HAPPY_CORPUS)}`;
+const serve = `node ${q(DIST_CLI)} start --port ${PORT} --no-open`;
 
 export default defineConfig({
   testDir: 'test/e2e',
@@ -12,10 +30,10 @@ export default defineConfig({
     baseURL: BASE_URL,
   },
   webServer: {
-    command: `node ${DIST_CLI} start --port ${PORT} --no-open`,
+    command: `${reset} && ${seed} && ${serve}`,
     url: `${BASE_URL}/api/health`,
     env: SERVER_ENV,
     reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
+    timeout: 60_000,
   },
 });

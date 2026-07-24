@@ -1,16 +1,11 @@
 import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { DIST_CLI, DIST_FRONTEND } from './helpers/paths.js';
-import { seedCorpus } from './helpers/seed.js';
-
-// test/e2e/global-setup.ts → repo root is two levels up.
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 /**
  * Playwright global setup: assert the build outputs exist (the harness never
- * builds anything itself), then seed the isolated temp DB from the golden
- * corpus before the webServer boots.
+ * builds anything itself). Seeding is done inside the `webServer` command in
+ * playwright.config.ts, because Playwright starts the web server before this
+ * hook — seeding here would race the already-running server.
  */
 export default async function globalSetup(): Promise<void> {
   for (const path of [DIST_CLI, DIST_FRONTEND]) {
@@ -20,6 +15,4 @@ export default async function globalSetup(): Promise<void> {
       );
     }
   }
-
-  seedCorpus(join(repoRoot, 'test/fixtures/happy'));
 }

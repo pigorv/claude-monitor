@@ -26,6 +26,12 @@ export const DIST_CLI = join(repoRoot, 'dist', 'index.js');
 /** Built frontend entrypoint. */
 export const DIST_FRONTEND = join(repoRoot, 'dist', 'frontend', 'index.html');
 
+/** Golden fixture corpus the harness seeds from (a parent session + agent transcript). */
+export const HAPPY_CORPUS = join(repoRoot, 'test', 'fixtures', 'happy');
+
+/** Workspace-reset script run as the first step of the webServer command. */
+export const PREPARE_SCRIPT = join(repoRoot, 'test', 'e2e', 'prepare-workspace.mjs');
+
 /**
  * Env overrides that point the built CLI at the isolated temp locations.
  * loadConfig() (src/shared/constants.ts) resolves these ahead of the
