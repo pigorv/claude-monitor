@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-24
+
 ### Added
 
 - Clone a session into another project directory: the transcript is copied under a fresh session id with its recorded working directory repointed at the chosen target folder, so the same conversation can be re-rooted and resumed elsewhere.
