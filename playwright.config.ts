@@ -3,6 +3,7 @@ import {
   BASE_URL,
   DIST_CLI,
   HAPPY_CORPUS,
+  PLAN_IMPL_CORPUS,
   PORT,
   PREPARE_SCRIPT,
   SERVER_ENV,
@@ -16,11 +17,13 @@ import {
 // which is after the import has finished.
 const q = (s: string) => JSON.stringify(s);
 const reset = `node ${q(PREPARE_SCRIPT)}`;
-const seed = `node ${q(DIST_CLI)} import ${q(HAPPY_CORPUS)}`;
+const seed = `node ${q(DIST_CLI)} import ${q(HAPPY_CORPUS)} && node ${q(DIST_CLI)} import ${q(PLAN_IMPL_CORPUS)}`;
 const serve = `node ${q(DIST_CLI)} start --port ${PORT} --no-open`;
 
 export default defineConfig({
   testDir: 'test/e2e',
+  fullyParallel: false,
+  workers: 1,
   globalSetup: './test/e2e/global-setup.ts',
   globalTeardown: './test/e2e/global-teardown.ts',
   reporter: [['line']],
