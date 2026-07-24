@@ -51,6 +51,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json",
     "demo:seed": "node scripts/demo-seed.mjs",
     "demo:screenshots": "node scripts/demo-screenshots.mjs",
+    "demo:clips": "node scripts/demo-feature-clips.mjs",
     "demo:walkthrough": "node scripts/demo-walkthrough.mjs",
     "demo:walkthrough-full": "node scripts/demo-walkthrough-full.mjs"
   },

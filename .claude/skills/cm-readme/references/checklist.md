@@ -38,9 +38,12 @@ Run this in step 5 of `SKILL.md`. Anything that fails is a blocker — surface i
 
 - [ ] Every `<img src="docs/images/…">` resolves to a file that exists
 - [ ] Every `<img>` has descriptive alt text (≥10 words, describes what's literally on screen)
-- [ ] Image widths are consistent (`width="700"` for inline feature shots unless wider intentionally)
+- [ ] Image widths are consistent (`width="700"` for inline feature shots and clips unless wider intentionally)
 - [ ] Hero block contains exactly one media element (video or img)
 - [ ] No image is >1.5 MB without a justified reason
+- [ ] Every per-feature clip sits inside its own feature paragraph — never in the hero block
+- [ ] Every per-feature clip was previewed (frames extracted and looked at), not just encoded
+- [ ] `npm run demo:clips` reported no `(flow failed — do not commit)` clip
 
 ## CLI block
 
