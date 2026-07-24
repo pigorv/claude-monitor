@@ -50,7 +50,7 @@ function formatEndTime(endedAt: string | null): string {
   if (diffHr < 24) return `${diffHr}h ago`;
   const diffDays = Math.floor(diffHr / 24);
   if (diffDays < 7) return `${diffDays}d ago`;
-  return d.toLocaleDateString();
+  return d.toLocaleDateString("en-US");
 }
 
 type Tab = "timeline" | "context" | "agents";

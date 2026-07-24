@@ -133,25 +133,33 @@ jobs:
   # Every line is prefixed with `#` so nothing here runs until activated.
   # ---------------------------------------------------------------------------
   #
-  # e2e-full:
-  #   Full end-to-end suite (L4). Deferred to a sibling issue of #132.
-  #   name: E2E (full)
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 30
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: 22
-  #         cache: npm
-  #     - run: npm ci
-  #     - name: Download dist
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: dist
-  #         path: dist/
-  #     - run: npm run test:e2e
+  # Full end-to-end suite (L4).
+  e2e-full:
+    name: E2E (full)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run test:e2e
   #
   # perf:
   #   Performance / scale benchmarks (L5). Deferred to a sibling issue of #132.

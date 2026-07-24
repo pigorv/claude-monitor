@@ -8,6 +8,8 @@ coverage/
 .claude-monitor/
 .DS_Store
 .playwright-cli/
+test-results/
+playwright-report/
 recordings/
 *.webm
 .work/
