@@ -105,18 +105,34 @@ test('@smoke J3 filter and sort the session list', async ({ page }) => {
   await expect(page.locator(`a.srow[href*="${SESS_OPUS.id}"]`)).toBeVisible();
 
   // Sort by Oldest: sess-001 (2026-01-01) before hook-sess-1 (2026-01-15).
+  // The list re-renders asynchronously after the sort (a fresh fetch clears then
+  // repopulates the rows), so a single snapshot can catch a mid-render state
+  // where a row is momentarily absent (index -1). Retry the whole read-and-
+  // compare until the list settles into the expected order.
   await selectDropdownByLabel(page, '↓ Latest', '↑ Oldest');
-  await expect(page.locator(`a.srow[href*="${SESS_OPUS.id}"]`)).toBeVisible();
-  await expect(page.locator(`a.srow[href*="${SESS_SONNET.id}"]`)).toBeVisible();
-  const oldest = await relativeOrder(page, SESS_OPUS.id, SESS_SONNET.id);
-  expect(oldest.first).toBeLessThan(oldest.second);
+  await expect(async () => {
+    const hrefs = await page.$$eval('a.srow', (els) =>
+      els.map((e) => e.getAttribute('href') ?? ''),
+    );
+    const iOpus = hrefs.findIndex((h) => h.includes(SESS_OPUS.id));
+    const iSonnet = hrefs.findIndex((h) => h.includes(SESS_SONNET.id));
+    expect(iOpus).toBeGreaterThanOrEqual(0);
+    expect(iSonnet).toBeGreaterThanOrEqual(0);
+    expect(iOpus).toBeLessThan(iSonnet); // ↑ Oldest: sess-001 before hook-sess-1
+  }).toPass();
 
   // Sort by Latest: order flips — hook-sess-1 before sess-001.
   await selectDropdownByLabel(page, '↑ Oldest', '↓ Latest');
-  await expect(page.locator(`a.srow[href*="${SESS_OPUS.id}"]`)).toBeVisible();
-  await expect(page.locator(`a.srow[href*="${SESS_SONNET.id}"]`)).toBeVisible();
-  const latest = await relativeOrder(page, SESS_SONNET.id, SESS_OPUS.id);
-  expect(latest.first).toBeLessThan(latest.second);
+  await expect(async () => {
+    const hrefs = await page.$$eval('a.srow', (els) =>
+      els.map((e) => e.getAttribute('href') ?? ''),
+    );
+    const iOpus = hrefs.findIndex((h) => h.includes(SESS_OPUS.id));
+    const iSonnet = hrefs.findIndex((h) => h.includes(SESS_SONNET.id));
+    expect(iOpus).toBeGreaterThanOrEqual(0);
+    expect(iSonnet).toBeGreaterThanOrEqual(0);
+    expect(iSonnet).toBeLessThan(iOpus); // ↓ Latest: hook-sess-1 before sess-001
+  }).toPass();
 
   // Filter by Opus: sess-001 stays, sonnet hook-sess-1 drops out.
   await selectDropdownByLabel(page, 'All models', 'Opus');
