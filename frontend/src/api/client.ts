@@ -133,6 +133,32 @@ export async function openTerminal(
 }
 
 /**
+ * Clone a session's raw transcript into `targetDir` under a fresh session id,
+ * returning the new session's `{ id, projectPath }`. On a non-ok response it
+ * surfaces the server's actionable message — the route returns `{ error }`, so
+ * read that first (falling back to `message`, then the status code).
+ */
+export async function cloneSession(
+  sessionId: string,
+  opts: { targetDir: string },
+): Promise<{ id: string; projectPath: string }> {
+  const res = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/clone`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetDir: opts.targetDir }),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const b = body as { error?: string; message?: string };
+    throw new Error(b.error || b.message || `API ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
  * Extract the download filename from a `Content-Disposition` header value.
  * Pure and DOM-free so it can be unit-tested. Handles quoted
  * (`attachment; filename="x.zip"`) and unquoted (`attachment; filename=x.zip`)
