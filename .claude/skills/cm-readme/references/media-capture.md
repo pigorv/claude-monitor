@@ -10,7 +10,82 @@ Recipes for screenshots and short videos/GIFs of the dashboard, plus the **hero 
 | `docs/images/session-detail-context.png` | `/#/session/<id>` Context tab | Token chart with at least one compaction marker visible, threshold zones shaded.       |
 | `docs/images/session-detail-timeline.png` | `/#/session/<id>` Timeline tab | Several event cards expanded, including a thinking block and a tool call.              |
 | `docs/images/session-detail-agents.png` | `/#/session/<id>` Agents tab  | Gantt with ≥3 agents, at least one nested.                                             |
+| `docs/images/clone.gif`               | `/#/session/<id>` Clone modal     | 8–12s: open Clone → retype target dir → success view with `claude --resume <id>`.        |
+| `docs/images/export.gif`              | `/#/session/<id>` Export modal    | 8–12s: open Export → read Sanitized vs Raw → pick Sanitized.                             |
 | Hero (video or GIF)                   | Walkthrough                       | 6–10 seconds: list → click row → switch tabs.                                           |
+
+---
+
+## Per-feature clips
+
+Some features are a *flow*, not a state: a modal you fill in, a choice you make,
+a result that only exists after a click. A PNG of the halfway point undersells
+them. Those earn their own short GIF, rendered inline in their feature paragraph
+at `width="700"` — the same slot a screenshot would occupy.
+
+### When a feature earns a clip
+
+Give a feature a clip when **both** hold:
+
+- It's driven by a multi-step interaction — open something, input something, act
+  — where the interesting part is the transition, not any single frame.
+- The end state is meaningfully different from the start state (a new id minted,
+  a file downloaded, a panel expanded with fresh data).
+
+Prefer a **PNG** when the feature is a view you read rather than a flow you run
+(the session list, a chart, a Gantt). Prefer **text-only, no image** when the
+feature is a single button with an obvious outcome (Resume in Terminal) or has no
+UI surface at all (Shareable URLs, Background Re-import). Two or three clips in
+the features block is plenty — past that the README turns into a slideshow and
+the page weight stops being worth it.
+
+### Recording a clip
+
+`scripts/demo-feature-clips.mjs` (`npm run demo:clips`) is the recorder. It seeds
+the demo corpus, boots an isolated dashboard on `:4177` under
+`HOME=/tmp/cm-demo-home-clips`, and drives one scripted flow per clip with the
+same fake-cursor choreography as the hero recorder.
+
+```bash
+npm run build              # required — the script refuses to run without dist/
+npm run demo:clips         # every clip
+npm run demo:clips -- clone   # just one, by name
+```
+
+The isolated `HOME` matters: the Clone flow really does write a transcript to
+disk, and it must land in `/tmp/cm-demo-home-clips/.claude/projects/`, never the
+user's real `~/.claude/projects/`. Never point this script at a real `HOME`.
+
+To add a clip for a new feature, append one entry to the script's `CLIPS` array:
+
+```js
+{
+  name: "my-feature",
+  out: "docs/images/my-feature.gif",
+  async flow(page, { moveTo, clickWithRipple, dwell }) {
+    await page.goto(`http://localhost:${PORT}/#/session/${SESSION_ID}`);
+    await page.waitForSelector(".tab-bar");
+    await clickWithRipple(page.locator(".my-feature-btn"));
+    await dwell(1200);   // let each beat land — this is a video, not a test
+  },
+}
+```
+
+Two gotchas that have already bitten:
+
+- **Scope locators to the open modal.** The session detail page underneath has
+  its own `.resume-cmd-text`, so an unscoped locator is a strict-mode violation.
+  Use `.clone-success .resume-cmd-text`.
+- **Clips render inline at 700px**, so encode at 10fps/820px (the script's
+  default). That keeps a ~11s clip near 1.4 MB, under the checklist's 1.5 MB cap
+  — 860px/128 colors landed right on the line. The hero's 15fps/1100px settings
+  blow through it.
+
+A flow that throws is caught per-clip: the partial recording is still encoded and
+flagged `(flow failed — do not commit)`, the remaining clips still run, and the
+script exits non-zero. Always preview a clip before committing it — extract a few
+frames with `ffmpeg -i docs/images/<clip>.gif -vf "select='eq(n\,45)'" -vsync 0 out.png`
+and look at them.
 
 ---
 
@@ -150,10 +225,13 @@ This avoids committing large binaries.
 
 ## Naming + commit hygiene
 
-- Kebab-case, page-mirrored names (`session-detail-context.png`).
+- Kebab-case, page-mirrored names (`session-detail-context.png`). Per-feature
+  clips are named for the feature, not the page (`clone.gif`, `export.gif`).
 - Replace files in place. Never `session-list-v2.png` — README links break.
-- Screenshots: PNG only. Hero: MP4 or GIF only. No mixed WebP unless the user opts in.
-- Commit screenshots and the README change in the same commit.
+- Screenshots: PNG only. Hero: MP4 or GIF. Per-feature clips: GIF only — they sit
+  inline in a paragraph, where `<video>` reads as heavier than the feature
+  deserves. No mixed WebP unless the user opts in.
+- Commit screenshots, clips, and the README change in the same commit.
 
 ## Alt text
 

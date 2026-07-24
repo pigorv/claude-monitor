@@ -111,15 +111,18 @@ Then map each surviving key to one feature line in the standard voice (see `refe
 
 Output two artifacts:
 
-**A. Per-feature image checklist** — one row per feature:
+**A. Per-feature media checklist** — one row per feature. The `kind` column is
+`png` for a static shot or `gif` for a per-feature clip (see *Per-feature clips*
+in `references/media-capture.md` for when a feature earns a clip):
 
 ```
-feature                  | target file                                  | currently | action
-Session List             | docs/images/session-list.png                 | EXISTS    | RECAPTURE  (Health strip is new)
-Context Pressure         | docs/images/session-detail-context.png       | EXISTS    | REUSE
-Thinking Inspection      | docs/images/session-detail-timeline.png      | EXISTS    | REUSE
-Agent Tree               | docs/images/session-detail-agents.png        | EXISTS    | REUSE
-Resume in Terminal       | (text-only — no inline image)                | —         | SKIP
+feature                  | target file                                  | kind | currently | action
+Session List             | docs/images/session-list.png                 | png  | EXISTS    | RECAPTURE  (Health strip is new)
+Context Pressure         | docs/images/session-detail-context.png       | png  | EXISTS    | REUSE
+Thinking Inspection      | docs/images/session-detail-timeline.png      | png  | EXISTS    | REUSE
+Agent Tree               | docs/images/session-detail-agents.png        | png  | EXISTS    | REUSE
+Clone a Session          | docs/images/clone.gif                        | gif  | MISSING   | NEW  (multi-step modal flow)
+Resume in Terminal       | (text-only — no inline image)                | —    | —         | SKIP
 ```
 
 **B. Hero re-capture verdict** — one of `REQUIRED` / `RECOMMENDED` / `NOT NEEDED`, with a one-paragraph reason citing the specific CHANGELOG entries that drove the decision.
@@ -243,11 +246,15 @@ Marker placement examples are in `references/readme-template.md`.
 ## Quick reference: existing media
 
 ```
-docs/images/hero.gif
-docs/images/session-list.png
-docs/images/session-detail-context.png
-docs/images/session-detail-timeline.png
-docs/images/session-detail-agents.png
+docs/images/hero.gif                      npm run demo:walkthrough
+docs/images/session-list.png              npm run demo:screenshots
+docs/images/session-detail-context.png    npm run demo:screenshots
+docs/images/session-detail-timeline.png   npm run demo:screenshots
+docs/images/session-detail-agents.png     npm run demo:screenshots
+docs/images/clone.gif                     npm run demo:clips -- clone
+docs/images/export.gif                    npm run demo:clips -- export
 ```
 
 Hero is a committed `docs/images/hero.gif`, referenced via an absolute `<img src="https://raw.githubusercontent.com/pigorv/claude-monitor/main/docs/images/hero.gif" …>`. Replace the GIF (and bump the `captured-on` annotation) when the verdict is REQUIRED and the user has approved the new asset.
+
+Per-feature clips (`*.gif` above) are recorded by `scripts/demo-feature-clips.mjs` and live inline in their feature paragraph. Adding a clip for a new feature means adding one entry to that script's `CLIPS` array — see *Per-feature clips* in `references/media-capture.md`.
