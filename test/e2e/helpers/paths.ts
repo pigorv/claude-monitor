@@ -29,6 +29,9 @@ export const DIST_FRONTEND = join(repoRoot, 'dist', 'frontend', 'index.html');
 /** Golden fixture corpus the harness seeds from (a parent session + agent transcript). */
 export const HAPPY_CORPUS = join(repoRoot, 'test', 'fixtures', 'happy');
 
+/** Plan+implementation fixture pair; importing both produces a plan→impl session_link. */
+export const PLAN_IMPL_CORPUS = join(repoRoot, 'test', 'fixtures', 'plan-impl-pair');
+
 /** Workspace-reset script run as the first step of the webServer command. */
 export const PREPARE_SCRIPT = join(repoRoot, 'test', 'e2e', 'prepare-workspace.mjs');
 

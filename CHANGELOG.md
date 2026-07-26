@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- End-to-end user-journey test suite (Playwright) covering the core dashboard flows — a `@smoke` subset (empty-state→import, session tab rendering, filter+sort, full-text search) on every pull request, and the full journey set (re-import, session-bundle export, plan↔implementation link navigation, settings persistence) nightly.
+
 ## [0.8.0] - 2026-07-24
 
 ### Added
