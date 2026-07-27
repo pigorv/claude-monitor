@@ -3587,6 +3587,22 @@
   padding: 8px 12px;
   line-height: 1.4;
 }
+.terminal-btn-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+.terminal-error {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-status-danger-text);
+  background: var(--color-status-danger-bg);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  max-width: 320px;
+  word-break: break-word;
+}
 .clone-submit-btn {
   align-self: stretch;
   margin-top: 4px;

@@ -38,16 +38,19 @@ export function OpenInTerminalButton({ sessionId, projectPath }: { sessionId: st
     : "Open in Terminal";
 
   return html`
-    <button
-      class="copy-btn"
-      onClick=${handleClick}
-      disabled=${disabled}
-      title=${title}
-    >
-      ${state === "launching" ? "Launching…" : state === "opened" ? "Opened ✓" : html`
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><rect x="1" y="2" width="10" height="8" rx="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M3 5L5 6.5L3 8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 8H8.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
-        Open in Terminal
-      `}
-    </button>
+    <span class="terminal-btn-wrap">
+      <button
+        class="copy-btn"
+        onClick=${handleClick}
+        disabled=${disabled}
+        title=${title}
+      >
+        ${state === "launching" ? "Launching…" : state === "opened" ? "Opened ✓" : html`
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><rect x="1" y="2" width="10" height="8" rx="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M3 5L5 6.5L3 8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 8H8.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+          Open in Terminal
+        `}
+      </button>
+      ${error && html`<span class="terminal-error" role="alert">${error}</span>`}
+    </span>
   `;
 }
