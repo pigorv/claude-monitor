@@ -42,6 +42,17 @@ export function buildAppleScript(app: DarwinTerminalApp): string {
   return app === 'iterm2' ? ITERM_APPLESCRIPT : TERMINAL_APPLESCRIPT;
 }
 
+// macOS Automation gate: osascript returns -1743 (errAEEventNotPermitted)
+// when the process isn't allowed to send Apple events to the terminal app.
+export function isApplePermissionError(stderr: string): boolean {
+  return stderr.includes('-1743');
+}
+
+// Friendly app name for messages (the AppleScript targets "iTerm" / "Terminal").
+function darwinAppLabel(app: DarwinTerminalApp): string {
+  return app === 'iterm2' ? 'iTerm' : 'Terminal';
+}
+
 export interface ResolveDarwinInput {
   pref: TerminalPreference;
   env: NodeJS.ProcessEnv;
@@ -303,6 +314,16 @@ terminal.post('/api/sessions/:id/open-terminal', async (c) => {
         terminal: chosen,
         stderr: result.stderr,
       });
+      if (isApplePermissionError(result.stderr)) {
+        const label = darwinAppLabel(chosen);
+        return c.json(
+          {
+            error: 'terminal_permission_denied',
+            message: `macOS blocked claude-monitor from controlling ${label}. Open System Settings → Privacy & Security → Automation, enable ${label} under the app running claude-monitor (your terminal or Node), then try again.`,
+          },
+          403,
+        );
+      }
       return c.json(
         {
           error: 'osascript_failed',
