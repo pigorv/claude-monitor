@@ -9,6 +9,7 @@ import { createApp } from '../../src/server/app.js';
 import {
   buildShellCommand,
   buildAppleScript,
+  isApplePermissionError,
   buildWindowsLaunch,
   posixQuote,
   resolveDarwinTerminal,
@@ -70,6 +71,37 @@ describe('terminal route helpers', () => {
       const s = buildAppleScript('iterm2');
       assert.ok(s.includes('application "iTerm"'));
       assert.ok(s.includes('write text (item 1 of argv)'));
+    });
+  });
+
+  describe('isApplePermissionError', () => {
+    it('detects an iTerm osascript permission error (-1743)', () => {
+      assert.equal(
+        isApplePermissionError(
+          '56:90: execution error: Not authorized to send Apple events to iTerm. (-1743)\n',
+        ),
+        true,
+      );
+    });
+
+    it('detects a Terminal.app permission error (-1743)', () => {
+      assert.equal(
+        isApplePermissionError(
+          '52:75: execution error: Not authorized to send Apple events to Terminal. (-1743)\n',
+        ),
+        true,
+      );
+    });
+
+    it('returns false for an unrelated osascript error', () => {
+      assert.equal(isApplePermissionError('some other error'), false);
+    });
+
+    it('returns false for a different error code (-1728)', () => {
+      assert.equal(
+        isApplePermissionError('execution error: something else (-1728)\n'),
+        false,
+      );
     });
   });
 
