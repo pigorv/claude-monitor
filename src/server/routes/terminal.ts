@@ -44,8 +44,10 @@ export function buildAppleScript(app: DarwinTerminalApp): string {
 
 // macOS Automation gate: osascript returns -1743 (errAEEventNotPermitted)
 // when the process isn't allowed to send Apple events to the terminal app.
+// Match the parenthesized code osascript actually emits — e.g. "(-1743)" — so a
+// stray "-1743" in an echoed path or a longer code like -17430 can't false-match.
 export function isApplePermissionError(stderr: string): boolean {
-  return stderr.includes('-1743');
+  return stderr.includes('(-1743)');
 }
 
 // Friendly app name for messages (the AppleScript targets "iTerm" / "Terminal").

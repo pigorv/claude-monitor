@@ -103,6 +103,20 @@ describe('terminal route helpers', () => {
         false,
       );
     });
+
+    it('does not match a bare -1743 echoed in a path (needs the osascript parens)', () => {
+      assert.equal(
+        isApplePermissionError('sh: cd /Users/me/project-1743: No such file or directory\n'),
+        false,
+      );
+    });
+
+    it('does not match a longer code that merely starts with -1743', () => {
+      assert.equal(
+        isApplePermissionError('execution error: something odd (-17430)\n'),
+        false,
+      );
+    });
   });
 
   describe('resolveDarwinTerminal', () => {

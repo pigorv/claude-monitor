@@ -2,9 +2,9 @@ import { useState, useEffect } from "preact/hooks";
 import { html } from "htm/preact";
 import { openTerminal, getPlatform, type TerminalPreference } from "../api/client";
 
-export function OpenInTerminalButton({ sessionId, projectPath }: { sessionId: string; projectPath?: string }) {
+export function OpenInTerminalButton({ sessionId, projectPath, defaultError }: { sessionId: string; projectPath?: string; defaultError?: string | null }) {
   const [state, setState] = useState<"idle" | "launching" | "opened">("idle");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(defaultError ?? null);
   const [platform, setPlatform] = useState<string | null>(null);
 
   useEffect(() => {
