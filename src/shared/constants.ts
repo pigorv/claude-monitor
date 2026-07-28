@@ -29,18 +29,31 @@ export function parsePort(v: string | undefined): number {
   return val;
 }
 
+/**
+ * Parse a boolean env value. Returns true only for a truthy string —
+ * `'1'` or `'true'` (case-insensitive, trimmed). Everything else (unset,
+ * empty, `'0'`, `'false'`, anything else) is false.
+ */
+export function parseBoolEnv(v: string | undefined): boolean {
+  if (v === undefined) return false;
+  const val = v.trim().toLowerCase();
+  return val === '1' || val === 'true';
+}
+
 export interface Config {
   dataDir: string;
   dbPath: string;
   defaultPort: number;
   host: string | undefined;
   claudeProjectsPath: string;
+  incrementalImport: boolean;
 }
 
 /**
  * Pure config loader. Resolves all 5 env vars from the passed `env`, each
  * falling back to today's default when unset. Relative path values resolve
  * against process.cwd(). Throws on an invalid CLAUDE_MONITOR_PORT.
+ * CLAUDE_MONITOR_INCREMENTAL_IMPORT is off unless set to a truthy value.
  */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Readonly<Config> {
   const resolvePath = (v: string | undefined, fallback: string) => (v ? resolve(v) : fallback);
@@ -54,6 +67,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Readonly<Confi
       env.CLAUDE_MONITOR_PROJECTS_PATH,
       join(homedir(), '.claude', 'projects'),
     ),
+    incrementalImport: parseBoolEnv(env.CLAUDE_MONITOR_INCREMENTAL_IMPORT),
   });
 }
 
