@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Groundwork for incremental transcript auto-import: sessions now persist an import checkpoint (consumed byte length + prefix hash alongside the file mtime) so a future incremental tick can tell an in-place transcript rewrite from a plain tail-append.
 - End-to-end user-journey test suite (Playwright) covering the core dashboard flows — a `@smoke` subset (empty-state→import, session tab rendering, filter+sort, full-text search) on every pull request, and the full journey set (re-import, session-bundle export, plan↔implementation link navigation, settings persistence) nightly.
 
 ### Fixed
