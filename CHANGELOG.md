@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Press Esc in the session-list search box to instantly clear the search term (and drop it from the URL) while keeping your model, project, and sort selections and leaving focus in the box.
 - End-to-end user-journey test suite (Playwright) covering the core dashboard flows — a `@smoke` subset (empty-state→import, session tab rendering, filter+sort, full-text search) on every pull request, and the full journey set (re-import, session-bundle export, plan↔implementation link navigation, settings persistence) nightly.
 
 ### Fixed

@@ -9,6 +9,7 @@ interface FilterBarProps {
   searchRef?: RefObject<HTMLInputElement>;
   searchQuery: string;
   onSearch: (e: Event) => void;
+  onSearchKeyDown: (e: KeyboardEvent) => void;
 
   projects: ProjectInfo[];
   selectedProject: string | null;
@@ -53,6 +54,7 @@ export function FilterBar(props: FilterBarProps) {
     searchRef,
     searchQuery,
     onSearch,
+    onSearchKeyDown,
     projects,
     selectedProject,
     onSelectProject,
@@ -109,6 +111,7 @@ export function FilterBar(props: FilterBarProps) {
           placeholder="Search sessions…"
           value=${searchQuery}
           onInput=${onSearch}
+          onKeyDown=${onSearchKeyDown}
         />
         <kbd class="search-kbd" aria-hidden="true">/</kbd>
       </div>
