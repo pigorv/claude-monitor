@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Groundwork for incremental transcript auto-import: sessions now persist an import checkpoint (consumed byte length + prefix hash alongside the file mtime) so a future incremental tick can tell an in-place transcript rewrite from a plain tail-append.
+- Optional incremental transcript auto-import (opt in with `CLAUDE_MONITOR_INCREMENTAL_IMPORT=1`, off by default): when an already-imported session grows, the watcher appends only the new events instead of re-importing the whole transcript, making live updates of long, active sessions noticeably faster — with self-verification of each write and automatic fallback to a full re-import if the transcript was rewritten in place.
 - End-to-end user-journey test suite (Playwright) covering the core dashboard flows — a `@smoke` subset (empty-state→import, session tab rendering, filter+sort, full-text search) on every pull request, and the full journey set (re-import, session-bundle export, plan↔implementation link navigation, settings persistence) nightly.
 
 ### Fixed
