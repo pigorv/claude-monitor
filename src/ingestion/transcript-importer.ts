@@ -308,23 +308,16 @@ export async function importTranscript(
       }
     }
 
-  // Update session totals to include agent tokens so that
-  // parentTokens = sessionTotal - agentTotal yields a correct positive value
-  if (subagentEventCount > 0) {
-    const agentTotals = db.prepare(`
-      SELECT COALESCE(SUM(input_tokens_total), 0) as agent_input,
-             COALESCE(SUM(output_tokens_total), 0) as agent_output
-      FROM agent_relationships
-      WHERE parent_session_id = ? AND input_tokens_total IS NOT NULL
-    `).get(sessionId) as { agent_input: number; agent_output: number };
-
-    db.prepare(`
-      UPDATE sessions SET
-        total_input_tokens = total_input_tokens + ?,
-        total_output_tokens = total_output_tokens + ?
-      WHERE id = ?
-    `).run(agentTotals.agent_input, agentTotals.agent_output, sessionId);
-  }
+  // Merge agent tokens into the session totals so that
+  // parentTokens = sessionTotal - agentTotal yields a correct positive value.
+  // Runs exactly once per import, unconditionally — upsertSession() above just
+  // RESET total_input_tokens/total_output_tokens to the parent-only aggregate,
+  // so this ADDS agent tokens exactly once and never accumulates across imports.
+  // It must run regardless of whether a subagent file changed this tick: a
+  // re-import that inserts no new subagent events still has token-bearing agent
+  // rows whose tokens belong in the session totals. When there are no such rows,
+  // the SUM(... WHERE input_tokens_total IS NOT NULL) yields 0 and this is a no-op.
+  applyAgentTokenTotals(sessionId);
 
   // Recompute subagent_count from the now-complete agent_relationships set.
   // Runs unconditionally (not only when new subagent events were inserted) so the
@@ -414,6 +407,32 @@ export async function importTranscript(
   });
 
   return { sessionId, eventCount: totalEvents, skipped: false };
+}
+
+/**
+ * Merge the session's token-bearing agent tokens into its total_input_tokens /
+ * total_output_tokens. Must be called exactly once per import, after
+ * upsertSession() has reset those columns to the parent-only aggregate — so it
+ * ADDS agent tokens exactly once and never accumulates across imports. It runs
+ * regardless of whether any subagent file changed this tick; when the session
+ * has no token-bearing agent rows the SUM(... WHERE input_tokens_total IS NOT
+ * NULL) yields 0 and the UPDATE is a no-op.
+ */
+export function applyAgentTokenTotals(sessionId: string): void {
+  const db = getDb();
+  const agentTotals = db.prepare(`
+    SELECT COALESCE(SUM(input_tokens_total), 0) as agent_input,
+           COALESCE(SUM(output_tokens_total), 0) as agent_output
+    FROM agent_relationships
+    WHERE parent_session_id = ? AND input_tokens_total IS NOT NULL
+  `).get(sessionId) as { agent_input: number; agent_output: number };
+
+  db.prepare(`
+    UPDATE sessions SET
+      total_input_tokens = total_input_tokens + ?,
+      total_output_tokens = total_output_tokens + ?
+    WHERE id = ?
+  `).run(agentTotals.agent_input, agentTotals.agent_output, sessionId);
 }
 
 // ── Batch import ───────────────────────────────────────────────────
