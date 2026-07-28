@@ -22,6 +22,21 @@ import { sessionCostUsd } from '../shared/cost.js';
 // "started with" pill, and the invocation list.
 const RESET_COMMANDS = new Set(['clear', 'compact']);
 
+// ── Test-only fault-injection seam ─────────────────────────────────
+//
+// Production-inert hook for exercising the incremental self-heal path (Behavior
+// #8). When enabled, the incremental write perturbs one parent row after
+// inserting the fresh tail, so the post-write self-verify sees a divergence and
+// repairs it. Defaults OFF and gates NO real behavior — the incremental write is
+// byte-identical to today unless a test flips this on.
+let incrementalWriteFaultEnabled = false;
+
+/** Test-only: force the incremental write to corrupt a parent row so the
+ *  self-heal path runs. Pass `false` to disable (the default). */
+export function __setIncrementalWriteFaultForTest(on: boolean): void {
+  incrementalWriteFaultEnabled = on;
+}
+
 /** True when a slash-command name (with or without a leading "/") is a reset command. */
 function isResetCommandName(name: string): boolean {
   return RESET_COMMANDS.has(name.trim().replace(/^\//, '').toLowerCase());
@@ -215,6 +230,9 @@ export async function importTranscript(
       : null;
   // The path actually taken — 'incremental' only when a valid plan was computed.
   const importMode: 'incremental' | 'full' = plan ? 'incremental' : 'full';
+  // Set inside the transaction when the incremental self-verify detected a
+  // divergence and repaired it via a full reinsert (see below).
+  let healed = false;
 
   // Write to DB in a single transaction
   const writeStartMs = Date.now();
@@ -243,6 +261,24 @@ export async function importTranscript(
         insertEvents(tail);
       }
       upsertAgentRelationshipsFromTranscript(db, sessionId, agentInfos);
+
+      // Test-only: corrupt one parent row so the self-verify below fires. No-op
+      // in normal operation (flag defaults off, gates nothing real).
+      if (incrementalWriteFaultEnabled && plan.newParentCount > 0) {
+        db.prepare('UPDATE events SET tool_name = ? WHERE session_id = ? AND sequence_num = ?')
+          .run('__t23_injected_fault__', sessionId, plan.newParentCount - 1);
+      }
+
+      // Self-verify + self-heal (Behavior #8). Because the parse is cheap we
+      // already hold the authoritative full eventRecords in memory. Read back the
+      // parent rows' cheap signature columns (no heavy text, no FTS) and compare
+      // to the same signature over eventRecords. Any divergence — a diff/shift
+      // bug, or the injected fault above — is repaired with a full reinsert in
+      // this same transaction, so the committed state is always correct: a bug
+      // costs one fallback tick, never a persisted divergence. The subsequent
+      // importSubagentTranscripts (force:true) restores sub-agent rows, so the
+      // self-heal only needs to guarantee the parent block.
+      healed = verifyAndHealParentRows(db, sessionId, plan.newParentCount, eventRecords);
     } else {
       if (options.force) {
         db.prepare('DELETE FROM agent_relationships WHERE parent_session_id = ?').run(sessionId);
@@ -443,7 +479,7 @@ export async function importTranscript(
   });
   logger.debug('Import timing', {
     sessionId,
-    mode: importMode,
+    mode: healed ? 'incremental-healed' : importMode,
     ...(plan ? { d: plan.d, delta: plan.delta } : {}),
     events: totalEvents,
     parseMs: parseElapsedMs,
@@ -606,6 +642,66 @@ function computeIncrementalPlan(
   }
   const delta = newParentCount - parentCount;
   return { d, delta, parentCount, newParentCount };
+}
+
+/**
+ * Post-incremental-write self-verify + self-heal (Behavior #8). MUST run inside
+ * the write transaction, after the incremental writes: reads back the parent
+ * rows' cheap signature columns (the same set computeIncrementalPlan diffs on —
+ * no heavy text, no FTS) and compares them positionally to the same signature
+ * over the authoritative in-memory `eventRecords`. On any mismatch (row-count or
+ * a positional signature), repairs the parent block with deleteEventsBySession +
+ * full insertEvents in this same tick and logs a warn. Returns true iff a heal
+ * happened. This keeps correctness independent of the diff/shift logic being
+ * perfect. After the incremental write the parent block occupies
+ * `sequence_num ∈ [0, newParentCount)`; sub-agent rows sit at/above it.
+ */
+function verifyAndHealParentRows(
+  db: Database.Database,
+  sessionId: string,
+  newParentCount: number,
+  eventRecords: Omit<Event, 'id'>[],
+): boolean {
+  const stored = db
+    .prepare(
+      `SELECT event_type, agent_id, tool_name, timestamp,
+              COALESCE(length(input_data),0) AS ilen,
+              COALESCE(length(output_data),0) AS olen,
+              COALESCE(length(thinking_text),0) AS tlen
+       FROM events WHERE session_id = ? AND sequence_num < ? ORDER BY sequence_num ASC`,
+    )
+    .all(sessionId, newParentCount) as {
+    event_type: string;
+    agent_id: string | null;
+    tool_name: string | null;
+    timestamp: string;
+    ilen: number;
+    olen: number;
+    tlen: number;
+  }[];
+
+  let diverged = stored.length !== newParentCount;
+  if (!diverged) {
+    for (let i = 0; i < newParentCount; i++) {
+      if (storedSignature(stored[i]) !== recordSignature(eventRecords[i])) {
+        diverged = true;
+        break;
+      }
+    }
+  }
+  if (!diverged) return false;
+
+  // Repair: wipe all events for the session and reinsert the authoritative
+  // parent set at sequence_num 0..N-1. Sub-agent rows are re-imported afterward
+  // under force, so restoring only the parent block leaves a consistent state.
+  logger.warn('Incremental import self-heal: parent rows diverged, repaired via full reinsert', {
+    sessionId,
+    storedCount: stored.length,
+    expectedCount: newParentCount,
+  });
+  deleteEventsBySession(sessionId);
+  if (eventRecords.length > 0) insertEvents(eventRecords);
+  return true;
 }
 
 /**

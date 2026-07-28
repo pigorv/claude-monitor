@@ -61,6 +61,20 @@ function withoutId(rows: RawEventRow[]): Omit<RawEventRow, 'id'>[] {
   return rows.map(({ id: _id, ...rest }) => rest);
 }
 
+/** Session aggregate columns that must match a cold import (excludes volatile
+ *  per-file columns like transcript_path). */
+function readSessionAggregates(connection: FreshModules['connection'], sessionId: string): unknown {
+  return connection
+    .getDb()
+    .prepare(
+      `SELECT total_input_tokens, total_output_tokens, total_cache_read_tokens,
+              total_cache_write_tokens, total_input_tokens_billed, peak_context_pct,
+              compaction_count, tool_call_count, subagent_count, duration_ms, cost_estimate_usd
+       FROM sessions WHERE id = ?`,
+    )
+    .get(sessionId);
+}
+
 /** Capture stderr lines while running `fn`, then restore. */
 async function captureLogs(fn: () => Promise<void>): Promise<string[]> {
   const logs: string[] = [];
@@ -79,7 +93,7 @@ async function captureLogs(fn: () => Promise<void>): Promise<string[]> {
 function importMode(logs: string[]): string | undefined {
   const line = logs.find((l) => l.includes('Import timing'));
   if (!line) return undefined;
-  const m = line.match(/"mode":"(\w+)"/);
+  const m = line.match(/"mode":"([\w-]+)"/);
   return m?.[1];
 }
 
@@ -320,5 +334,82 @@ describe('importTranscript — incremental tail-append (flag on)', () => {
     assert.equal(boundaryAfter.duration_ms, coldBoundary.duration_ms);
     assert.equal(boundaryAfter.agent_id, coldBoundary.agent_id);
     assert.deepEqual(incrementalRows, coldRows, 'completed session should equal a cold import');
+  });
+
+  it('Behavior #8: an injected wrong intermediate write self-heals, warns, and matches a cold import', async () => {
+    const APPEND =
+      '\n' +
+      [
+        userMsg('u3', 'a2', 'Thanks!', '2026-01-01T00:00:05.000Z'),
+        asstText('a3', 'u3', "You're welcome.", '2026-01-01T00:00:06.000Z'),
+      ].join('\n');
+
+    // Incremental session: cold import the prefix, append, then re-import
+    // incrementally WITH the fault hook on so the parent block is written wrong.
+    const a = await fresh();
+    const filePath = join(TEST_ROOT, 'b8.jsonl');
+    writeFileSync(filePath, PREFIX_LINES.join('\n'));
+    await a.importer.importTranscript(filePath);
+    appendFileSync(filePath, APPEND);
+
+    let logs: string[] = [];
+    a.importer.__setIncrementalWriteFaultForTest(true);
+    try {
+      logs = await captureLogs(async () => {
+        await a.importer.importTranscript(filePath, { force: true, incremental: true });
+      });
+    } finally {
+      a.importer.__setIncrementalWriteFaultForTest(false);
+    }
+
+    // (a) the self-heal warn fired, and (b) the timing log records the heal.
+    assert.ok(
+      logs.some((l) => l.includes('[WARN]') && l.includes('Incremental import self-heal')),
+      'self-heal should log a warn',
+    );
+    assert.equal(importMode(logs), 'incremental-healed', 'timing log should record the heal');
+
+    const healedRows = withoutId(readEvents(a.connection, SID));
+    const healedSession = readSessionAggregates(a.connection, SID);
+    a.connection.closeDb();
+
+    // (c) the final DB equals a cold full re-import of the same final file.
+    const b = await fresh();
+    const coldFile = join(TEST_ROOT, 'b8-cold.jsonl');
+    writeFileSync(coldFile, PREFIX_LINES.join('\n') + APPEND);
+    await b.importer.importTranscript(coldFile);
+    const coldRows = withoutId(readEvents(b.connection, SID));
+    const coldSession = readSessionAggregates(b.connection, SID);
+    b.connection.closeDb();
+
+    assert.deepEqual(healedRows, coldRows, 'healed events should equal a cold import');
+    assert.deepEqual(healedSession, coldSession, 'healed session aggregates should equal a cold import');
+  });
+
+  it('Behavior #8 (negative): a correct incremental write does not spuriously self-heal', async () => {
+    const APPEND =
+      '\n' +
+      [
+        userMsg('u3', 'a2', 'Thanks!', '2026-01-01T00:00:05.000Z'),
+        asstText('a3', 'u3', "You're welcome.", '2026-01-01T00:00:06.000Z'),
+      ].join('\n');
+
+    const a = await fresh();
+    const filePath = join(TEST_ROOT, 'b8n.jsonl');
+    writeFileSync(filePath, PREFIX_LINES.join('\n'));
+    await a.importer.importTranscript(filePath);
+    appendFileSync(filePath, APPEND);
+
+    // Hook OFF (default) — the same append must NOT trigger the self-heal.
+    const logs = await captureLogs(async () => {
+      await a.importer.importTranscript(filePath, { force: true, incremental: true });
+    });
+    a.connection.closeDb();
+
+    assert.equal(importMode(logs), 'incremental', 'a correct write stays plain incremental');
+    assert.ok(
+      !logs.some((l) => l.includes('Incremental import self-heal')),
+      'no self-heal warn on a correct incremental write',
+    );
   });
 });
