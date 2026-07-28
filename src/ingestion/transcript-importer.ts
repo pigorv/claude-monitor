@@ -2,7 +2,9 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { getDb } from '../db/connection.js';
 import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
-import { sessionExists, upsertSession, setSessionImportedMtime } from '../db/queries/sessions.js';
+import { sessionExists, upsertSession, setSessionImportedMtime, setSessionImportCheckpoint } from '../db/queries/sessions.js';
+import { CONFIG } from '../shared/constants.js';
+import { captureCheckpoint } from './transcript-checkpoint.js';
 import * as logger from '../shared/logger.js';
 import type { Event, Invocation, Session, TranscriptMessage } from '../shared/types.js';
 import { parseTranscript, parseTranscriptWithTitle } from './jsonl-parser.js';
@@ -41,7 +43,7 @@ export interface ImportResult {
  */
 export async function importTranscript(
   filePath: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; incremental?: boolean } = {},
 ): Promise<ImportResult> {
   // Detect subagent transcripts — these should not be imported as standalone sessions.
   // They are imported as child events when their parent session is processed.
@@ -89,7 +91,9 @@ export async function importTranscript(
   // Collect all messages and the session title from the file in a single pass.
   // Use the transcript-recorded title (user rename or AI title) if available;
   // fall back to first user message below.
+  const parseStartMs = Date.now();
   const { messages, title: sessionTitle } = await parseTranscriptWithTitle(filePath);
+  const parseElapsedMs = Date.now() - parseStartMs;
 
   if (messages.length === 0) {
     return { sessionId: '', eventCount: 0, skipped: true, error: 'No messages found in file' };
@@ -112,9 +116,11 @@ export async function importTranscript(
   }
 
   // Extract events from messages, merge tool start/end, and assign agent IDs
+  const extractStartMs = Date.now();
   const rawEvents = extractAllEvents(messages);
   const parsedEvents = mergeToolCallEvents(rawEvents);
   const agentInfos = assignAgentIds(parsedEvents);
+  const extractElapsedMs = Date.now() - extractStartMs;
 
   // Compute tool call and subagent counts once (used by summary and session record)
   const toolCounts = new Map<string, number>();
@@ -192,7 +198,19 @@ export async function importTranscript(
   // Build event records with token info from snapshots
   const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model, compactionTurns);
 
+  // Incremental decision point (kill-switch gated). When both the caller opts in
+  // and CONFIG.incrementalImport is on, a valid checkpoint would let a later task
+  // tail-append instead of rewriting the whole session.
+  const attemptIncremental = Boolean(options.incremental) && CONFIG.incrementalImport;
+  // The path actually taken — full for now; T2.2 sets 'incremental' when it branches.
+  const importMode: 'incremental' | 'full' = 'full';
+
+  // T2.2 will branch to the incremental fast path here when attemptIncremental && a
+  // valid checkpoint exists; for now always use the full write below.
+  void attemptIncremental;
+
   // Write to DB in a single transaction
+  const writeStartMs = Date.now();
   const db = getDb();
   db.transaction(() => {
     if (options.force) {
@@ -236,6 +254,7 @@ export async function importTranscript(
       );
     }
   })();
+  const writeElapsedMs = Date.now() - writeStartMs;
 
   // After importing the parent, discover and import subagent transcripts
   const subagentEventCount = await importSubagentTranscripts(sessionId, filePath, { force: options.force });
@@ -394,9 +413,20 @@ export async function importTranscript(
     session.ended_at,
   );
 
-  // Persist the transcript mtime so the watcher skips this session on the next
-  // startup unless the file changes again.
-  if (fileMtimeMs !== null) setSessionImportedMtime(sessionId, fileMtimeMs);
+  // Persist the transcript import checkpoint (size + prefix hash + mtime) so a
+  // later incremental tick can decide whether the already-imported prefix is
+  // byte-identical (tail-append) or was rewritten (full re-parse). Capturing the
+  // whole current file is safe here — the full write above is authoritative for
+  // exactly these bytes. If the file vanished (capture throws) or we never got an
+  // mtime, fall back to persisting the mtime alone rather than breaking the import.
+  try {
+    if (fileMtimeMs !== null) {
+      const { sizeBytes, prefixHash } = captureCheckpoint(filePath);
+      setSessionImportCheckpoint(sessionId, { sizeBytes, prefixHash, mtimeMs: fileMtimeMs });
+    }
+  } catch {
+    if (fileMtimeMs !== null) setSessionImportedMtime(sessionId, fileMtimeMs);
+  }
 
   const totalEvents = eventRecords.length + subagentEventCount;
   logger.info('Imported transcript', {
@@ -404,6 +434,14 @@ export async function importTranscript(
     events: totalEvents,
     subagentEvents: subagentEventCount,
     filePath,
+  });
+  logger.debug('Import timing', {
+    sessionId,
+    mode: importMode,
+    events: totalEvents,
+    parseMs: parseElapsedMs,
+    extractMs: extractElapsedMs,
+    writeMs: writeElapsedMs,
   });
 
   return { sessionId, eventCount: totalEvents, skipped: false };

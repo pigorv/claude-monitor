@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { importTranscript, importTranscripts, applyAgentTokenTotals, filterCoveredSubagents, discoverSubagentFiles, type ImportResult } from '../../src/ingestion/transcript-importer.js';
 import { getDb, closeDb } from '../../src/db/connection.js';
-import { getSession, sessionExists } from '../../src/db/queries/sessions.js';
+import { getSession, sessionExists, getSessionImportCheckpoint } from '../../src/db/queries/sessions.js';
 import { listEventsBySession, getTokenTimeline, getMiniTimeline } from '../../src/db/queries/events.js';
 import { analyzeCompactions } from '../../src/analysis/compaction-analysis.js';
 
@@ -91,6 +91,20 @@ describe('importTranscript', () => {
     assert.equal(session.total_cache_read_tokens, 1300); // 500 + 800
     assert.equal(session.tool_call_count, 1); // Read tool
     assert.equal(session.transcript_path, filePath);
+  });
+
+  it('writes a populated import checkpoint (size + prefix hash + mtime) after a full import', async () => {
+    const filePath = join(TEST_DIR, 'session.jsonl');
+    writeFileSync(filePath, SAMPLE_JSONL);
+
+    await importTranscript(filePath);
+
+    const checkpoint = getSessionImportCheckpoint('test-session-1');
+    assert.ok(checkpoint, 'checkpoint row should exist');
+    assert.equal(checkpoint.last_imported_size, Buffer.byteLength(SAMPLE_JSONL));
+    assert.ok(checkpoint.last_imported_prefix_hash, 'prefix hash should be populated');
+    assert.equal(checkpoint.last_imported_prefix_hash!.length, 40); // SHA-1 hex
+    assert.ok(checkpoint.last_imported_mtime !== null, 'mtime should be populated');
   });
 
   it('is idempotent — skips already-imported sessions', async () => {

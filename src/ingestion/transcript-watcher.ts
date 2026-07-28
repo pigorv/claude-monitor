@@ -97,7 +97,7 @@ export function createTranscriptWatcher(options?: {
         // Always force re-import when the file has been modified since last scan,
         // so that in-progress sessions get updated as more data is written.
         try {
-          const result = await importTranscript(filePath, { force: isReimport });
+          const result = await importTranscript(filePath, { force: isReimport, incremental: isReimport });
           knownMtimes.set(filePath, mtime);
           lastImportTime.set(filePath, Date.now());
 
