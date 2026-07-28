@@ -1,10 +1,11 @@
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { existsSync, readdirSync, statSync } from 'node:fs';
+import type Database from 'better-sqlite3';
 import { getDb } from '../db/connection.js';
 import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
-import { sessionExists, upsertSession, setSessionImportedMtime, setSessionImportCheckpoint } from '../db/queries/sessions.js';
+import { sessionExists, upsertSession, setSessionImportedMtime, setSessionImportCheckpoint, getSessionImportCheckpoint } from '../db/queries/sessions.js';
 import { CONFIG } from '../shared/constants.js';
-import { captureCheckpoint } from './transcript-checkpoint.js';
+import { captureCheckpoint, validatePrefix } from './transcript-checkpoint.js';
 import * as logger from '../shared/logger.js';
 import type { Event, Invocation, Session, TranscriptMessage } from '../shared/types.js';
 import { parseTranscript, parseTranscriptWithTitle } from './jsonl-parser.js';
@@ -199,59 +200,64 @@ export async function importTranscript(
   const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model, compactionTurns);
 
   // Incremental decision point (kill-switch gated). When both the caller opts in
-  // and CONFIG.incrementalImport is on, a valid checkpoint would let a later task
-  // tail-append instead of rewriting the whole session.
+  // and CONFIG.incrementalImport is on, a valid checkpoint lets us tail-append
+  // instead of rewriting the whole session.
   const attemptIncremental = Boolean(options.incremental) && CONFIG.incrementalImport;
-  // The path actually taken — full for now; T2.2 sets 'incremental' when it branches.
-  const importMode: 'incremental' | 'full' = 'full';
+  const db = getDb();
 
-  // T2.2 will branch to the incremental fast path here when attemptIncremental && a
-  // valid checkpoint exists; for now always use the full write below.
-  void attemptIncremental;
+  // Compute the incremental plan from READS before opening the write transaction.
+  // A null plan (kill-switch off, no session yet, checkpoint missing/invalid, or
+  // any defensive mismatch) means the full write below runs byte-identically to
+  // today. See computeIncrementalPlan for the disqualifying conditions.
+  const plan =
+    attemptIncremental && sessionExists(sessionId)
+      ? computeIncrementalPlan(db, sessionId, filePath, eventRecords)
+      : null;
+  // The path actually taken — 'incremental' only when a valid plan was computed.
+  const importMode: 'incremental' | 'full' = plan ? 'incremental' : 'full';
 
   // Write to DB in a single transaction
   const writeStartMs = Date.now();
-  const db = getDb();
   db.transaction(() => {
-    if (options.force) {
-      db.prepare('DELETE FROM agent_relationships WHERE parent_session_id = ?').run(sessionId);
-      db.prepare('DELETE FROM session_links WHERE source_session_id = ? OR target_session_id = ?').run(sessionId, sessionId);
-    }
-    // Delete ALL prior events for this session before re-inserting.
-    // The full transcript parse is authoritative and regenerates everything.
-    // Previously this only deleted hook events, causing transcript_import
-    // events to accumulate on re-import.
-    deleteEventsBySession(sessionId);
-    upsertSession(session);
-    if (eventRecords.length > 0) {
-      insertEvents(eventRecords);
-    }
-    // Upsert agent relationships from transcript (handles resumed agents with same ID)
-    const upsertAgentRel = db.prepare(`INSERT INTO agent_relationships (
-      parent_session_id, child_agent_id, prompt_preview, result_preview,
-      prompt_data, result_data, started_at, ended_at, duration_ms, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(parent_session_id, child_agent_id) DO UPDATE SET
-      ended_at = MAX(agent_relationships.ended_at, excluded.ended_at),
-      duration_ms = excluded.duration_ms,
-      result_preview = COALESCE(excluded.result_preview, agent_relationships.result_preview),
-      result_data = COALESCE(excluded.result_data, agent_relationships.result_data),
-      status = excluded.status`);
-    for (const agent of agentInfos) {
-      const startMs = new Date(agent.startTimestamp).getTime();
-      const endMs = new Date(agent.endTimestamp).getTime();
-      upsertAgentRel.run(
-        sessionId,
-        agent.agentId,
-        agent.description ? agent.description.slice(0, 200) : null,
-        agent.result ? agent.result.slice(0, 200) : null,
-        agent.prompt || null,
-        agent.result || null,
-        agent.startTimestamp,
-        agent.endTimestamp,
-        endMs > startMs ? endMs - startMs : null,
-        agent.hasFailed ? 'failed' : 'completed',
-      );
+    if (plan) {
+      // Incremental tail-append. Keep agent_relationships / session_links rows
+      // intact (the upserts below and INSERT OR IGNORE links are idempotent, and
+      // keeping them preserves each sub-agent's child_imported_mtime so unchanged
+      // sub-agents keep skipping). Drop only the volatile parent tail, shift any
+      // sub-agent rows up to make room, then insert the fresh tail.
+      const { d, delta, parentCount } = plan;
+      db.prepare('DELETE FROM events WHERE session_id = ? AND sequence_num >= ? AND sequence_num < ?')
+        .run(sessionId, d, parentCount);
+      if (delta > 0) {
+        // Integer-only sequence_num shift — FTS-safe (input_data/output_data are
+        // untouched, so the INSERT/DELETE-only triggers never fire). No-op when
+        // there are no sub-agent rows at or above parentCount.
+        db.prepare('UPDATE events SET sequence_num = sequence_num + ? WHERE session_id = ? AND sequence_num >= ?')
+          .run(delta, sessionId, parentCount);
+      }
+      upsertSession(session);
+      const tail = eventRecords.slice(d);
+      if (tail.length > 0) {
+        // These already carry sequence_num = d..newParentCount-1 — exactly the
+        // slots freed by the delete + shift above.
+        insertEvents(tail);
+      }
+      upsertAgentRelationshipsFromTranscript(db, sessionId, agentInfos);
+    } else {
+      if (options.force) {
+        db.prepare('DELETE FROM agent_relationships WHERE parent_session_id = ?').run(sessionId);
+        db.prepare('DELETE FROM session_links WHERE source_session_id = ? OR target_session_id = ?').run(sessionId, sessionId);
+      }
+      // Delete ALL prior events for this session before re-inserting.
+      // The full transcript parse is authoritative and regenerates everything.
+      // Previously this only deleted hook events, causing transcript_import
+      // events to accumulate on re-import.
+      deleteEventsBySession(sessionId);
+      upsertSession(session);
+      if (eventRecords.length > 0) {
+        insertEvents(eventRecords);
+      }
+      upsertAgentRelationshipsFromTranscript(db, sessionId, agentInfos);
     }
   })();
   const writeElapsedMs = Date.now() - writeStartMs;
@@ -438,6 +444,7 @@ export async function importTranscript(
   logger.debug('Import timing', {
     sessionId,
     mode: importMode,
+    ...(plan ? { d: plan.d, delta: plan.delta } : {}),
     events: totalEvents,
     parseMs: parseElapsedMs,
     extractMs: extractElapsedMs,
@@ -471,6 +478,171 @@ export function applyAgentTokenTotals(sessionId: string): void {
       total_output_tokens = total_output_tokens + ?
     WHERE id = ?
   `).run(agentTotals.agent_input, agentTotals.agent_output, sessionId);
+}
+
+// ── Incremental tail-append ────────────────────────────────────────
+
+/**
+ * The tail-append plan for an incremental re-import, or `null` to fall back to
+ * the full write. All fields index into the CONTIGUOUS parent event block
+ * `sequence_num ∈ [0, parentCount)`; sub-agent rows live at/above parentCount.
+ */
+interface IncrementalPlan {
+  /** First divergent parent sequence_num — the prefix `[0, d)` is byte-identical. */
+  d: number;
+  /** newParentCount - parentCount (>= 0): how far to shift sub-agent rows up. */
+  delta: number;
+  /** Parent event count currently stored. */
+  parentCount: number;
+  /** Parent event count in the freshly-parsed transcript (== eventRecords.length). */
+  newParentCount: number;
+}
+
+/**
+ * Signature of a parent event row for the divergence diff. A byte-identical
+ * prefix produces identical signatures; the volatile tool-call boundary (a bare
+ * tool_call_start whose tool_result arrived later) diverges via its output
+ * length, and any appended tail diverges by count. `ilen`/`olen`/`tlen` come
+ * from SQL `length()` on the stored side; the in-memory side mirrors them with
+ * `String.length` (see recordSignature).
+ */
+function storedSignature(r: {
+  event_type: string;
+  agent_id: string | null;
+  tool_name: string | null;
+  timestamp: string;
+  ilen: number;
+  olen: number;
+  tlen: number;
+}): string {
+  return [r.event_type, r.agent_id ?? '', r.tool_name ?? '', r.timestamp, r.ilen, r.olen, r.tlen].join(' ');
+}
+
+function recordSignature(r: Omit<Event, 'id'>): string {
+  return [
+    r.event_type,
+    r.agent_id ?? '',
+    r.tool_name ?? '',
+    r.timestamp,
+    r.input_data == null ? 0 : r.input_data.length,
+    r.output_data == null ? 0 : r.output_data.length,
+    r.thinking_text == null ? 0 : r.thinking_text.length,
+  ].join(' ');
+}
+
+/**
+ * Compute the incremental tail-append plan for a session that already exists,
+ * from READS only (no writes). Returns `null` on ANY disqualifying condition, in
+ * which case the caller runs the full write path unchanged:
+ *  - checkpoint missing (no size or prefix hash), or the on-disk prefix no longer
+ *    validates (in-place rewrite or file shrink — Behavior #3);
+ *  - the parsed parent block shrank below what's stored (defensive);
+ *  - the stored parent row count doesn't match parentCount (defensive).
+ */
+function computeIncrementalPlan(
+  db: Database.Database,
+  sessionId: string,
+  filePath: string,
+  eventRecords: Omit<Event, 'id'>[],
+): IncrementalPlan | null {
+  const cp = getSessionImportCheckpoint(sessionId);
+  if (cp?.last_imported_size == null || cp.last_imported_prefix_hash == null) return null;
+  if (!validatePrefix(filePath, cp.last_imported_size, cp.last_imported_prefix_hash)) return null;
+
+  // Identify the contiguous parent block. Sub-agent event rows are exactly those
+  // whose agent_id has an agent_relationships row with a non-null
+  // child_transcript_path; they're numbered above the parent max.
+  const subagentIds = (
+    db
+      .prepare(
+        'SELECT child_agent_id FROM agent_relationships WHERE parent_session_id = ? AND child_transcript_path IS NOT NULL',
+      )
+      .all(sessionId) as { child_agent_id: string }[]
+  ).map((r) => r.child_agent_id);
+
+  const totalCount = () =>
+    (db.prepare('SELECT COUNT(*) AS c FROM events WHERE session_id = ?').get(sessionId) as { c: number }).c;
+
+  let parentCount: number;
+  if (subagentIds.length === 0) {
+    parentCount = totalCount();
+  } else {
+    const placeholders = subagentIds.map(() => '?').join(',');
+    const firstSub = db
+      .prepare(
+        `SELECT MIN(sequence_num) AS m FROM events WHERE session_id = ? AND agent_id IN (${placeholders})`,
+      )
+      .get(sessionId, ...subagentIds) as { m: number | null };
+    parentCount = firstSub.m == null ? totalCount() : firstSub.m;
+  }
+
+  const newParentCount = eventRecords.length;
+  // Parent block shrank — let the full path repair anything odd.
+  if (newParentCount < parentCount) return null;
+
+  const stored = db
+    .prepare(
+      `SELECT sequence_num, event_type, agent_id, tool_name, timestamp,
+              COALESCE(length(input_data),0) AS ilen,
+              COALESCE(length(output_data),0) AS olen,
+              COALESCE(length(thinking_text),0) AS tlen
+       FROM events WHERE session_id = ? AND sequence_num < ? ORDER BY sequence_num ASC`,
+    )
+    .all(sessionId, parentCount) as {
+    sequence_num: number;
+    event_type: string;
+    agent_id: string | null;
+    tool_name: string | null;
+    timestamp: string;
+    ilen: number;
+    olen: number;
+    tlen: number;
+  }[];
+  if (stored.length !== parentCount) return null;
+
+  let d = 0;
+  while (d < parentCount && d < newParentCount && storedSignature(stored[d]) === recordSignature(eventRecords[d])) {
+    d++;
+  }
+  const delta = newParentCount - parentCount;
+  return { d, delta, parentCount, newParentCount };
+}
+
+/**
+ * Upsert agent relationships from the parent transcript (handles resumed agents
+ * with the same ID). Shared verbatim by the full and incremental write paths.
+ */
+function upsertAgentRelationshipsFromTranscript(
+  db: Database.Database,
+  sessionId: string,
+  agentInfos: ReturnType<typeof assignAgentIds>,
+): void {
+  const upsertAgentRel = db.prepare(`INSERT INTO agent_relationships (
+    parent_session_id, child_agent_id, prompt_preview, result_preview,
+    prompt_data, result_data, started_at, ended_at, duration_ms, status
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(parent_session_id, child_agent_id) DO UPDATE SET
+    ended_at = MAX(agent_relationships.ended_at, excluded.ended_at),
+    duration_ms = excluded.duration_ms,
+    result_preview = COALESCE(excluded.result_preview, agent_relationships.result_preview),
+    result_data = COALESCE(excluded.result_data, agent_relationships.result_data),
+    status = excluded.status`);
+  for (const agent of agentInfos) {
+    const startMs = new Date(agent.startTimestamp).getTime();
+    const endMs = new Date(agent.endTimestamp).getTime();
+    upsertAgentRel.run(
+      sessionId,
+      agent.agentId,
+      agent.description ? agent.description.slice(0, 200) : null,
+      agent.result ? agent.result.slice(0, 200) : null,
+      agent.prompt || null,
+      agent.result || null,
+      agent.startTimestamp,
+      agent.endTimestamp,
+      endMs > startMs ? endMs - startMs : null,
+      agent.hasFailed ? 'failed' : 'completed',
+    );
+  }
 }
 
 // ── Batch import ───────────────────────────────────────────────────
