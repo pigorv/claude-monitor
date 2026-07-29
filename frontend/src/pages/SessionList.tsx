@@ -404,6 +404,15 @@ export function SessionList({ params }: { params: URLSearchParams }) {
     }, 300);
   }, []);
 
+  const handleSearchKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key !== "Escape") return;
+    const val = (e.target as HTMLInputElement).value;
+    if (val === "") return;                 // already empty → no-op (Behavior #5)
+    if (timerRef.current) clearTimeout(timerRef.current);  // cancel pending debounce (Behavior #6)
+    setSearchQuery("");                     // controlled input empties (Behavior #1)
+    updateParams({ q: null }, "replace");   // drop q, leave model/project/sort (Behavior #1,#2,#4)
+  }, []);
+
   function setChipFilter(next: ChipFilter) {
     setModelPref(next);
     updateParams({ model: next === "all" ? null : next }, "replace");
@@ -603,6 +612,7 @@ export function SessionList({ params }: { params: URLSearchParams }) {
         searchRef=${searchInputRef}
         searchQuery=${searchQuery}
         onSearch=${handleSearch}
+        onSearchKeyDown=${handleSearchKeyDown}
         projects=${projects}
         selectedProject=${selectedProject}
         onSelectProject=${selectProject}
