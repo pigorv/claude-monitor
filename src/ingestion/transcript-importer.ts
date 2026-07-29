@@ -214,10 +214,15 @@ export async function importTranscript(
   // Build event records with token info from snapshots
   const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model, compactionTurns);
 
-  // Incremental decision point (kill-switch gated). When both the caller opts in
-  // and CONFIG.incrementalImport is on, a valid checkpoint lets us tail-append
-  // instead of rewriting the whole session.
-  const attemptIncremental = Boolean(options.incremental) && CONFIG.incrementalImport;
+  // Incremental decision point (kill-switch gated). When the caller opts in and
+  // CONFIG.incrementalImport is on, a valid checkpoint lets us tail-append
+  // instead of rewriting the whole session. `force` is REQUIRED: the self-heal
+  // fallback wipes all events (including shifted sub-agent rows) and relies on
+  // the subsequent force-re-import to restore sub-agents, so incremental without
+  // force could strand them. The one production caller (the watcher) already
+  // ties incremental === force; this guard makes the coupling impossible to break.
+  const attemptIncremental =
+    Boolean(options.incremental) && Boolean(options.force) && CONFIG.incrementalImport;
   const db = getDb();
 
   // Compute the incremental plan from READS before opening the write transaction.
@@ -540,7 +545,7 @@ interface IncrementalPlan {
  * tool_call_start whose tool_result arrived later) diverges via its output
  * length, and any appended tail diverges by count. `ilen`/`olen`/`tlen` come
  * from SQL `length()` on the stored side; the in-memory side mirrors them with
- * `String.length` (see recordSignature).
+ * a code-point count (see recordSignature).
  */
 function storedSignature(r: {
   event_type: string;
@@ -554,15 +559,25 @@ function storedSignature(r: {
   return [r.event_type, r.agent_id ?? '', r.tool_name ?? '', r.timestamp, r.ilen, r.olen, r.tlen].join(' ');
 }
 
+// SQLite `length(TEXT)` counts Unicode code points, but JS `String.length`
+// counts UTF-16 code units — they disagree on any astral character (emoji like
+// 🤖, U+10000+). The signature compares one against the other, so the JS side
+// MUST count code points too, or an emoji-bearing prefix row diverges spuriously
+// and forces a self-heal (full reinsert) on every incremental tick. `[...s]`
+// iterates by code point, matching SQLite.
+function codePointLength(s: string | null): number {
+  return s == null ? 0 : [...s].length;
+}
+
 function recordSignature(r: Omit<Event, 'id'>): string {
   return [
     r.event_type,
     r.agent_id ?? '',
     r.tool_name ?? '',
     r.timestamp,
-    r.input_data == null ? 0 : r.input_data.length,
-    r.output_data == null ? 0 : r.output_data.length,
-    r.thinking_text == null ? 0 : r.thinking_text.length,
+    codePointLength(r.input_data),
+    codePointLength(r.output_data),
+    codePointLength(r.thinking_text),
   ].join(' ');
 }
 

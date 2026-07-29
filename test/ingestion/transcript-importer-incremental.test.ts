@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { mkdirSync, writeFileSync, rmSync, appendFileSync } from 'node:fs';
@@ -186,6 +186,10 @@ describe('importTranscript — incremental tail-append (flag on)', () => {
   afterEach(() => {
     if (ORIG_FLAG === undefined) delete process.env.CLAUDE_MONITOR_INCREMENTAL_IMPORT;
     else process.env.CLAUDE_MONITOR_INCREMENTAL_IMPORT = ORIG_FLAG;
+  });
+
+  afterAll(() => {
+    rmSync(TEST_ROOT, { recursive: true, force: true });
   });
 
   it('Behavior #1: appending leaves prefix event ids untouched and inserts only tail rows', async () => {
@@ -411,5 +415,54 @@ describe('importTranscript — incremental tail-append (flag on)', () => {
       !logs.some((l) => l.includes('Incremental import self-heal')),
       'no self-heal warn on a correct incremental write',
     );
+  });
+
+  it('Behavior #1b: two successive incremental appends each stay incremental and match a cold import', async () => {
+    // The watcher re-imports the same growing file on every tick. This exercises
+    // that multi-tick loop: the checkpoint written by the first incremental import
+    // must advance so the second append validates against the new prefix offset
+    // (rather than re-inserting the first tail as duplicate rows).
+    const APPEND_1 =
+      '\n' +
+      [
+        userMsg('u3', 'a2', 'Thanks!', '2026-01-01T00:00:05.000Z'),
+        asstText('a3', 'u3', "You're welcome.", '2026-01-01T00:00:06.000Z'),
+      ].join('\n');
+    const APPEND_2 =
+      '\n' +
+      [
+        userMsg('u5', 'a3', 'One more thing.', '2026-01-01T00:00:07.000Z'),
+        asstText('a5', 'u5', 'Sure thing.', '2026-01-01T00:00:08.000Z'),
+      ].join('\n');
+
+    const a = await fresh();
+    const filePath = join(TEST_ROOT, 'b1b.jsonl');
+    writeFileSync(filePath, PREFIX_LINES.join('\n'));
+    await a.importer.importTranscript(filePath); // cold seed
+
+    appendFileSync(filePath, APPEND_1);
+    const logs1 = await captureLogs(async () => {
+      await a.importer.importTranscript(filePath, { force: true, incremental: true });
+    });
+    assert.equal(importMode(logs1), 'incremental', 'first append is incremental');
+
+    appendFileSync(filePath, APPEND_2);
+    const logs2 = await captureLogs(async () => {
+      await a.importer.importTranscript(filePath, { force: true, incremental: true });
+    });
+    assert.equal(importMode(logs2), 'incremental', 'second append is also incremental (checkpoint advanced)');
+
+    const incrementalRows = withoutId(readEvents(a.connection, SID));
+    a.connection.closeDb();
+
+    // Cold import of the twice-appended final file into a fresh DB.
+    const b = await fresh();
+    const coldFile = join(TEST_ROOT, 'b1b-cold.jsonl');
+    writeFileSync(coldFile, PREFIX_LINES.join('\n') + APPEND_1 + APPEND_2);
+    await b.importer.importTranscript(coldFile);
+    const coldRows = withoutId(readEvents(b.connection, SID));
+    b.connection.closeDb();
+
+    assert.deepEqual(incrementalRows, coldRows, 'two incremental ticks equal a single cold import (no duplicates)');
   });
 });

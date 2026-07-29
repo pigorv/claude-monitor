@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import { join } from 'node:path';
@@ -357,6 +357,10 @@ describe('incremental import — parity, FTS-parity, and property tests (T3.1)',
     else process.env.CLAUDE_MONITOR_INCREMENTAL_IMPORT = ORIG_FLAG;
   });
 
+  afterAll(() => {
+    rmSync(TEST_ROOT, { recursive: true, force: true });
+  });
+
   // ── Behavior #2 — parity WITHOUT sub-agents ──────────────────────
   it('Behavior #2: incremental (seed+append) equals a cold import — no sub-agents', async () => {
     const incremental = await buildIncremental(SYN_SID, SYN_LINES, SYN_SPLIT, 'syn', plainPrepare);
@@ -364,6 +368,35 @@ describe('incremental import — parity, FTS-parity, and property tests (T3.1)',
 
     const cold = await buildCold(SYN_SID, SYN_LINES, 'syn', plainPrepare);
     assertParity(incremental, cold, 'no-subagents');
+  });
+
+  // ── Astral-character regression: emoji in the appended tail must NOT
+  //    spuriously self-heal. The row signature counts Unicode code points on
+  //    both sides; before that fix, SQLite length() (code points) vs JS
+  //    String.length (UTF-16 units) disagreed on any emoji, so this same append
+  //    logged mode 'incremental-healed' and did a full reinsert every tick. ──
+  it('astral chars in the appended tail stay incremental and match a cold import', async () => {
+    const emojiLines = [
+      synUser('u1', null, 'Hello, read my file.', '2026-01-01T00:00:01.000Z'),
+      synAsstTool('a1', 'u1', '2026-01-01T00:00:02.000Z'),
+      synToolResult('u2', 'a1', 'a1', '2026-01-01T00:00:03.000Z'),
+      synAsstText('a2', 'u2', 'The file has a single export.', '2026-01-01T00:00:04.000Z'),
+      synUser('u3', 'a2', 'Thanks!', '2026-01-01T00:00:05.000Z'),
+      // Astral characters (each 1 code point but 2 UTF-16 units) live ONLY in the
+      // appended tail, so a spurious heal shows up as mode !== 'incremental'.
+      synAsstText('a3', 'u3', 'Done 🤖 — shipped 🚀 with an astral 𝕏.', '2026-01-01T00:00:06.000Z'),
+    ];
+    const split = 4;
+
+    const incremental = await buildIncremental(SYN_SID, emojiLines, split, 'emoji', plainPrepare);
+    assert.equal(
+      incremental.mode,
+      'incremental',
+      'an emoji in the appended tail must NOT force a self-heal',
+    );
+
+    const cold = await buildCold(SYN_SID, emojiLines, 'emoji', plainPrepare);
+    assertParity(incremental, cold, 'astral-in-tail');
   });
 
   // ── Behavior #2 — parity WITH sub-agents (real fixture) ──────────
