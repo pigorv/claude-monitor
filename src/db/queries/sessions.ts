@@ -12,6 +12,8 @@ let _deleteSessionStmt: Database.Statement | null = null;
 let _sessionExistsStmt: Database.Statement | null = null;
 let _setImportedMtimeStmt: Database.Statement | null = null;
 let _getImportedMtimesStmt: Database.Statement | null = null;
+let _setImportCheckpointStmt: Database.Statement | null = null;
+let _getImportCheckpointStmt: Database.Statement | null = null;
 let _getAgentRelStmt: Database.Statement | null = null;
 let _agentTokenTimelineStmt: Database.Statement | null = null;
 let _allAgentTokenTimelinesStmt: Database.Statement | null = null;
@@ -25,6 +27,7 @@ let _listProjectsStmt: Database.Statement | null = null;
 onDbClose(() => {
   _insertSessionStmt = _upsertSessionStmt = _getSessionStmt = _deleteSessionStmt =
     _sessionExistsStmt = _setImportedMtimeStmt = _getImportedMtimesStmt =
+    _setImportCheckpointStmt = _getImportCheckpointStmt =
     _getAgentRelStmt = _agentTokenTimelineStmt =
     _allAgentTokenTimelinesStmt = _insertSessionLinkStmt = _getLinkedSourceStmt =
     _getLinkedTargetStmt = _agentToolCallsStmt = _allAgentToolCallsStmt =
@@ -304,6 +307,47 @@ export function getImportedMtimes(): { transcript_path: string; last_imported_mt
     'SELECT transcript_path, last_imported_mtime FROM sessions WHERE transcript_path IS NOT NULL AND last_imported_mtime IS NOT NULL',
   );
   return _getImportedMtimesStmt.all() as { transcript_path: string; last_imported_mtime: number }[];
+}
+
+/**
+ * Persist the transcript import checkpoint after a successful import: the byte
+ * length consumed (`sizeBytes`), a hash over that prefix (`prefixHash`), and the
+ * file mtime (`mtimeMs`). A later incremental tick reads these back to decide
+ * whether the already-imported prefix changed before trusting a tail-append.
+ */
+export function setSessionImportCheckpoint(
+  id: string,
+  { sizeBytes, prefixHash, mtimeMs }: { sizeBytes: number; prefixHash: string; mtimeMs: number },
+): void {
+  const db = getDb();
+  _setImportCheckpointStmt ??= db.prepare(
+    'UPDATE sessions SET last_imported_size = ?, last_imported_prefix_hash = ?, last_imported_mtime = ? WHERE id = ?',
+  );
+  _setImportCheckpointStmt.run(sizeBytes, prefixHash, mtimeMs, id);
+}
+
+/**
+ * Return the persisted import checkpoint for a session, or undefined if the row
+ * does not exist. Individual columns are null when no checkpoint was ever written.
+ */
+export function getSessionImportCheckpoint(id: string):
+  | {
+      last_imported_size: number | null;
+      last_imported_prefix_hash: string | null;
+      last_imported_mtime: number | null;
+    }
+  | undefined {
+  const db = getDb();
+  _getImportCheckpointStmt ??= db.prepare(
+    'SELECT last_imported_size, last_imported_prefix_hash, last_imported_mtime FROM sessions WHERE id = ?',
+  );
+  return _getImportCheckpointStmt.get(id) as
+    | {
+        last_imported_size: number | null;
+        last_imported_prefix_hash: string | null;
+        last_imported_mtime: number | null;
+      }
+    | undefined;
 }
 
 export function listProjects(): ProjectInfo[] {

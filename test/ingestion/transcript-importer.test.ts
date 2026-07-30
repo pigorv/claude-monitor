@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { mkdirSync, writeFileSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { importTranscript, importTranscripts, filterCoveredSubagents, discoverSubagentFiles, type ImportResult } from '../../src/ingestion/transcript-importer.js';
+import { importTranscript, importTranscripts, applyAgentTokenTotals, filterCoveredSubagents, discoverSubagentFiles, type ImportResult } from '../../src/ingestion/transcript-importer.js';
 import { getDb, closeDb } from '../../src/db/connection.js';
-import { getSession, sessionExists } from '../../src/db/queries/sessions.js';
+import { getSession, sessionExists, getSessionImportCheckpoint } from '../../src/db/queries/sessions.js';
 import { listEventsBySession, getTokenTimeline, getMiniTimeline } from '../../src/db/queries/events.js';
 import { analyzeCompactions } from '../../src/analysis/compaction-analysis.js';
 
@@ -91,6 +91,20 @@ describe('importTranscript', () => {
     assert.equal(session.total_cache_read_tokens, 1300); // 500 + 800
     assert.equal(session.tool_call_count, 1); // Read tool
     assert.equal(session.transcript_path, filePath);
+  });
+
+  it('writes a populated import checkpoint (size + prefix hash + mtime) after a full import', async () => {
+    const filePath = join(TEST_DIR, 'session.jsonl');
+    writeFileSync(filePath, SAMPLE_JSONL);
+
+    await importTranscript(filePath);
+
+    const checkpoint = getSessionImportCheckpoint('test-session-1');
+    assert.ok(checkpoint, 'checkpoint row should exist');
+    assert.equal(checkpoint.last_imported_size, Buffer.byteLength(SAMPLE_JSONL));
+    assert.ok(checkpoint.last_imported_prefix_hash, 'prefix hash should be populated');
+    assert.equal(checkpoint.last_imported_prefix_hash!.length, 40); // SHA-1 hex
+    assert.ok(checkpoint.last_imported_mtime !== null, 'mtime should be populated');
   });
 
   it('is idempotent — skips already-imported sessions', async () => {
@@ -973,6 +987,71 @@ describe('importTranscript invocations aggregation', () => {
       type: 'skill',
       name: 'triage-issue',
     });
+  });
+});
+
+// ── Agent-token merge (applyAgentTokenTotals) ──────────────────────
+
+describe('applyAgentTokenTotals', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    getDb(DB_PATH);
+  });
+
+  afterEach(() => {
+    closeDb();
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  it('merges token-bearing agent tokens into session totals independent of any subagent-event count', () => {
+    // Proves the merge no longer depends on subagentEventCount > 0: this
+    // re-creates the state a later incremental tick reaches (token-bearing
+    // agent rows present, but NO subagent events inserted this tick). The
+    // session totals hold only the parent-only aggregate (as upsertSession
+    // leaves them); calling the helper must add the agent tokens exactly once.
+    const db = getDb();
+    const PARENT_INPUT = 5000;
+    const PARENT_OUTPUT = 300;
+
+    db.prepare(`
+      INSERT INTO sessions (id, project_path, started_at, status, total_input_tokens, total_output_tokens)
+      VALUES (?, ?, ?, 'imported', ?, ?)
+    `).run('merge-sess', '/tmp/project', '2026-01-01T00:00:00.000Z', PARENT_INPUT, PARENT_OUTPUT);
+
+    // Two token-bearing agent rows plus one with NULL tokens (must be ignored).
+    const insertAgent = db.prepare(`
+      INSERT INTO agent_relationships (parent_session_id, child_agent_id, input_tokens_total, output_tokens_total, status)
+      VALUES (?, ?, ?, ?, 'completed')
+    `);
+    insertAgent.run('merge-sess', 'agent-1', 800, 100);
+    insertAgent.run('merge-sess', 'agent-2', 900, 40);
+    insertAgent.run('merge-sess', 'agent-null', null, null);
+
+    applyAgentTokenTotals('merge-sess');
+
+    const row = db.prepare(
+      'SELECT total_input_tokens, total_output_tokens FROM sessions WHERE id = ?',
+    ).get('merge-sess') as { total_input_tokens: number; total_output_tokens: number };
+
+    assert.equal(row.total_input_tokens, PARENT_INPUT + 800 + 900);
+    assert.equal(row.total_output_tokens, PARENT_OUTPUT + 100 + 40);
+  });
+
+  it('is a no-op when the session has no token-bearing agent rows', () => {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO sessions (id, project_path, started_at, status, total_input_tokens, total_output_tokens)
+      VALUES (?, ?, ?, 'imported', ?, ?)
+    `).run('no-agents-sess', '/tmp/project', '2026-01-01T00:00:00.000Z', 4200, 250);
+
+    applyAgentTokenTotals('no-agents-sess');
+
+    const row = db.prepare(
+      'SELECT total_input_tokens, total_output_tokens FROM sessions WHERE id = ?',
+    ).get('no-agents-sess') as { total_input_tokens: number; total_output_tokens: number };
+
+    assert.equal(row.total_input_tokens, 4200);
+    assert.equal(row.total_output_tokens, 250);
   });
 });
 

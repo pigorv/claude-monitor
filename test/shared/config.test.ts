@@ -2,7 +2,7 @@ import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { loadConfig, parsePort, isValidPort, CONFIG, DEFAULT_CONFIG } from '../../src/shared/constants.js';
+import { loadConfig, parsePort, parseBoolEnv, isValidPort, CONFIG, DEFAULT_CONFIG } from '../../src/shared/constants.js';
 
 const defaults = {
   dataDir: join(homedir(), '.claude-monitor'),
@@ -92,6 +92,45 @@ describe('parsePort validation (Behavior #10)', () => {
 
   it('loadConfig propagates the throw for a bad CLAUDE_MONITOR_PORT', () => {
     assert.throws(() => loadConfig({ CLAUDE_MONITOR_PORT: 'abc' }), /Invalid CLAUDE_MONITOR_PORT/);
+  });
+});
+
+describe('incrementalImport kill-switch (Behavior #9)', () => {
+  it('defaults to false when CLAUDE_MONITOR_INCREMENTAL_IMPORT is unset', () => {
+    assert.equal(loadConfig({}).incrementalImport, false);
+  });
+
+  it('is true for truthy values (1, true, case-insensitive)', () => {
+    assert.equal(loadConfig({ CLAUDE_MONITOR_INCREMENTAL_IMPORT: '1' }).incrementalImport, true);
+    assert.equal(loadConfig({ CLAUDE_MONITOR_INCREMENTAL_IMPORT: 'true' }).incrementalImport, true);
+    assert.equal(loadConfig({ CLAUDE_MONITOR_INCREMENTAL_IMPORT: 'TRUE' }).incrementalImport, true);
+    assert.equal(loadConfig({ CLAUDE_MONITOR_INCREMENTAL_IMPORT: ' True ' }).incrementalImport, true);
+  });
+
+  it('is false for falsy / other values (0, false, empty, garbage)', () => {
+    assert.equal(loadConfig({ CLAUDE_MONITOR_INCREMENTAL_IMPORT: '0' }).incrementalImport, false);
+    assert.equal(loadConfig({ CLAUDE_MONITOR_INCREMENTAL_IMPORT: 'false' }).incrementalImport, false);
+    assert.equal(loadConfig({ CLAUDE_MONITOR_INCREMENTAL_IMPORT: '' }).incrementalImport, false);
+    assert.equal(loadConfig({ CLAUDE_MONITOR_INCREMENTAL_IMPORT: 'yes' }).incrementalImport, false);
+  });
+});
+
+describe('parseBoolEnv', () => {
+  it('true only for 1 / true (case-insensitive, trimmed)', () => {
+    assert.equal(parseBoolEnv('1'), true);
+    assert.equal(parseBoolEnv('true'), true);
+    assert.equal(parseBoolEnv('TRUE'), true);
+    assert.equal(parseBoolEnv('  true  '), true);
+    assert.equal(parseBoolEnv(' 1 '), true);
+  });
+
+  it('false for unset, empty, 0, false, and anything else', () => {
+    assert.equal(parseBoolEnv(undefined), false);
+    assert.equal(parseBoolEnv(''), false);
+    assert.equal(parseBoolEnv('0'), false);
+    assert.equal(parseBoolEnv('false'), false);
+    assert.equal(parseBoolEnv('yes'), false);
+    assert.equal(parseBoolEnv('2'), false);
   });
 });
 

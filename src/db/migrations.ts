@@ -446,6 +446,22 @@ function backfillSessionCost(db: Database.Database): void {
   }
 }
 
+// Adds a per-session import checkpoint that a later incremental-import tick uses
+// to detect whether the transcript's already-imported prefix changed (an in-place
+// rewrite) before trusting a tail-append. Mirrors last_imported_mtime (migration
+// 013): both columns are nullable with no DEFAULT. last_imported_size is INTEGER
+// (byte length consumed at the last import); last_imported_prefix_hash is TEXT
+// (hash over the first last_imported_size bytes). Uses run() with tableHasColumn
+// guards for idempotency so a re-run is a no-op.
+function migration018ImportCheckpoint(db: Database.Database): void {
+  if (!tableHasColumn(db, 'sessions', 'last_imported_size')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN last_imported_size INTEGER');
+  }
+  if (!tableHasColumn(db, 'sessions', 'last_imported_prefix_hash')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN last_imported_prefix_hash TEXT');
+  }
+}
+
 const MIGRATIONS: Migration[] = [
   { id: 1, name: '001-initial', sql: INITIAL_SCHEMA },
   { id: 2, name: '002-agent-efficiency', sql: MIGRATION_002_AGENT_EFFICIENCY },
@@ -464,6 +480,7 @@ const MIGRATIONS: Migration[] = [
   { id: 15, name: '015-agent-rel-child-mtime', run: migration015AgentRelChildMtime },
   { id: 16, name: '016-cache-write-split', run: migration016CacheWriteSplit },
   { id: 17, name: '017-cost-and-agent-model', run: migration017CostAndAgentModel },
+  { id: 18, name: '018-import-checkpoint', run: migration018ImportCheckpoint },
 ];
 
 /** Id of the last migration in the chain. Used by the snapshot fixture

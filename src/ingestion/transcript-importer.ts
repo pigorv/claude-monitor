@@ -1,8 +1,11 @@
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { existsSync, readdirSync, statSync } from 'node:fs';
+import type Database from 'better-sqlite3';
 import { getDb } from '../db/connection.js';
 import { deleteEventsBySession, insertEvents } from '../db/queries/events.js';
-import { sessionExists, upsertSession, setSessionImportedMtime } from '../db/queries/sessions.js';
+import { sessionExists, upsertSession, setSessionImportedMtime, setSessionImportCheckpoint, getSessionImportCheckpoint } from '../db/queries/sessions.js';
+import { CONFIG } from '../shared/constants.js';
+import { captureCheckpoint, validatePrefix } from './transcript-checkpoint.js';
 import * as logger from '../shared/logger.js';
 import type { Event, Invocation, Session, TranscriptMessage } from '../shared/types.js';
 import { parseTranscript, parseTranscriptWithTitle } from './jsonl-parser.js';
@@ -18,6 +21,21 @@ import { sessionCostUsd } from '../shared/cost.js';
 // but never describe it, so they're excluded from the fallback title, the
 // "started with" pill, and the invocation list.
 const RESET_COMMANDS = new Set(['clear', 'compact']);
+
+// ── Test-only fault-injection seam ─────────────────────────────────
+//
+// Production-inert hook for exercising the incremental self-heal path (Behavior
+// #8). When enabled, the incremental write perturbs one parent row after
+// inserting the fresh tail, so the post-write self-verify sees a divergence and
+// repairs it. Defaults OFF and gates NO real behavior — the incremental write is
+// byte-identical to today unless a test flips this on.
+let incrementalWriteFaultEnabled = false;
+
+/** Test-only: force the incremental write to corrupt a parent row so the
+ *  self-heal path runs. Pass `false` to disable (the default). */
+export function __setIncrementalWriteFaultForTest(on: boolean): void {
+  incrementalWriteFaultEnabled = on;
+}
 
 /** True when a slash-command name (with or without a leading "/") is a reset command. */
 function isResetCommandName(name: string): boolean {
@@ -41,7 +59,7 @@ export interface ImportResult {
  */
 export async function importTranscript(
   filePath: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; incremental?: boolean } = {},
 ): Promise<ImportResult> {
   // Detect subagent transcripts — these should not be imported as standalone sessions.
   // They are imported as child events when their parent session is processed.
@@ -89,7 +107,9 @@ export async function importTranscript(
   // Collect all messages and the session title from the file in a single pass.
   // Use the transcript-recorded title (user rename or AI title) if available;
   // fall back to first user message below.
+  const parseStartMs = Date.now();
   const { messages, title: sessionTitle } = await parseTranscriptWithTitle(filePath);
+  const parseElapsedMs = Date.now() - parseStartMs;
 
   if (messages.length === 0) {
     return { sessionId: '', eventCount: 0, skipped: true, error: 'No messages found in file' };
@@ -112,9 +132,11 @@ export async function importTranscript(
   }
 
   // Extract events from messages, merge tool start/end, and assign agent IDs
+  const extractStartMs = Date.now();
   const rawEvents = extractAllEvents(messages);
   const parsedEvents = mergeToolCallEvents(rawEvents);
   const agentInfos = assignAgentIds(parsedEvents);
+  const extractElapsedMs = Date.now() - extractStartMs;
 
   // Compute tool call and subagent counts once (used by summary and session record)
   const toolCounts = new Map<string, number>();
@@ -192,50 +214,94 @@ export async function importTranscript(
   // Build event records with token info from snapshots
   const eventRecords = buildEventRecords(sessionId, parsedEvents, messages, model, compactionTurns);
 
-  // Write to DB in a single transaction
+  // Incremental decision point (kill-switch gated). When the caller opts in and
+  // CONFIG.incrementalImport is on, a valid checkpoint lets us tail-append
+  // instead of rewriting the whole session. `force` is REQUIRED: the self-heal
+  // fallback wipes all events (including shifted sub-agent rows) and relies on
+  // the subsequent force-re-import to restore sub-agents, so incremental without
+  // force could strand them. The one production caller (the watcher) already
+  // ties incremental === force; this guard makes the coupling impossible to break.
+  const attemptIncremental =
+    Boolean(options.incremental) && Boolean(options.force) && CONFIG.incrementalImport;
   const db = getDb();
+
+  // Compute the incremental plan from READS before opening the write transaction.
+  // A null plan (kill-switch off, no session yet, checkpoint missing/invalid, or
+  // any defensive mismatch) means the full write below runs byte-identically to
+  // today. See computeIncrementalPlan for the disqualifying conditions.
+  const plan =
+    attemptIncremental && sessionExists(sessionId)
+      ? computeIncrementalPlan(db, sessionId, filePath, eventRecords)
+      : null;
+  // The path actually taken — 'incremental' only when a valid plan was computed.
+  const importMode: 'incremental' | 'full' = plan ? 'incremental' : 'full';
+  // Set inside the transaction when the incremental self-verify detected a
+  // divergence and repaired it via a full reinsert (see below).
+  let healed = false;
+
+  // Write to DB in a single transaction
+  const writeStartMs = Date.now();
   db.transaction(() => {
-    if (options.force) {
-      db.prepare('DELETE FROM agent_relationships WHERE parent_session_id = ?').run(sessionId);
-      db.prepare('DELETE FROM session_links WHERE source_session_id = ? OR target_session_id = ?').run(sessionId, sessionId);
-    }
-    // Delete ALL prior events for this session before re-inserting.
-    // The full transcript parse is authoritative and regenerates everything.
-    // Previously this only deleted hook events, causing transcript_import
-    // events to accumulate on re-import.
-    deleteEventsBySession(sessionId);
-    upsertSession(session);
-    if (eventRecords.length > 0) {
-      insertEvents(eventRecords);
-    }
-    // Upsert agent relationships from transcript (handles resumed agents with same ID)
-    const upsertAgentRel = db.prepare(`INSERT INTO agent_relationships (
-      parent_session_id, child_agent_id, prompt_preview, result_preview,
-      prompt_data, result_data, started_at, ended_at, duration_ms, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(parent_session_id, child_agent_id) DO UPDATE SET
-      ended_at = MAX(agent_relationships.ended_at, excluded.ended_at),
-      duration_ms = excluded.duration_ms,
-      result_preview = COALESCE(excluded.result_preview, agent_relationships.result_preview),
-      result_data = COALESCE(excluded.result_data, agent_relationships.result_data),
-      status = excluded.status`);
-    for (const agent of agentInfos) {
-      const startMs = new Date(agent.startTimestamp).getTime();
-      const endMs = new Date(agent.endTimestamp).getTime();
-      upsertAgentRel.run(
-        sessionId,
-        agent.agentId,
-        agent.description ? agent.description.slice(0, 200) : null,
-        agent.result ? agent.result.slice(0, 200) : null,
-        agent.prompt || null,
-        agent.result || null,
-        agent.startTimestamp,
-        agent.endTimestamp,
-        endMs > startMs ? endMs - startMs : null,
-        agent.hasFailed ? 'failed' : 'completed',
-      );
+    if (plan) {
+      // Incremental tail-append. Keep agent_relationships / session_links rows
+      // intact (the upserts below and INSERT OR IGNORE links are idempotent, and
+      // keeping them preserves each sub-agent's child_imported_mtime so unchanged
+      // sub-agents keep skipping). Drop only the volatile parent tail, shift any
+      // sub-agent rows up to make room, then insert the fresh tail.
+      const { d, delta, parentCount } = plan;
+      db.prepare('DELETE FROM events WHERE session_id = ? AND sequence_num >= ? AND sequence_num < ?')
+        .run(sessionId, d, parentCount);
+      if (delta > 0) {
+        // Integer-only sequence_num shift — FTS-safe (input_data/output_data are
+        // untouched, so the INSERT/DELETE-only triggers never fire). No-op when
+        // there are no sub-agent rows at or above parentCount.
+        db.prepare('UPDATE events SET sequence_num = sequence_num + ? WHERE session_id = ? AND sequence_num >= ?')
+          .run(delta, sessionId, parentCount);
+      }
+      upsertSession(session);
+      const tail = eventRecords.slice(d);
+      if (tail.length > 0) {
+        // These already carry sequence_num = d..newParentCount-1 — exactly the
+        // slots freed by the delete + shift above.
+        insertEvents(tail);
+      }
+      upsertAgentRelationshipsFromTranscript(db, sessionId, agentInfos);
+
+      // Test-only: corrupt one parent row so the self-verify below fires. No-op
+      // in normal operation (flag defaults off, gates nothing real).
+      if (incrementalWriteFaultEnabled && plan.newParentCount > 0) {
+        db.prepare('UPDATE events SET tool_name = ? WHERE session_id = ? AND sequence_num = ?')
+          .run('__t23_injected_fault__', sessionId, plan.newParentCount - 1);
+      }
+
+      // Self-verify + self-heal (Behavior #8). Because the parse is cheap we
+      // already hold the authoritative full eventRecords in memory. Read back the
+      // parent rows' cheap signature columns (no heavy text, no FTS) and compare
+      // to the same signature over eventRecords. Any divergence — a diff/shift
+      // bug, or the injected fault above — is repaired with a full reinsert in
+      // this same transaction, so the committed state is always correct: a bug
+      // costs one fallback tick, never a persisted divergence. The subsequent
+      // importSubagentTranscripts (force:true) restores sub-agent rows, so the
+      // self-heal only needs to guarantee the parent block.
+      healed = verifyAndHealParentRows(db, sessionId, plan.newParentCount, eventRecords);
+    } else {
+      if (options.force) {
+        db.prepare('DELETE FROM agent_relationships WHERE parent_session_id = ?').run(sessionId);
+        db.prepare('DELETE FROM session_links WHERE source_session_id = ? OR target_session_id = ?').run(sessionId, sessionId);
+      }
+      // Delete ALL prior events for this session before re-inserting.
+      // The full transcript parse is authoritative and regenerates everything.
+      // Previously this only deleted hook events, causing transcript_import
+      // events to accumulate on re-import.
+      deleteEventsBySession(sessionId);
+      upsertSession(session);
+      if (eventRecords.length > 0) {
+        insertEvents(eventRecords);
+      }
+      upsertAgentRelationshipsFromTranscript(db, sessionId, agentInfos);
     }
   })();
+  const writeElapsedMs = Date.now() - writeStartMs;
 
   // After importing the parent, discover and import subagent transcripts
   const subagentEventCount = await importSubagentTranscripts(sessionId, filePath, { force: options.force });
@@ -308,23 +374,16 @@ export async function importTranscript(
       }
     }
 
-  // Update session totals to include agent tokens so that
-  // parentTokens = sessionTotal - agentTotal yields a correct positive value
-  if (subagentEventCount > 0) {
-    const agentTotals = db.prepare(`
-      SELECT COALESCE(SUM(input_tokens_total), 0) as agent_input,
-             COALESCE(SUM(output_tokens_total), 0) as agent_output
-      FROM agent_relationships
-      WHERE parent_session_id = ? AND input_tokens_total IS NOT NULL
-    `).get(sessionId) as { agent_input: number; agent_output: number };
-
-    db.prepare(`
-      UPDATE sessions SET
-        total_input_tokens = total_input_tokens + ?,
-        total_output_tokens = total_output_tokens + ?
-      WHERE id = ?
-    `).run(agentTotals.agent_input, agentTotals.agent_output, sessionId);
-  }
+  // Merge agent tokens into the session totals so that
+  // parentTokens = sessionTotal - agentTotal yields a correct positive value.
+  // Runs exactly once per import, unconditionally — upsertSession() above just
+  // RESET total_input_tokens/total_output_tokens to the parent-only aggregate,
+  // so this ADDS agent tokens exactly once and never accumulates across imports.
+  // It must run regardless of whether a subagent file changed this tick: a
+  // re-import that inserts no new subagent events still has token-bearing agent
+  // rows whose tokens belong in the session totals. When there are no such rows,
+  // the SUM(... WHERE input_tokens_total IS NOT NULL) yields 0 and this is a no-op.
+  applyAgentTokenTotals(sessionId);
 
   // Recompute subagent_count from the now-complete agent_relationships set.
   // Runs unconditionally (not only when new subagent events were inserted) so the
@@ -401,9 +460,20 @@ export async function importTranscript(
     session.ended_at,
   );
 
-  // Persist the transcript mtime so the watcher skips this session on the next
-  // startup unless the file changes again.
-  if (fileMtimeMs !== null) setSessionImportedMtime(sessionId, fileMtimeMs);
+  // Persist the transcript import checkpoint (size + prefix hash + mtime) so a
+  // later incremental tick can decide whether the already-imported prefix is
+  // byte-identical (tail-append) or was rewritten (full re-parse). Capturing the
+  // whole current file is safe here — the full write above is authoritative for
+  // exactly these bytes. If the file vanished (capture throws) or we never got an
+  // mtime, fall back to persisting the mtime alone rather than breaking the import.
+  try {
+    if (fileMtimeMs !== null) {
+      const { sizeBytes, prefixHash } = captureCheckpoint(filePath);
+      setSessionImportCheckpoint(sessionId, { sizeBytes, prefixHash, mtimeMs: fileMtimeMs });
+    }
+  } catch {
+    if (fileMtimeMs !== null) setSessionImportedMtime(sessionId, fileMtimeMs);
+  }
 
   const totalEvents = eventRecords.length + subagentEventCount;
   logger.info('Imported transcript', {
@@ -412,8 +482,278 @@ export async function importTranscript(
     subagentEvents: subagentEventCount,
     filePath,
   });
+  logger.debug('Import timing', {
+    sessionId,
+    mode: healed ? 'incremental-healed' : importMode,
+    ...(plan ? { d: plan.d, delta: plan.delta } : {}),
+    events: totalEvents,
+    parseMs: parseElapsedMs,
+    extractMs: extractElapsedMs,
+    writeMs: writeElapsedMs,
+  });
 
   return { sessionId, eventCount: totalEvents, skipped: false };
+}
+
+/**
+ * Merge the session's token-bearing agent tokens into its total_input_tokens /
+ * total_output_tokens. Must be called exactly once per import, after
+ * upsertSession() has reset those columns to the parent-only aggregate — so it
+ * ADDS agent tokens exactly once and never accumulates across imports. It runs
+ * regardless of whether any subagent file changed this tick; when the session
+ * has no token-bearing agent rows the SUM(... WHERE input_tokens_total IS NOT
+ * NULL) yields 0 and the UPDATE is a no-op.
+ */
+export function applyAgentTokenTotals(sessionId: string): void {
+  const db = getDb();
+  const agentTotals = db.prepare(`
+    SELECT COALESCE(SUM(input_tokens_total), 0) as agent_input,
+           COALESCE(SUM(output_tokens_total), 0) as agent_output
+    FROM agent_relationships
+    WHERE parent_session_id = ? AND input_tokens_total IS NOT NULL
+  `).get(sessionId) as { agent_input: number; agent_output: number };
+
+  db.prepare(`
+    UPDATE sessions SET
+      total_input_tokens = total_input_tokens + ?,
+      total_output_tokens = total_output_tokens + ?
+    WHERE id = ?
+  `).run(agentTotals.agent_input, agentTotals.agent_output, sessionId);
+}
+
+// ── Incremental tail-append ────────────────────────────────────────
+
+/**
+ * The tail-append plan for an incremental re-import, or `null` to fall back to
+ * the full write. All fields index into the CONTIGUOUS parent event block
+ * `sequence_num ∈ [0, parentCount)`; sub-agent rows live at/above parentCount.
+ */
+interface IncrementalPlan {
+  /** First divergent parent sequence_num — the prefix `[0, d)` is byte-identical. */
+  d: number;
+  /** newParentCount - parentCount (>= 0): how far to shift sub-agent rows up. */
+  delta: number;
+  /** Parent event count currently stored. */
+  parentCount: number;
+  /** Parent event count in the freshly-parsed transcript (== eventRecords.length). */
+  newParentCount: number;
+}
+
+/**
+ * Signature of a parent event row for the divergence diff. A byte-identical
+ * prefix produces identical signatures; the volatile tool-call boundary (a bare
+ * tool_call_start whose tool_result arrived later) diverges via its output
+ * length, and any appended tail diverges by count. `ilen`/`olen`/`tlen` come
+ * from SQL `length()` on the stored side; the in-memory side mirrors them with
+ * a code-point count (see recordSignature).
+ */
+function storedSignature(r: {
+  event_type: string;
+  agent_id: string | null;
+  tool_name: string | null;
+  timestamp: string;
+  ilen: number;
+  olen: number;
+  tlen: number;
+}): string {
+  return [r.event_type, r.agent_id ?? '', r.tool_name ?? '', r.timestamp, r.ilen, r.olen, r.tlen].join(' ');
+}
+
+// SQLite `length(TEXT)` counts Unicode code points, but JS `String.length`
+// counts UTF-16 code units — they disagree on any astral character (emoji like
+// 🤖, U+10000+). The signature compares one against the other, so the JS side
+// MUST count code points too, or an emoji-bearing prefix row diverges spuriously
+// and forces a self-heal (full reinsert) on every incremental tick. `[...s]`
+// iterates by code point, matching SQLite.
+function codePointLength(s: string | null): number {
+  return s == null ? 0 : [...s].length;
+}
+
+function recordSignature(r: Omit<Event, 'id'>): string {
+  return [
+    r.event_type,
+    r.agent_id ?? '',
+    r.tool_name ?? '',
+    r.timestamp,
+    codePointLength(r.input_data),
+    codePointLength(r.output_data),
+    codePointLength(r.thinking_text),
+  ].join(' ');
+}
+
+/**
+ * Compute the incremental tail-append plan for a session that already exists,
+ * from READS only (no writes). Returns `null` on ANY disqualifying condition, in
+ * which case the caller runs the full write path unchanged:
+ *  - checkpoint missing (no size or prefix hash), or the on-disk prefix no longer
+ *    validates (in-place rewrite or file shrink — Behavior #3);
+ *  - the parsed parent block shrank below what's stored (defensive);
+ *  - the stored parent row count doesn't match parentCount (defensive).
+ */
+function computeIncrementalPlan(
+  db: Database.Database,
+  sessionId: string,
+  filePath: string,
+  eventRecords: Omit<Event, 'id'>[],
+): IncrementalPlan | null {
+  const cp = getSessionImportCheckpoint(sessionId);
+  if (cp?.last_imported_size == null || cp.last_imported_prefix_hash == null) return null;
+  if (!validatePrefix(filePath, cp.last_imported_size, cp.last_imported_prefix_hash)) return null;
+
+  // Identify the contiguous parent block. Sub-agent event rows are exactly those
+  // whose agent_id has an agent_relationships row with a non-null
+  // child_transcript_path; they're numbered above the parent max.
+  const subagentIds = (
+    db
+      .prepare(
+        'SELECT child_agent_id FROM agent_relationships WHERE parent_session_id = ? AND child_transcript_path IS NOT NULL',
+      )
+      .all(sessionId) as { child_agent_id: string }[]
+  ).map((r) => r.child_agent_id);
+
+  const totalCount = () =>
+    (db.prepare('SELECT COUNT(*) AS c FROM events WHERE session_id = ?').get(sessionId) as { c: number }).c;
+
+  let parentCount: number;
+  if (subagentIds.length === 0) {
+    parentCount = totalCount();
+  } else {
+    const placeholders = subagentIds.map(() => '?').join(',');
+    const firstSub = db
+      .prepare(
+        `SELECT MIN(sequence_num) AS m FROM events WHERE session_id = ? AND agent_id IN (${placeholders})`,
+      )
+      .get(sessionId, ...subagentIds) as { m: number | null };
+    parentCount = firstSub.m == null ? totalCount() : firstSub.m;
+  }
+
+  const newParentCount = eventRecords.length;
+  // Parent block shrank — let the full path repair anything odd.
+  if (newParentCount < parentCount) return null;
+
+  const stored = db
+    .prepare(
+      `SELECT sequence_num, event_type, agent_id, tool_name, timestamp,
+              COALESCE(length(input_data),0) AS ilen,
+              COALESCE(length(output_data),0) AS olen,
+              COALESCE(length(thinking_text),0) AS tlen
+       FROM events WHERE session_id = ? AND sequence_num < ? ORDER BY sequence_num ASC`,
+    )
+    .all(sessionId, parentCount) as {
+    sequence_num: number;
+    event_type: string;
+    agent_id: string | null;
+    tool_name: string | null;
+    timestamp: string;
+    ilen: number;
+    olen: number;
+    tlen: number;
+  }[];
+  if (stored.length !== parentCount) return null;
+
+  let d = 0;
+  while (d < parentCount && d < newParentCount && storedSignature(stored[d]) === recordSignature(eventRecords[d])) {
+    d++;
+  }
+  const delta = newParentCount - parentCount;
+  return { d, delta, parentCount, newParentCount };
+}
+
+/**
+ * Post-incremental-write self-verify + self-heal (Behavior #8). MUST run inside
+ * the write transaction, after the incremental writes: reads back the parent
+ * rows' cheap signature columns (the same set computeIncrementalPlan diffs on —
+ * no heavy text, no FTS) and compares them positionally to the same signature
+ * over the authoritative in-memory `eventRecords`. On any mismatch (row-count or
+ * a positional signature), repairs the parent block with deleteEventsBySession +
+ * full insertEvents in this same tick and logs a warn. Returns true iff a heal
+ * happened. This keeps correctness independent of the diff/shift logic being
+ * perfect. After the incremental write the parent block occupies
+ * `sequence_num ∈ [0, newParentCount)`; sub-agent rows sit at/above it.
+ */
+function verifyAndHealParentRows(
+  db: Database.Database,
+  sessionId: string,
+  newParentCount: number,
+  eventRecords: Omit<Event, 'id'>[],
+): boolean {
+  const stored = db
+    .prepare(
+      `SELECT event_type, agent_id, tool_name, timestamp,
+              COALESCE(length(input_data),0) AS ilen,
+              COALESCE(length(output_data),0) AS olen,
+              COALESCE(length(thinking_text),0) AS tlen
+       FROM events WHERE session_id = ? AND sequence_num < ? ORDER BY sequence_num ASC`,
+    )
+    .all(sessionId, newParentCount) as {
+    event_type: string;
+    agent_id: string | null;
+    tool_name: string | null;
+    timestamp: string;
+    ilen: number;
+    olen: number;
+    tlen: number;
+  }[];
+
+  let diverged = stored.length !== newParentCount;
+  if (!diverged) {
+    for (let i = 0; i < newParentCount; i++) {
+      if (storedSignature(stored[i]) !== recordSignature(eventRecords[i])) {
+        diverged = true;
+        break;
+      }
+    }
+  }
+  if (!diverged) return false;
+
+  // Repair: wipe all events for the session and reinsert the authoritative
+  // parent set at sequence_num 0..N-1. Sub-agent rows are re-imported afterward
+  // under force, so restoring only the parent block leaves a consistent state.
+  logger.warn('Incremental import self-heal: parent rows diverged, repaired via full reinsert', {
+    sessionId,
+    storedCount: stored.length,
+    expectedCount: newParentCount,
+  });
+  deleteEventsBySession(sessionId);
+  if (eventRecords.length > 0) insertEvents(eventRecords);
+  return true;
+}
+
+/**
+ * Upsert agent relationships from the parent transcript (handles resumed agents
+ * with the same ID). Shared verbatim by the full and incremental write paths.
+ */
+function upsertAgentRelationshipsFromTranscript(
+  db: Database.Database,
+  sessionId: string,
+  agentInfos: ReturnType<typeof assignAgentIds>,
+): void {
+  const upsertAgentRel = db.prepare(`INSERT INTO agent_relationships (
+    parent_session_id, child_agent_id, prompt_preview, result_preview,
+    prompt_data, result_data, started_at, ended_at, duration_ms, status
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(parent_session_id, child_agent_id) DO UPDATE SET
+    ended_at = MAX(agent_relationships.ended_at, excluded.ended_at),
+    duration_ms = excluded.duration_ms,
+    result_preview = COALESCE(excluded.result_preview, agent_relationships.result_preview),
+    result_data = COALESCE(excluded.result_data, agent_relationships.result_data),
+    status = excluded.status`);
+  for (const agent of agentInfos) {
+    const startMs = new Date(agent.startTimestamp).getTime();
+    const endMs = new Date(agent.endTimestamp).getTime();
+    upsertAgentRel.run(
+      sessionId,
+      agent.agentId,
+      agent.description ? agent.description.slice(0, 200) : null,
+      agent.result ? agent.result.slice(0, 200) : null,
+      agent.prompt || null,
+      agent.result || null,
+      agent.startTimestamp,
+      agent.endTimestamp,
+      endMs > startMs ? endMs - startMs : null,
+      agent.hasFailed ? 'failed' : 'completed',
+    );
+  }
 }
 
 // ── Batch import ───────────────────────────────────────────────────
