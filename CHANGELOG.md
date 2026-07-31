@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Events inside an expanded sub-agent block now render with the same full timeline card as top-level events (badges, diffs, rationale, copy buttons, absolute-time headers), replacing the divergent inline sub-agent renderer — so any new event type or badge shows up identically in sub-agent views.
 - In the Session Detail timeline, a collapsed slash-command row now shows its `/command` pill (with any arguments) inline in the message body instead of in the timestamp header, and a skill-expansion row shows its `skill:` badge inline ahead of the preview — both using the standard purple user-message styling.
 - The README now documents Clone a Session and illustrates the Clone and Export flows with inline animated clips (`npm run demo:clips` records them).
 
