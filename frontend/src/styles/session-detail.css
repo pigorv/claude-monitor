@@ -741,227 +741,17 @@
 
 /* ── Agent internal events ── */
 .agent-events {
-  padding: 8px 16px 8px 28px;
+  padding: 8px 16px 8px 44px;
   position: relative;
 }
 .agent-events::before {
   content: '';
   position: absolute;
-  left: 16px;
+  left: 20px;
   top: 8px;
   bottom: 8px;
   width: 1.5px;
   background: color-mix(in srgb, var(--color-status-completed) 30%, transparent);
-}
-
-.agent-event {
-  position: relative;
-  padding: 4px 0 4px 16px;
-  font-size: 12px;
-}
-
-.mini-dot {
-  position: absolute;
-  left: -4px;
-  top: 10px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-background-primary);
-  border: 1.5px solid color-mix(in srgb, var(--color-status-completed) 30%, transparent);
-}
-.mini-dot.assistant { border-color: var(--color-status-running); background: var(--color-status-running); }
-.mini-dot.user { border-color: var(--color-tool-read-text); background: var(--color-tool-read-text); }
-.mini-dot.tool { border-color: var(--color-text-tertiary); background: var(--color-background-primary); }
-
-.agent-event-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-text-secondary);
-}
-
-.agent-event-time {
-  font-size: 10px;
-  color: var(--color-text-tertiary);
-  font-family: var(--font-mono);
-  opacity: 0.6;
-  min-width: 40px;
-}
-
-.agent-event-expandable {
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  padding: 4px 0 4px 16px;
-  margin: 1px 0;
-  transition: background 0.1s;
-}
-.agent-event-expandable:hover {
-  background: color-mix(in srgb, var(--color-status-completed) 3%, transparent);
-}
-
-.agent-event-expand-caret {
-  font-size: 10px;
-  color: var(--color-text-tertiary);
-  margin-left: auto;
-  padding: 0 4px;
-  transition: transform 0.15s;
-}
-
-.agent-tool-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0 4px 16px;
-  position: relative;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: background 0.1s;
-}
-.agent-tool-row:hover {
-  background: color-mix(in srgb, var(--color-status-completed) 3%, transparent);
-}
-.agent-tool-row .mini-dot {
-  position: absolute;
-  left: -4px;
-  top: 10px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-background-primary);
-  border: 1.5px solid color-mix(in srgb, var(--color-status-completed) 30%, transparent);
-}
-.agent-tool-row .tool-path {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--color-text-secondary);
-  background: var(--color-background-tertiary);
-  padding: 1px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 300px;
-}
-.agent-tool-row .tool-tokens {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--color-text-tertiary);
-  margin-left: auto;
-  flex-shrink: 0;
-}
-.agent-tool-row .tool-tokens.heavy {
-  color: var(--color-status-warning-text);
-  font-weight: 600;
-}
-
-/* Agent tool I/O detail panel */
-.agent-tool-detail {
-  display: none;
-  margin: 4px 0 8px 24px;
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--color-background-primary);
-}
-.agent-tool-detail.show { display: block; }
-
-.agent-tool-io {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--color-border-primary);
-}
-.agent-tool-io:last-child { border-bottom: none; }
-
-.agent-tool-io-label {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-text-tertiary);
-  margin-bottom: 3px;
-}
-
-.agent-tool-io-content {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--color-text-secondary);
-  line-height: 1.55;
-  padding: 5px 8px;
-  background: var(--color-background-tertiary);
-  border-radius: var(--radius-sm);
-  max-height: 80px;
-  overflow: hidden;
-  position: relative;
-  white-space: pre-wrap;
-  word-break: break-all;
-  cursor: pointer;
-}
-.agent-tool-io-content.expanded { max-height: none; }
-.agent-tool-io-content .fade {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 18px;
-  background: linear-gradient(transparent, var(--color-background-tertiary));
-  pointer-events: none;
-}
-.agent-tool-io-content.expanded .fade { display: none; }
-
-.agent-tool-tokens {
-  padding: 4px 12px;
-  font-size: 10px;
-  font-family: var(--font-mono);
-  color: var(--color-text-tertiary);
-  display: flex;
-  gap: 10px;
-  background: var(--color-background-tertiary);
-  border-top: 1px solid var(--color-border-primary);
-}
-.agent-tool-tokens .val { color: var(--color-text-secondary); font-weight: 500; }
-.agent-tool-tokens .val.heavy { color: var(--color-status-warning-text); font-weight: 600; }
-
-/* Agent event body (for assistant/user messages inside agent blocks) */
-.agent-event-body {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-  padding: 6px 12px;
-  background: var(--color-background-tertiary);
-  border-radius: var(--radius-sm);
-  margin-top: 3px;
-  max-height: 48px;
-  overflow: hidden;
-  position: relative;
-  cursor: pointer;
-}
-.agent-event-body.expanded { max-height: none; }
-.agent-event-body .fade {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 20px;
-  background: linear-gradient(transparent, var(--color-background-tertiary));
-}
-.agent-event-body.expanded .fade { display: none; }
-.agent-event-body.assistant-nested {
-  border-left: 2px solid var(--color-status-running);
-  background: var(--color-background-primary);
-}
-.agent-event-body.assistant-nested .fade {
-  background: linear-gradient(transparent, var(--color-background-primary));
-}
-.agent-event-body.result-body {
-  border-left: 2px solid var(--color-status-completed);
-  background: var(--color-status-completed-bg);
-}
-.agent-event-body.result-body .fade {
-  background: linear-gradient(transparent, var(--color-status-completed-bg));
-}
-.agent-event-body.prompt-muted {
-  background: var(--color-background-tertiary);
-  border-left: 2px solid var(--color-text-tertiary);
-  font-style: italic;
-}
-.agent-event-body.prompt-muted .fade {
-  background: linear-gradient(transparent, var(--color-background-tertiary));
 }
 
 /* Agent description inline in event header */
@@ -1310,8 +1100,8 @@
 
 /* Shared markdown body typography — applies to both fresh detail panes
    (.detail-content.markdown-content) and inline rendering inside existing
-   styled containers (.md-rendered nested in .agent-event-body,
-   .agent-tool-io-content, .tool-detail-content). The inline variant
+   styled containers (.md-rendered nested in .tool-detail-content).
+   The inline variant
    inherits font-size/color from its parent container. */
 :is(.detail-content.markdown-content, .md-rendered) {
   font-family: var(--font-sans);
