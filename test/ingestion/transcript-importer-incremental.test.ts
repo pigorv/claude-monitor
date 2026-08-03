@@ -465,4 +465,56 @@ describe('importTranscript — incremental tail-append (flag on)', () => {
 
     assert.deepEqual(incrementalRows, coldRows, 'two incremental ticks equal a single cold import (no duplicates)');
   });
+
+  it('Behavior #4b: a boundary tool call completing with EMPTY output updates duration/metadata (matches a cold import)', async () => {
+    // Regression: the divergence signature keyed only on text lengths, and merge
+    // keeps the tool_call_start's start timestamp, so a tool that completes with
+    // empty output ('' → length 0, same as the bare null) produced an identical
+    // signature — the diff (and the self-verify) skipped the row and its now-set
+    // duration_ms / metadata stayed stale. The signature now also carries an
+    // output-null flag, duration_ms, and metadata length to catch this.
+    const truncated = [
+      userMsg('u1', null, 'Run the command.', '2026-01-01T00:00:01.000Z'),
+      asstToolUse('a1', 'u1', '2026-01-01T00:00:02.000Z'),
+    ];
+    // Empty tool_result content, arriving 10s later so duration_ms is non-null.
+    const emptyResult = JSON.stringify({
+      parentUuid: 'a1',
+      cwd: '/tmp/project',
+      sessionId: SID,
+      version: '2.1.0',
+      type: 'user',
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: '' }] },
+      timestamp: '2026-01-01T00:00:12.000Z',
+      uuid: 'u2',
+    });
+
+    const a = await fresh();
+    const filePath = join(TEST_ROOT, 'b4b.jsonl');
+    writeFileSync(filePath, truncated.join('\n'));
+    await a.importer.importTranscript(filePath);
+
+    appendFileSync(filePath, '\n' + emptyResult);
+    const logs = await captureLogs(async () => {
+      await a.importer.importTranscript(filePath, { force: true, incremental: true });
+    });
+    assert.equal(importMode(logs), 'incremental', 'completing the tool call takes the incremental path');
+    const boundaryAfter = readEvents(a.connection, SID).find((r) => r.tool_name === 'Read');
+    const incrementalRows = withoutId(readEvents(a.connection, SID));
+    a.connection.closeDb();
+
+    // Cold import of the fully-completed file.
+    const b = await fresh();
+    const coldFile = join(TEST_ROOT, 'b4b-cold.jsonl');
+    writeFileSync(coldFile, [...truncated, emptyResult].join('\n'));
+    await b.importer.importTranscript(coldFile);
+    const coldBoundary = readEvents(b.connection, SID).find((r) => r.tool_name === 'Read');
+    const coldRows = withoutId(readEvents(b.connection, SID));
+    b.connection.closeDb();
+
+    assert.ok(boundaryAfter && coldBoundary);
+    assert.equal(boundaryAfter.duration_ms, 10000, 'the completed tool call has its real duration, not null');
+    assert.equal(boundaryAfter.duration_ms, coldBoundary.duration_ms);
+    assert.deepEqual(incrementalRows, coldRows, 'empty-output completion equals a cold import');
+  });
 });

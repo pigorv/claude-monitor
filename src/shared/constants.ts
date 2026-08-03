@@ -50,7 +50,7 @@ export interface Config {
 }
 
 /**
- * Pure config loader. Resolves all 5 env vars from the passed `env`, each
+ * Pure config loader. Resolves all 6 env vars from the passed `env`, each
  * falling back to today's default when unset. Relative path values resolve
  * against process.cwd(). Throws on an invalid CLAUDE_MONITOR_PORT.
  * CLAUDE_MONITOR_INCREMENTAL_IMPORT is off unless set to a truthy value.

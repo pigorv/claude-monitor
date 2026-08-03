@@ -546,6 +546,13 @@ interface IncrementalPlan {
  * length, and any appended tail diverges by count. `ilen`/`olen`/`tlen` come
  * from SQL `length()` on the stored side; the in-memory side mirrors them with
  * a code-point count (see recordSignature).
+ *
+ * `onull`/`dms`/`mlen` catch a tool_call_start that completes with EMPTY output:
+ * merge keeps the row's start timestamp and leaves `olen` at 0 (null → "" both
+ * length 0), so without these the completed row's now-set `duration_ms` and
+ * `metadata` (permission_status, tool_error) would be indistinguishable from the
+ * bare row and silently persist stale. All three are deterministic from the
+ * parse, so a byte-identical prefix still produces identical signatures.
  */
 function storedSignature(r: {
   event_type: string;
@@ -555,8 +562,14 @@ function storedSignature(r: {
   ilen: number;
   olen: number;
   tlen: number;
+  onull: number;
+  dms: number;
+  mlen: number;
 }): string {
-  return [r.event_type, r.agent_id ?? '', r.tool_name ?? '', r.timestamp, r.ilen, r.olen, r.tlen].join(' ');
+  return [
+    r.event_type, r.agent_id ?? '', r.tool_name ?? '', r.timestamp,
+    r.ilen, r.olen, r.tlen, r.onull, r.dms, r.mlen,
+  ].join(' ');
 }
 
 // SQLite `length(TEXT)` counts Unicode code points, but JS `String.length`
@@ -578,6 +591,9 @@ function recordSignature(r: Omit<Event, 'id'>): string {
     codePointLength(r.input_data),
     codePointLength(r.output_data),
     codePointLength(r.thinking_text),
+    r.output_data == null ? 1 : 0, // onull — distinguishes NULL output from ""
+    r.duration_ms ?? -1, // dms — a completing tool call sets this from null
+    codePointLength(r.metadata), // mlen — catches permission_status/tool_error/duration_ms
   ].join(' ');
 }
 
@@ -636,7 +652,10 @@ function computeIncrementalPlan(
       `SELECT sequence_num, event_type, agent_id, tool_name, timestamp,
               COALESCE(length(input_data),0) AS ilen,
               COALESCE(length(output_data),0) AS olen,
-              COALESCE(length(thinking_text),0) AS tlen
+              COALESCE(length(thinking_text),0) AS tlen,
+              CASE WHEN output_data IS NULL THEN 1 ELSE 0 END AS onull,
+              COALESCE(duration_ms,-1) AS dms,
+              COALESCE(length(metadata),0) AS mlen
        FROM events WHERE session_id = ? AND sequence_num < ? ORDER BY sequence_num ASC`,
     )
     .all(sessionId, parentCount) as {
@@ -648,6 +667,9 @@ function computeIncrementalPlan(
     ilen: number;
     olen: number;
     tlen: number;
+    onull: number;
+    dms: number;
+    mlen: number;
   }[];
   if (stored.length !== parentCount) return null;
 
@@ -682,7 +704,10 @@ function verifyAndHealParentRows(
       `SELECT event_type, agent_id, tool_name, timestamp,
               COALESCE(length(input_data),0) AS ilen,
               COALESCE(length(output_data),0) AS olen,
-              COALESCE(length(thinking_text),0) AS tlen
+              COALESCE(length(thinking_text),0) AS tlen,
+              CASE WHEN output_data IS NULL THEN 1 ELSE 0 END AS onull,
+              COALESCE(duration_ms,-1) AS dms,
+              COALESCE(length(metadata),0) AS mlen
        FROM events WHERE session_id = ? AND sequence_num < ? ORDER BY sequence_num ASC`,
     )
     .all(sessionId, newParentCount) as {
@@ -693,6 +718,9 @@ function verifyAndHealParentRows(
     ilen: number;
     olen: number;
     tlen: number;
+    onull: number;
+    dms: number;
+    mlen: number;
   }[];
 
   let diverged = stored.length !== newParentCount;
